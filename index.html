@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balderlaugh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1F2A;
+    --ink-2:#242A3A;
+    --ink-3:#323A50;
+    --parchment:#F2E9D8;
+    --parchment-2:#E7DAC0;
+    --fox:#C1521C;
+    --fox-2:#A6431590;
+    --moss:#4F6F52;
+    --gold:#D4A017;
+    --muted:#8891A6;
+    --text-light:#F5EFE2;
+    --text-dark:#26241D;
+    --danger:#B4443A;
+    --radius:14px;
+    --shadow: 0 8px 24px rgba(0,0,0,.28);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text-light);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;margin:0 0 .3em;letter-spacing:-.01em;}
+  .app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding:20px 18px 96px;}
+  .screen{display:none;flex:1;flex-direction:column;animation:fadein .25s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadein{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  .brand{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
+  .brand .mark{font-family:'Fraunces',serif;font-size:34px;font-weight:700;color:var(--fox);}
+  .brand .tag{color:var(--muted);font-size:13px;}
+  .subhead{color:var(--muted);font-size:14px;margin-bottom:22px;line-height:1.5;}
+
+  label{display:block;font-size:13px;color:var(--muted);margin:16px 0 6px;}
+  input[type=text],textarea,select{
+    width:100%;background:var(--ink-2);border:1px solid var(--ink-3);color:var(--text-light);
+    border-radius:10px;padding:12px 14px;font-size:16px;font-family:inherit;
+  }
+  input[type=text]:focus,textarea:focus,select:focus{outline:2px solid var(--fox);outline-offset:1px;}
+  textarea{resize:vertical;min-height:80px;line-height:1.4;}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--fox);color:#fff;border:none;border-radius:12px;
+    padding:14px 20px;font-size:16px;font-weight:600;font-family:'Inter',sans-serif;
+    cursor:pointer;width:100%;transition:transform .08s ease, filter .15s ease;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn:disabled{filter:grayscale(.6);opacity:.5;cursor:not-allowed;}
+  .btn.secondary{background:var(--ink-2);border:1px solid var(--ink-3);color:var(--text-light);}
+  .btn.ghost{background:transparent;border:1px solid var(--ink-3);color:var(--muted);}
+  .btn.small{padding:8px 12px;font-size:13px;width:auto;border-radius:9px;}
+  .btn.danger{background:var(--danger);}
+
+  .card{background:var(--ink-2);border:1px solid var(--ink-3);border-radius:var(--radius);padding:16px;margin-bottom:12px;}
+  .card.parchment{background:var(--parchment);color:var(--text-dark);}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .stack{display:flex;flex-direction:column;gap:10px;}
+
+  .lobby-list-item{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--ink-2);border:1px solid var(--ink-3);border-radius:12px;
+    padding:14px 16px;margin-bottom:10px;cursor:pointer;
+  }
+  .lobby-list-item:active{background:var(--ink-3);}
+  .lobby-list-item .name{font-weight:600;}
+  .lobby-list-item .meta{color:var(--muted);font-size:12px;margin-top:2px;}
+  .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:18px 0;}
+
+  .player-chip{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 12px;border-radius:10px;background:var(--ink-2);margin-bottom:6px;
+  }
+  .player-chip .who{display:flex;align-items:center;gap:8px;}
+  .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.02em;}
+  .badge.host{background:var(--gold);color:#3a2c00;}
+  .badge.you{background:var(--ink-3);color:var(--text-light);}
+  .score{font-variant-numeric:tabular-nums;font-weight:600;color:var(--fox);}
+
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid var(--ink-3);}
+  .toggle-row:last-child{border-bottom:none;}
+  .toggle-row .lbl{font-size:14px;}
+  .toggle-row .sub{color:var(--muted);font-size:11px;margin-top:2px;}
+  .switch{position:relative;width:42px;height:24px;flex:0 0 auto;}
+  .switch input{opacity:0;width:100%;height:100%;position:absolute;margin:0;cursor:pointer;z-index:1;}
+  .switch .track{position:absolute;inset:0;background:var(--ink-3);border-radius:20px;transition:background .15s;}
+  .switch .thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s;}
+  .switch input:checked ~ .track{background:var(--fox);}
+  .switch input:checked ~ .thumb{transform:translateX(18px);}
+  .switch input:disabled ~ .track{opacity:.35;}
+
+  .prompt-card{background:var(--parchment);color:var(--text-dark);border-radius:var(--radius);padding:26px 20px;text-align:center;margin-bottom:18px;}
+  .prompt-card .cat{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--fox);font-weight:700;margin-bottom:10px;}
+  .prompt-card .term{font-family:'Fraunces',serif;font-size:30px;font-weight:700;line-height:1.15;}
+
+  .timer{
+    text-align:center;font-variant-numeric:tabular-nums;font-family:'Fraunces',serif;
+    font-size:15px;color:var(--muted);margin-bottom:14px;
+  }
+  .timer.low{color:var(--danger);}
+
+  .sub-option{
+    background:var(--parchment);color:var(--text-dark);border-radius:12px;padding:14px 16px;
+    margin-bottom:10px;border:2px solid transparent;cursor:pointer;line-height:1.45;font-size:15px;
+  }
+  .sub-option:active{filter:brightness(.97);}
+  .sub-option.selected{border-color:var(--fox);}
+  .sub-option.disabled{cursor:default;opacity:.55;}
+  .sub-option .idx{font-weight:700;color:var(--fox);margin-right:6px;}
+  .sub-option .flags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .flag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;}
+  .flag.real{background:var(--moss);color:#fff;}
+  .flag.votes{background:var(--ink-3);color:var(--text-light);}
+  .flag.ccc{background:var(--gold);color:#3a2c00;}
+  .flag.csf{background:var(--fox);color:#fff;}
+  .flag.funniest{background:#7A4FA0;color:#fff;}
+  .flag.you{background:var(--parchment-2);color:var(--text-dark);}
+
+  .waiting{text-align:center;color:var(--muted);font-size:14px;padding:18px 0;}
+  .waiting .count{font-family:'Fraunces',serif;font-size:22px;color:var(--text-light);}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .topbar .code{font-family:'Fraunces',serif;font-size:13px;color:var(--muted);letter-spacing:.05em;}
+  .roundpill{font-size:11px;color:var(--muted);background:var(--ink-2);border:1px solid var(--ink-3);padding:4px 10px;border-radius:20px;}
+
+  .leader-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;background:var(--ink-2);margin-bottom:8px;}
+  .leader-row .rank{color:var(--muted);width:22px;font-family:'Fraunces',serif;}
+  .leader-row.first{background:linear-gradient(90deg, var(--ink-2), rgba(212,160,23,.12));border:1px solid var(--gold);}
+
+  .footer-actions{position:sticky;bottom:0;padding-top:14px;margin-top:auto;}
+  .note{font-size:12px;color:var(--muted);line-height:1.5;}
+  .err{color:var(--danger);font-size:13px;margin-top:8px;min-height:1em;}
+  a.linklike{color:var(--fox);cursor:pointer;text-decoration:underline;}
+  .center{text-align:center;}
+  .spacer{flex:1;}
+  .divider{height:1px;background:var(--ink-3);margin:18px 0;}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ============ HOME (name entry + open games) ============ -->
+  <section class="screen" id="screen-home">
+    <div class="brand"><span class="mark">Balderlaugh</span><span class="tag">bluff &amp; laugh</span></div>
+    <div class="subhead">Write a believable lie. Fool your friends. Score points for the ones who fall for it.</div>
+
+    <label for="input-name">Your name</label>
+    <input type="text" id="input-name" placeholder="e.g. Jamie" maxlength="24" autocomplete="off">
+
+    <div class="divider"></div>
+
+    <div class="row" style="margin-bottom:10px;">
+      <h3 style="margin:0;">Open games</h3>
+      <span class="roundpill" id="open-games-count">0</span>
+    </div>
+    <div id="open-games-list"></div>
+    <div class="empty-note" id="no-games-note">No games open right now — start one below.</div>
+
+    <div class="footer-actions stack">
+      <button class="btn" id="btn-create-game">Start a new game</button>
+      <div class="row" style="gap:8px;">
+        <input type="text" id="input-joincode" placeholder="Have a code?" maxlength="6" style="text-transform:uppercase;">
+        <button class="btn secondary small" id="btn-join-code">Join</button>
+      </div>
+    </div>
+    <div class="err" id="home-err"></div>
+  </section>
+
+  <!-- ============ LOBBY ============ -->
+  <section class="screen" id="screen-lobby">
+    <div class="topbar">
+      <div>
+        <h2 id="lobby-title" style="margin-bottom:2px;">Jamie's Game</h2>
+        <div class="code">CODE <span id="lobby-code">------</span></div>
+      </div>
+      <button class="btn ghost small" id="btn-leave-lobby">Leave</button>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:8px;"><strong>Players</strong><span class="roundpill" id="lobby-player-count">0</span></div>
+      <div id="lobby-player-list" class="stack"></div>
+    </div>
+
+    <div class="card" id="host-settings-card">
+      <strong>Game settings</strong>
+      <label>Rounds</label>
+      <select id="setting-rounds">
+        <option value="4">4 rounds</option>
+        <option value="6" selected>6 rounds</option>
+        <option value="8">8 rounds</option>
+        <option value="12">12 rounds</option>
+      </select>
+
+      <label>Categories in the mix</label>
+      <div class="stack" style="gap:4px;">
+        <label class="row" style="margin:4px 0;"><span>Odd Words</span><input type="checkbox" id="cat-oddWords" checked></label>
+        <label class="row" style="margin:4px 0;"><span>Obscure People</span><input type="checkbox" id="cat-obscurePeople" checked></label>
+        <label class="row" style="margin:4px 0;"><span>That's Really a Movie?</span><input type="checkbox" id="cat-movies" checked></label>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="toggle-row">
+        <div><div class="lbl">Crowd funniest vote</div><div class="sub">Everyone also votes for the funniest bluff — bragging rights only</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-crowdFunny" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">CCC — free-guess bonus</div><div class="sub">Coming soon — needs the Claude judge Cloud Function</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-ccc" disabled><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Coming soon — needs the Claude judge Cloud Function</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-csf" disabled><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">Include Claude</div><div class="sub">Coming soon — Claude writes its own bluff each round</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-includeClaude" disabled><span class="track"></span><span class="thumb"></span></label>
+      </div>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn" id="btn-start-game">Start game</button>
+      <div class="err" id="lobby-err"></div>
+      <div class="note center" id="lobby-wait-note">Waiting for the host to start&hellip;</div>
+    </div>
+  </section>
+
+  <!-- ============ WRITING ============ -->
+  <section class="screen" id="screen-writing">
+    <div class="topbar">
+      <span class="roundpill" id="writing-round-pill">Round 1 of 6</span>
+      <button class="btn ghost small" id="btn-transfer-open-writing" style="display:none;">Host</button>
+    </div>
+    <div class="prompt-card">
+      <div class="cat" id="writing-cat">ODD WORDS</div>
+      <div class="term" id="writing-term">Fudgel</div>
+    </div>
+    <div class="timer" id="writing-timer">1:30</div>
+
+    <div id="writing-input-area">
+      <label id="writing-label" for="writing-textarea">Write a believable definition</label>
+      <textarea id="writing-textarea" maxlength="220" placeholder="Make it sound real..."></textarea>
+      <button class="btn" id="btn-submit-bluff" style="margin-top:14px;">Submit bluff</button>
+    </div>
+    <div id="writing-submitted" style="display:none;">
+      <div class="waiting">
+        <div>Nice bluff. Waiting on everyone else&hellip;</div>
+        <div class="count" id="writing-count">0 / 0</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VOTING ============ -->
+  <section class="screen" id="screen-voting">
+    <div class="topbar">
+      <span class="roundpill" id="voting-round-pill">Round 1 of 6</span>
+    </div>
+    <div class="prompt-card">
+      <div class="cat" id="voting-cat">ODD WORDS</div>
+      <div class="term" id="voting-term">Fudgel</div>
+    </div>
+    <div class="timer" id="voting-timer">1:00</div>
+
+    <div id="voting-real-section">
+      <h3 style="font-size:16px;">Which one is the real definition?</h3>
+      <div id="voting-real-list"></div>
+    </div>
+
+    <div id="voting-funny-section" style="display:none;">
+      <div class="divider"></div>
+      <h3 style="font-size:16px;">Which one made you laugh hardest?</h3>
+      <div id="voting-funny-list"></div>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn" id="btn-submit-votes" disabled>Submit votes</button>
+      <div class="waiting" id="voting-waiting" style="display:none;">
+        <div>Votes in. Waiting on everyone else&hellip;</div>
+        <div class="count" id="voting-count">0 / 0</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REVEAL ============ -->
+  <section class="screen" id="screen-reveal">
+    <div class="topbar">
+      <span class="roundpill" id="reveal-round-pill">Round 1 of 6</span>
+    </div>
+    <div class="prompt-card">
+      <div class="cat" id="reveal-cat">ODD WORDS</div>
+      <div class="term" id="reveal-term">Fudgel</div>
+    </div>
+    <div id="reveal-list"></div>
+
+    <div class="divider"></div>
+    <h3 style="font-size:16px;">Standings</h3>
+    <div id="reveal-standings"></div>
+
+    <div class="footer-actions">
+      <button class="btn" id="btn-next-round">Next round</button>
+      <div class="note center" id="reveal-wait-note" style="display:none;">Waiting for the host to continue&hellip;</div>
+    </div>
+  </section>
+
+  <!-- ============ GAME OVER ============ -->
+  <section class="screen" id="screen-gameover">
+    <div class="center" style="margin-bottom:6px;">
+      <div class="cat" style="color:var(--gold);font-weight:700;font-size:12px;letter-spacing:.08em;">GAME OVER</div>
+      <h1 style="font-size:30px;">Final scores</h1>
+    </div>
+    <div id="gameover-standings"></div>
+    <div class="footer-actions">
+      <button class="btn" id="btn-play-again">Back to lobby</button>
+      <button class="btn ghost" id="btn-gameover-home" style="margin-top:10px;">Leave to home</button>
+    </div>
+  </section>
+
+</div>
+
+<script type="module">
+/* =========================================================================
+   BALDERLAUGH — single-file client
+   Firestore is used wide open (no auth), same pattern as the cottage's
+   other tools (e.g. the Low-or-Out list): anyone with the page can read
+   and write. Fine for a trusted group of players in one room.
+
+   KNOWN LIMITATION: because there's no backend gate, a player who opens
+   devtools during "writing" could theoretically peek at round data early.
+   The real answer text is only written to Firestore at the moment the
+   reveal phase begins (not before), which limits that window, but it's
+   not airtight. Good enough for a living-room crowd; revisit if it
+   becomes a problem (the same Cloud Function planned for CCC/CSF could
+   also gate this).
+   ========================================================================= */
+
+// ---- 1. FIREBASE CONFIG ---------------------------------------------------
+// Paste your Firebase project config here (create a new project, or reuse
+// an existing one — just keep the Firestore collection name below unique
+// so it doesn't collide with e.g. cottagerestocklist's own collections).
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+  collection, query, where, orderBy, limit, serverTimestamp, deleteField
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "PASTE_ME",
+  authDomain: "PASTE_ME.firebaseapp.com",
+  projectId: "PASTE_ME",
+  storageBucket: "PASTE_ME.appspot.com",
+  messagingSenderId: "PASTE_ME",
+  appId: "PASTE_ME"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const GAMES = "balderlaugh_games";
+
+// ---- 2. DATA BANK -----------------------------------------------------
+// Expand these freely — id must stay unique within its category.
+const DATA_BANK = {
+  oddWords: [
+    { id:"fudgel", term:"Fudgel", real:"The act of pretending to work while actually doing nothing." },
+    { id:"quockerwodger", term:"Quockerwodger", real:"A wooden puppet controlled by strings; figuratively, a politician controlled by others." },
+    { id:"snollygoster", term:"Snollygoster", real:"A shrewd, unprincipled person, especially a politician." },
+    { id:"ultracrepidarian", term:"Ultracrepidarian", real:"A person who gives opinions on matters outside their knowledge or expertise." },
+    { id:"cacoethes", term:"Cacoethes", real:"An irresistible urge to do something inadvisable." },
+    { id:"gongoozler", term:"Gongoozler", real:"A person who enjoys idly watching activity on a canal." },
+    { id:"deipnosophist", term:"Deipnosophist", real:"A person skilled at dinner-table conversation." },
+    { id:"absquatulate", term:"Absquatulate", real:"To leave abruptly or flee, often to avoid trouble." },
+    { id:"nudiustertian", term:"Nudiustertian", real:"Relating to the day before yesterday." },
+    { id:"zenzizenzizenzic", term:"Zenzizenzizenzic", real:"An obsolete term for the eighth power of a number." }
+  ],
+  obscurePeople: [
+    { id:"semmelweis", term:"Ignaz Semmelweis", real:"Hungarian physician who discovered handwashing prevented childbed fever; was mocked and institutionalized in his lifetime, later vindicated." },
+    { id:"anning", term:"Mary Anning", real:"Self-taught 19th-century fossil hunter whose finds shaped early paleontology, though she was denied credit as a woman." },
+    { id:"vavilov", term:"Nikolai Vavilov", real:"Soviet botanist who built one of the world's first seed banks and died of starvation in a Soviet prison rather than eat the seeds he'd preserved." },
+    { id:"wojtek", term:"Wojtek the Bear", real:"A Syrian brown bear adopted by Polish soldiers in WWII, officially enlisted and promoted to corporal for carrying ammunition." },
+    { id:"lacks", term:"Henrietta Lacks", real:"Her cancer cells, taken without consent in 1951, became the 'HeLa' line still used worldwide in medical research." },
+    { id:"warne", term:"Kate Warne", real:"America's first female detective, credited with helping foil an 1861 assassination plot against Abraham Lincoln." },
+    { id:"chingshih", term:"Ching Shih", real:"Early 19th-century Chinese pirate leader who commanded a fleet of hundreds of ships and negotiated amnesty from the government." },
+    { id:"midgley", term:"Thomas Midgley Jr.", real:"Chemist/inventor who developed both leaded gasoline and CFCs — often cited as having done more atmospheric harm than any other individual." },
+    { id:"ludington", term:"Sybil Ludington", real:"Teenage rider often compared to Paul Revere for a 1777 overnight ride warning of a British raid (historical details are disputed)." },
+    { id:"stevens", term:"Nettie Stevens", real:"Geneticist whose 1905 research identified the chromosomal basis of sex determination, often overshadowed by a male contemporary." }
+  ],
+  movies: [
+    { id:"kungfury", term:"Kung Fury (2015)", real:"A Miami cop with martial-arts powers travels back in time to team up with Norse gods and kill Hitler, the worst Kung Fu fighter in the world." },
+    { id:"troll2", term:"Troll 2 (1990)", real:"A family vacationing in a town called Nilbog discovers it's secretly inhabited by vegetarian goblins who turn people into plants to eat them." },
+    { id:"birdemic", term:"Birdemic: Shock and Terror (2010)", real:"Eagles and vultures inexplicably start attacking a small California town, framed around a budding romance and environmental messaging." },
+    { id:"roar", term:"Roar (1981)", real:"A family moves to an African-style compound populated by over 100 untrained lions, tigers, and other big cats, leading to chaotic mayhem." },
+    { id:"miamiconnection", term:"Miami Connection (1987)", real:"A synth-rock band of orphaned taekwondo experts battles a motorcycle gang of ninja drug dealers." },
+    { id:"theapple", term:"The Apple (1980)", real:"A sci-fi rock musical set in a dystopian future where a totalitarian entertainment company controls the world via a mandatory chip called BIM." },
+    { id:"nukie", term:"Nukie (1987)", real:"Two alien brothers crash-land on Earth and are separated; one is captured by scientists while the other tries to rescue him." },
+    { id:"samuraicop", term:"Samurai Cop (1991)", real:"An LA police officer trained in Japan is brought in to take down a yakuza crime syndicate." },
+    { id:"surfnazis", term:"Surf Nazis Must Die (1987)", real:"In a post-apocalyptic LA, a gang of surfer neo-Nazis terrorizes the beach until a mother seeks revenge for her son's murder." },
+    { id:"theroom", term:"The Room (2003)", real:"A man's fiancée has an affair with his best friend, triggering his slow unraveling." }
+  ]
+};
+const CAT_LABEL = { oddWords:"Odd Words", obscurePeople:"Obscure People", movies:"That's Really a Movie?" };
+const WRITING_SECONDS = 90;
+const VOTING_SECONDS  = 60;
+
+// ---- 3. IDENTITY --------------------------------------------------------
+function uuid(){ return 'xxxxxxxx-xxxx'.replace(/x/g, () => (Math.random()*16|0).toString(16)); }
+let myUid = localStorage.getItem('balderlaugh_uid');
+if(!myUid){ myUid = uuid(); localStorage.setItem('balderlaugh_uid', myUid); }
+let myName = localStorage.getItem('balderlaugh_name') || '';
+
+// ---- 4. STATE -------------------------------------------------------------
+let currentGameCode = null;
+let unsubGame = null;
+let unsubOpenGames = null;
+let game = null; // live game doc data
+let lastPhaseKey = null; // to detect phase transitions client-side
+let timerInterval = null;
+
+// ---- 5. HELPERS -------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+function genCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c = '';
+  for(let i=0;i<5;i++) c += chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+function isHost(){ return game && game.hostUid === myUid; }
+function fmtTime(ms){
+  const s = Math.max(0, Math.ceil(ms/1000));
+  const m = Math.floor(s/60), r = s%60;
+  return `${m}:${String(r).padStart(2,'0')}`;
+}
+// deterministic-ish shuffle using a numeric seed so every client renders
+// the same order once shuffleOrder is written to the game doc.
+function seededShuffle(arr, seed){
+  const a = [...arr];
+  let s = seed;
+  for(let i=a.length-1;i>0;i--){
+    s = (s * 9301 + 49297) % 233280;
+    const j = Math.floor((s/233280) * (i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+// ---- 6. HOME SCREEN ---------------------------------------------------------
+function initHome(){
+  $('input-name').value = myName;
+  $('input-name').addEventListener('input', e => {
+    myName = e.target.value;
+    localStorage.setItem('balderlaugh_name', myName);
+  });
+
+  $('btn-create-game').onclick = async () => {
+    const name = myName.trim();
+    if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
+    $('home-err').textContent = '';
+    const code = genCode();
+    await setDoc(doc(db, GAMES, code), {
+      hostUid: myUid,
+      hostName: name,
+      status: 'lobby',
+      createdAt: serverTimestamp(),
+      settings: { numRounds:6, categories:['oddWords','obscurePeople','movies'], crowdFunny:true, ccc:false, csf:false, includeClaude:false },
+      players: { [myUid]: { name, score:0 } },
+      usedItemIds: [],
+      round: null
+    });
+    joinGame(code);
+  };
+
+  $('btn-join-code').onclick = () => {
+    const code = $('input-joincode').value.trim().toUpperCase();
+    if(!code){ return; }
+    joinGame(code);
+  };
+
+  listenOpenGames();
+}
+function listenOpenGames(){
+  if(unsubOpenGames) unsubOpenGames();
+  const q = query(collection(db, GAMES), where('status','==','lobby'), orderBy('createdAt','desc'), limit(15));
+  unsubOpenGames = onSnapshot(q, snap => {
+    const list = $('open-games-list');
+    list.innerHTML = '';
+    $('open-games-count').textContent = snap.size;
+    $('no-games-note').style.display = snap.size ? 'none' : 'block';
+    snap.forEach(d => {
+      const g = d.data();
+      const count = Object.keys(g.players||{}).length;
+      const el = document.createElement('div');
+      el.className = 'lobby-list-item';
+      el.innerHTML = `<div><div class="name">${escapeHtml(g.hostName)}'s Game</div><div class="meta">${count} player${count===1?'':'s'} · code ${d.id}</div></div><span>&rarr;</span>`;
+      el.onclick = () => {
+        const name = myName.trim();
+        if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
+        joinGame(d.id);
+      };
+      list.appendChild(el);
+    });
+  }, err => { console.error(err); });
+}
+function escapeHtml(s){
+  const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+
+async function joinGame(code){
+  const snap = await getDoc(doc(db, GAMES, code));
+  if(!snap.exists()){ $('home-err').textContent = 'No game with that code.'; return; }
+  const name = myName.trim() || 'Player';
+  const g = snap.data();
+  if(!g.players || !g.players[myUid]){
+    await updateDoc(doc(db, GAMES, code), { [`players.${myUid}`]: { name, score:0 } });
+  }
+  currentGameCode = code;
+  attachGameListener(code);
+}
+
+// ---- 7. GAME LISTENER + ROUTER --------------------------------------------
+function attachGameListener(code){
+  if(unsubGame) unsubGame();
+  if(unsubOpenGames) unsubOpenGames();
+  unsubGame = onSnapshot(doc(db, GAMES, code), snap => {
+    if(!snap.exists()){ leaveToHome(); return; }
+    game = snap.data();
+    route();
+  });
+}
+function leaveToHome(){
+  if(unsubGame) unsubGame();
+  clearInterval(timerInterval);
+  currentGameCode = null; game = null; lastPhaseKey = null;
+  showScreen('screen-home');
+  listenOpenGames();
+}
+
+function route(){
+  if(game.status === 'lobby'){ renderLobby(); showScreen('screen-lobby'); return; }
+  if(game.status === 'ended'){ renderGameOver(); showScreen('screen-gameover'); return; }
+  if(game.status === 'playing' && game.round){
+    const phase = game.round.phase;
+    const phaseKey = `${game.round.index}-${phase}`;
+    const isNewPhase = phaseKey !== lastPhaseKey;
+    lastPhaseKey = phaseKey;
+    if(phase === 'writing'){ renderWriting(isNewPhase); showScreen('screen-writing'); }
+    else if(phase === 'voting'){ renderVoting(isNewPhase); showScreen('screen-voting'); }
+    else if(phase === 'reveal'){ renderReveal(isNewPhase); showScreen('screen-reveal'); }
+  }
+}
+
+// ---- 8. LOBBY ---------------------------------------------------------------
+function renderLobby(){
+  $('lobby-title').textContent = `${game.hostName}'s Game`;
+  $('lobby-code').textContent = currentGameCode;
+  const players = game.players || {};
+  const uids = Object.keys(players);
+  $('lobby-player-count').textContent = uids.length;
+
+  const list = $('lobby-player-list');
+  list.innerHTML = '';
+  uids.forEach(uid => {
+    const p = players[uid];
+    const chip = document.createElement('div');
+    chip.className = 'player-chip';
+    let badges = '';
+    if(uid === game.hostUid) badges += `<span class="badge host">HOST</span>`;
+    if(uid === myUid) badges += `<span class="badge you">YOU</span>`;
+    chip.innerHTML = `<div class="who"><span>${escapeHtml(p.name)}</span>${badges}</div>`;
+    if(isHost() && uid !== myUid){
+      const btn = document.createElement('button');
+      btn.className = 'btn ghost small';
+      btn.textContent = 'Make host';
+      btn.onclick = () => updateDoc(doc(db, GAMES, currentGameCode), { hostUid: uid });
+      chip.appendChild(btn);
+    }
+    list.appendChild(chip);
+  });
+
+  const hostCard = $('host-settings-card');
+  hostCard.style.display = isHost() ? 'block' : 'none';
+  $('btn-start-game').style.display = isHost() ? 'block' : 'none';
+  $('lobby-wait-note').style.display = isHost() ? 'none' : 'block';
+
+  $('btn-leave-lobby').onclick = async () => {
+    await updateDoc(doc(db, GAMES, currentGameCode), { [`players.${myUid}`]: deleteField() });
+    leaveToHome();
+  };
+
+  if(isHost()){
+    $('btn-start-game').onclick = startGame;
+  }
+}
+
+async function startGame(){
+  const numRounds = parseInt($('setting-rounds').value, 10);
+  const categories = ['oddWords','obscurePeople','movies'].filter(c => $(`cat-${c}`).checked);
+  if(categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
+  if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
+  const settings = {
+    numRounds, categories,
+    crowdFunny: $('toggle-crowdFunny').checked,
+    ccc: false, csf: false, includeClaude: false // gated until the Cloud Function judge exists
+  };
+  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing' });
+  await beginRound(0, categories, []);
+}
+
+async function beginRound(index, categories, usedIds){
+  const cat = categories[index % categories.length];
+  const pool = DATA_BANK[cat].filter(item => !usedIds.includes(item.id));
+  const bank = pool.length ? pool : DATA_BANK[cat]; // reshuffle in if exhausted
+  const item = bank[Math.floor(Math.random()*bank.length)];
+  const phaseEndsAt = Date.now() + WRITING_SECONDS*1000;
+  await updateDoc(doc(db, GAMES, currentGameCode), {
+    usedItemIds: [...usedIds, item.id],
+    round: {
+      index, category: cat, itemId: item.id, term: item.term,
+      phase: 'writing', phaseEndsAt,
+      submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false
+    }
+  });
+}
+
+// ---- 9. WRITING ---------------------------------------------------------
+function renderWriting(isNew){
+  const r = game.round;
+  $('writing-round-pill').textContent = `Round ${r.index+1} of ${game.settings.numRounds}`;
+  $('writing-cat').textContent = CAT_LABEL[r.category];
+  $('writing-term').textContent = r.term;
+
+  const already = r.submissions && r.submissions[myUid];
+  $('writing-input-area').style.display = already ? 'none' : 'block';
+  $('writing-submitted').style.display = already ? 'block' : 'none';
+
+  const submittedCount = Object.keys(r.submissions||{}).length;
+  const playerCount = Object.keys(game.players||{}).length;
+  $('writing-count').textContent = `${submittedCount} / ${playerCount}`;
+
+  if(isNew) $('writing-textarea').value = '';
+
+  $('btn-submit-bluff').onclick = async () => {
+    const text = $('writing-textarea').value.trim();
+    if(!text) return;
+    await updateDoc(doc(db, GAMES, currentGameCode), {
+      [`round.submissions.${myUid}`]: { text, author: myUid }
+    });
+  };
+
+  runTimer('writing-timer', r.phaseEndsAt, () => {
+    if(isHost()) maybeAdvanceFromWriting();
+  });
+
+  // host: auto-advance the moment everyone's in
+  if(isHost() && submittedCount >= playerCount && playerCount > 0){
+    maybeAdvanceFromWriting();
+  }
+}
+let advancing = false;
+async function maybeAdvanceFromWriting(){
+  if(advancing) return;
+  advancing = true;
+  try{
+    const r = game.round;
+    if(r.phase !== 'writing') return;
+    const ids = Object.keys(r.submissions||{});
+    const order = seededShuffle([...ids, 'REAL'], Date.now());
+    await updateDoc(doc(db, GAMES, currentGameCode), {
+      'round.phase':'voting',
+      'round.phaseEndsAt': Date.now() + VOTING_SECONDS*1000,
+      'round.shuffleOrder': order
+    });
+  } finally { advancing = false; }
+}
+
+// ---- 10. VOTING ---------------------------------------------------------
+function renderVoting(isNew){
+  const r = game.round;
+  $('voting-round-pill').textContent = `Round ${r.index+1} of ${game.settings.numRounds}`;
+  $('voting-cat').textContent = CAT_LABEL[r.category];
+  $('voting-term').textContent = r.term;
+
+  const order = r.shuffleOrder || [];
+  const item = DATA_BANK[r.category].find(x => x.id === r.itemId);
+
+  let selectedReal = null, selectedFunny = null;
+  const existingVote = r.votes && r.votes[myUid];
+  if(existingVote){ selectedReal = existingVote.real; selectedFunny = existingVote.funny; }
+
+  function buildList(container, mode, excludeOwn){
+    container.innerHTML = '';
+    order.forEach((id, i) => {
+      const isReal = id === 'REAL';
+      const text = isReal ? item.real : (r.submissions[id] ? r.submissions[id].text : '');
+      const isMine = id === myUid;
+      const div = document.createElement('div');
+      div.className = 'sub-option';
+      const disabled = mode==='real' ? (isMine) : (isMine);
+      if(disabled) div.classList.add('disabled');
+      div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
+      if(isMine){
+        const f = document.createElement('div'); f.className='flags';
+        f.innerHTML = `<span class="flag you">YOURS</span>`;
+        div.appendChild(f);
+      }
+      if(!disabled){
+        div.onclick = () => {
+          container.querySelectorAll('.sub-option').forEach(o => o.classList.remove('selected'));
+          div.classList.add('selected');
+          if(mode==='real') selectedReal = id; else selectedFunny = id;
+          updateSubmitEnabled();
+        };
+        if((mode==='real' && selectedReal===id) || (mode==='funny' && selectedFunny===id)) div.classList.add('selected');
+      }
+      container.appendChild(div);
+    });
+  }
+  buildList($('voting-real-list'), 'real');
+  $('voting-funny-section').style.display = game.settings.crowdFunny ? 'block' : 'none';
+  if(game.settings.crowdFunny) buildList($('voting-funny-list'), 'funny');
+
+  function updateSubmitEnabled(){
+    const need = game.settings.crowdFunny ? (selectedReal && selectedFunny) : selectedReal;
+    $('btn-submit-votes').disabled = !need;
+  }
+  updateSubmitEnabled();
+
+  const already = !!existingVote;
+  $('voting-real-section').style.display = already ? 'none' : 'block';
+  $('voting-funny-section').style.display = (already || !game.settings.crowdFunny) ? 'none' : 'block';
+  $('btn-submit-votes').style.display = already ? 'none' : 'block';
+  $('voting-waiting').style.display = already ? 'block' : 'none';
+
+  const votedCount = Object.keys(r.votes||{}).length;
+  const playerCount = Object.keys(game.players||{}).length;
+  $('voting-count').textContent = `${votedCount} / ${playerCount}`;
+
+  $('btn-submit-votes').onclick = async () => {
+    const payload = { real: selectedReal };
+    if(game.settings.crowdFunny) payload.funny = selectedFunny;
+    await updateDoc(doc(db, GAMES, currentGameCode), { [`round.votes.${myUid}`]: payload });
+  };
+
+  runTimer('voting-timer', r.phaseEndsAt, () => {
+    if(isHost()) maybeAdvanceFromVoting();
+  });
+  if(isHost() && votedCount >= playerCount && playerCount > 0){
+    maybeAdvanceFromVoting();
+  }
+}
+
+async function maybeAdvanceFromVoting(){
+  if(advancing) return;
+  advancing = true;
+  try{
+    const r = game.round;
+    if(r.phase !== 'voting') return;
+    const item = DATA_BANK[r.category].find(x => x.id === r.itemId);
+    const scored = computeScores(r, game.players);
+    await updateDoc(doc(db, GAMES, currentGameCode), {
+      'round.phase':'reveal',
+      'round.answerText': item.real,
+      'round.scored': true,
+      players: scored.players,
+      [`round.scoreDeltas`]: scored.deltas,
+      [`round.funniestId`]: scored.funniestId
+    });
+  } finally { advancing = false; }
+}
+
+function computeScores(r, players){
+  const updated = JSON.parse(JSON.stringify(players));
+  const deltas = {};
+  Object.keys(updated).forEach(uid => deltas[uid] = 0);
+
+  Object.entries(r.votes||{}).forEach(([voterUid, v]) => {
+    if(v.real === 'REAL' && updated[voterUid]){
+      updated[voterUid].score += 2;
+      deltas[voterUid] = (deltas[voterUid]||0) + 2;
+    } else if(v.real && r.submissions[v.real]){
+      const authorUid = r.submissions[v.real].author;
+      if(updated[authorUid]){
+        updated[authorUid].score += 1;
+        deltas[authorUid] = (deltas[authorUid]||0) + 1;
+      }
+    }
+  });
+
+  let funniestId = null;
+  if(r.votes){
+    const tally = {};
+    Object.values(r.votes).forEach(v => { if(v.funny){ tally[v.funny] = (tally[v.funny]||0)+1; } });
+    let max = 0;
+    Object.entries(tally).forEach(([id,count]) => { if(count>max){ max=count; funniestId=id; } });
+  }
+  return { players: updated, deltas, funniestId };
+}
+
+// ---- 11. REVEAL ---------------------------------------------------------
+function renderReveal(isNew){
+  const r = game.round;
+  $('reveal-round-pill').textContent = `Round ${r.index+1} of ${game.settings.numRounds}`;
+  $('reveal-cat').textContent = CAT_LABEL[r.category];
+  $('reveal-term').textContent = r.term;
+
+  const order = r.shuffleOrder || [];
+  const voteTally = {};
+  Object.values(r.votes||{}).forEach(v => { if(v.real) voteTally[v.real] = (voteTally[v.real]||0)+1; });
+
+  const list = $('reveal-list');
+  list.innerHTML = '';
+  order.forEach((id, i) => {
+    const isReal = id === 'REAL';
+    const text = isReal ? r.answerText : (r.submissions[id] ? r.submissions[id].text : '');
+    const authorName = isReal ? null : (game.players[r.submissions[id]?.author]?.name || '—');
+    const div = document.createElement('div');
+    div.className = 'sub-option disabled';
+    if(isReal) div.style.border = '2px solid var(--moss)';
+    div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
+    const flags = document.createElement('div'); flags.className='flags';
+    if(isReal) flags.innerHTML += `<span class="flag real">REAL ANSWER</span>`;
+    else flags.innerHTML += `<span class="flag votes">by ${escapeHtml(authorName)}</span>`;
+    const votes = voteTally[id] || 0;
+    if(votes>0) flags.innerHTML += `<span class="flag votes">${votes} vote${votes===1?'':'s'}</span>`;
+    if(game.settings.crowdFunny && r.funniestId === id) flags.innerHTML += `<span class="flag funniest">😂 funniest</span>`;
+    div.appendChild(flags);
+    list.appendChild(div);
+  });
+
+  const standings = $('reveal-standings');
+  standings.innerHTML = '';
+  const sorted = Object.entries(game.players).sort((a,b) => b[1].score - a[1].score);
+  sorted.forEach(([uid,p], i) => {
+    const row = document.createElement('div');
+    row.className = 'leader-row' + (i===0 ? ' first':'');
+    const delta = (r.scoreDeltas && r.scoreDeltas[uid]) || 0;
+    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;">${escapeHtml(p.name)}</span><span class="score">${p.score}${delta>0?` <span style="color:var(--moss);font-size:12px;">+${delta}</span>`:''}</span>`;
+    standings.appendChild(row);
+  });
+
+  $('btn-next-round').style.display = isHost() ? 'block' : 'none';
+  $('reveal-wait-note').style.display = isHost() ? 'none' : 'block';
+  $('btn-next-round').onclick = async () => {
+    const nextIndex = r.index + 1;
+    if(nextIndex >= game.settings.numRounds){
+      await updateDoc(doc(db, GAMES, currentGameCode), { status:'ended' });
+    } else {
+      await beginRound(nextIndex, game.settings.categories, game.usedItemIds||[]);
+    }
+  };
+}
+
+// ---- 12. GAME OVER ---------------------------------------------------------
+function renderGameOver(){
+  const standings = $('gameover-standings');
+  standings.innerHTML = '';
+  const sorted = Object.entries(game.players).sort((a,b) => b[1].score - a[1].score);
+  sorted.forEach(([uid,p], i) => {
+    const row = document.createElement('div');
+    row.className = 'leader-row' + (i===0 ? ' first':'');
+    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;">${escapeHtml(p.name)}${i===0?' 👑':''}</span><span class="score">${p.score}</span>`;
+    standings.appendChild(row);
+  });
+  $('btn-play-again').style.display = isHost() ? 'block' : 'none';
+  $('btn-play-again').onclick = async () => {
+    const resetPlayers = {};
+    Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0 }; });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedItemIds: [] });
+  };
+  $('btn-gameover-home').onclick = leaveToHome;
+}
+
+// ---- 13. TIMER --------------------------------------------------------------
+function runTimer(elId, endsAt, onExpire){
+  clearInterval(timerInterval);
+  const el = $(elId);
+  function tick(){
+    const remaining = endsAt - Date.now();
+    el.textContent = fmtTime(remaining);
+    el.classList.toggle('low', remaining < 15000);
+    if(remaining <= 0){
+      clearInterval(timerInterval);
+      onExpire();
+    }
+  }
+  tick();
+  timerInterval = setInterval(tick, 250);
+}
+
+// ---- 14. BOOT ---------------------------------------------------------------
+initHome();
+showScreen('screen-home');
+</script>
+</body>
+</html>
