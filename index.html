@@ -156,6 +156,16 @@
 <body>
 <div class="app" id="app">
 
+  <!-- ============ LOADING / RESUME ============ -->
+  <section class="screen active" id="screen-loading">
+    <div class="spacer"></div>
+    <div class="center">
+      <div class="cat" style="color:var(--muted);font-weight:700;font-size:12px;letter-spacing:.08em;">BALDERLAUGH</div>
+      <div class="timer" id="loading-message" style="font-size:16px;margin-top:8px;">Reconnecting&hellip;</div>
+    </div>
+    <div class="spacer"></div>
+  </section>
+
   <!-- ============ HOME (name entry + open games) ============ -->
   <section class="screen" id="screen-home">
     <div class="brand"><span class="mark">Balderlaugh</span><span class="tag">bluff &amp; laugh</span></div>
@@ -246,7 +256,10 @@
   <section class="screen" id="screen-writing">
     <div class="topbar">
       <span class="roundpill" id="writing-round-pill">Round 1 of 6</span>
-      <button class="btn ghost small" id="btn-transfer-open-writing" style="display:none;">Host</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn ghost small" id="btn-sitout-writing">Sit out</button>
+        <button class="btn ghost small" id="btn-leave-writing">Leave</button>
+      </div>
     </div>
     <div class="prompt-card">
       <div class="cat" id="writing-cat">ODD WORDS</div>
@@ -261,9 +274,13 @@
     </div>
     <div id="writing-submitted" style="display:none;">
       <div class="waiting">
-        <div>Nice bluff. Waiting on everyone else&hellip;</div>
+        <div id="writing-submitted-msg">Nice bluff. Waiting on everyone else&hellip;</div>
         <div class="count" id="writing-count">0 / 0</div>
       </div>
+    </div>
+    <div id="writing-sitting-out" class="card" style="display:none;text-align:center;">
+      <div style="margin-bottom:10px;">You're sitting this round out — everyone else can still play without waiting on you.</div>
+      <button class="btn secondary" id="btn-jointhisround-writing">Join this round</button>
     </div>
   </section>
 
@@ -271,6 +288,10 @@
   <section class="screen" id="screen-voting">
     <div class="topbar">
       <span class="roundpill" id="voting-round-pill">Round 1 of 6</span>
+      <div style="display:flex;gap:6px;">
+        <button class="btn ghost small" id="btn-sitout-voting">Sit out</button>
+        <button class="btn ghost small" id="btn-leave-voting">Leave</button>
+      </div>
     </div>
     <div class="prompt-card">
       <div class="cat" id="voting-cat">ODD WORDS</div>
@@ -289,6 +310,11 @@
       <div id="voting-funny-list"></div>
     </div>
 
+    <div id="voting-sitting-out" class="card" style="display:none;text-align:center;">
+      <div style="margin-bottom:10px;">You're sitting this round out — everyone else can still play without waiting on you.</div>
+      <button class="btn secondary" id="btn-jointhisround-voting">Join this round</button>
+    </div>
+
     <div class="footer-actions">
       <button class="btn" id="btn-submit-votes" disabled>Submit votes</button>
       <div class="waiting" id="voting-waiting" style="display:none;">
@@ -302,6 +328,10 @@
   <section class="screen" id="screen-reveal">
     <div class="topbar">
       <span class="roundpill" id="reveal-round-pill">Round 1 of 6</span>
+      <div style="display:flex;gap:6px;">
+        <button class="btn ghost small" id="btn-sitout-reveal">Sit out next round</button>
+        <button class="btn ghost small" id="btn-leave-reveal">Leave</button>
+      </div>
     </div>
     <div class="prompt-card">
       <div class="cat" id="reveal-cat">ODD WORDS</div>
@@ -341,13 +371,16 @@
    other tools (e.g. the Low-or-Out list): anyone with the page can read
    and write. Fine for a trusted group of players in one room.
 
-   KNOWN LIMITATION: because there's no backend gate, a player who opens
-   devtools during "writing" could theoretically peek at round data early.
-   The real answer text is only written to Firestore at the moment the
-   reveal phase begins (not before), which limits that window, but it's
-   not airtight. Good enough for a living-room crowd; revisit if it
-   becomes a problem (the same Cloud Function planned for CCC/CSF could
-   also gate this).
+   KNOWN LIMITATION: game state itself (submissions, votes, scores) is still
+   wide open in Firestore, same as the rest of the cottage's tools — a
+   player who opened devtools mid-round could see other players' bluffs
+   before voting closes, or the game's live score state. The actual answer
+   key (all the words/people/movies and their real definitions) is NOT
+   exposed this way anymore, though: it lives in a separate, locked-down
+   part of Firestore that only reveals one item at a time, on request, and
+   can't be browsed wholesale (see the ITEM CONTENT section below). Good
+   enough for a trusted room of friends; a real auth layer would be the
+   next step if that ever stops being true.
    ========================================================================= */
 
 // ---- 1. FIREBASE CONFIG ---------------------------------------------------
@@ -359,6 +392,7 @@ import {
   getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
   collection, query, where, orderBy, limit, serverTimestamp, deleteField
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDhQO70r9B55hTJEjT_5qjfFWOUcfJkDo0",
@@ -371,48 +405,40 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const functionsClient = getFunctions(app); // default region (us-central1) — must match wherever judge-function is deployed
 const GAMES = "balderlaugh_games";
 
-// ---- 2. DATA BANK -----------------------------------------------------
-// Expand these freely — id must stay unique within its category.
-const DATA_BANK = {
-  oddWords: [
-    { id:"fudgel", term:"Fudgel", real:"The act of pretending to work while actually doing nothing." },
-    { id:"quockerwodger", term:"Quockerwodger", real:"A wooden puppet controlled by strings; figuratively, a politician controlled by others." },
-    { id:"snollygoster", term:"Snollygoster", real:"A shrewd, unprincipled person, especially a politician." },
-    { id:"ultracrepidarian", term:"Ultracrepidarian", real:"A person who gives opinions on matters outside their knowledge or expertise." },
-    { id:"cacoethes", term:"Cacoethes", real:"An irresistible urge to do something inadvisable." },
-    { id:"gongoozler", term:"Gongoozler", real:"A person who enjoys idly watching activity on a canal." },
-    { id:"deipnosophist", term:"Deipnosophist", real:"A person skilled at dinner-table conversation." },
-    { id:"absquatulate", term:"Absquatulate", real:"To leave abruptly or flee, often to avoid trouble." },
-    { id:"nudiustertian", term:"Nudiustertian", real:"Relating to the day before yesterday." },
-    { id:"zenzizenzizenzic", term:"Zenzizenzizenzic", real:"An obsolete term for the eighth power of a number." }
-  ],
-  obscurePeople: [
-    { id:"semmelweis", term:"Ignaz Semmelweis", real:"Hungarian physician who discovered handwashing prevented childbed fever; was mocked and institutionalized in his lifetime, later vindicated." },
-    { id:"anning", term:"Mary Anning", real:"Self-taught 19th-century fossil hunter whose finds shaped early paleontology, though she was denied credit as a woman." },
-    { id:"vavilov", term:"Nikolai Vavilov", real:"Soviet botanist who built one of the world's first seed banks and died of starvation in a Soviet prison rather than eat the seeds he'd preserved." },
-    { id:"wojtek", term:"Wojtek the Bear", real:"A Syrian brown bear adopted by Polish soldiers in WWII, officially enlisted and promoted to corporal for carrying ammunition." },
-    { id:"lacks", term:"Henrietta Lacks", real:"Her cancer cells, taken without consent in 1951, became the 'HeLa' line still used worldwide in medical research." },
-    { id:"warne", term:"Kate Warne", real:"America's first female detective, credited with helping foil an 1861 assassination plot against Abraham Lincoln." },
-    { id:"chingshih", term:"Ching Shih", real:"Early 19th-century Chinese pirate leader who commanded a fleet of hundreds of ships and negotiated amnesty from the government." },
-    { id:"midgley", term:"Thomas Midgley Jr.", real:"Chemist/inventor who developed both leaded gasoline and CFCs — often cited as having done more atmospheric harm than any other individual." },
-    { id:"ludington", term:"Sybil Ludington", real:"Teenage rider often compared to Paul Revere for a 1777 overnight ride warning of a British raid (historical details are disputed)." },
-    { id:"stevens", term:"Nettie Stevens", real:"Geneticist whose 1905 research identified the chromosomal basis of sex determination, often overshadowed by a male contemporary." }
-  ],
-  movies: [
-    { id:"kungfury", term:"Kung Fury (2015)", real:"A Miami cop with martial-arts powers travels back in time to team up with Norse gods and kill Hitler, the worst Kung Fu fighter in the world." },
-    { id:"troll2", term:"Troll 2 (1990)", real:"A family vacationing in a town called Nilbog discovers it's secretly inhabited by vegetarian goblins who turn people into plants to eat them." },
-    { id:"birdemic", term:"Birdemic: Shock and Terror (2010)", real:"Eagles and vultures inexplicably start attacking a small California town, framed around a budding romance and environmental messaging." },
-    { id:"roar", term:"Roar (1981)", real:"A family moves to an African-style compound populated by over 100 untrained lions, tigers, and other big cats, leading to chaotic mayhem." },
-    { id:"miamiconnection", term:"Miami Connection (1987)", real:"A synth-rock band of orphaned taekwondo experts battles a motorcycle gang of ninja drug dealers." },
-    { id:"theapple", term:"The Apple (1980)", real:"A sci-fi rock musical set in a dystopian future where a totalitarian entertainment company controls the world via a mandatory chip called BIM." },
-    { id:"nukie", term:"Nukie (1987)", real:"Two alien brothers crash-land on Earth and are separated; one is captured by scientists while the other tries to rescue him." },
-    { id:"samuraicop", term:"Samurai Cop (1991)", real:"An LA police officer trained in Japan is brought in to take down a yakuza crime syndicate." },
-    { id:"surfnazis", term:"Surf Nazis Must Die (1987)", real:"In a post-apocalyptic LA, a gang of surfer neo-Nazis terrorizes the beach until a mother seeks revenge for her son's murder." },
-    { id:"theroom", term:"The Room (2003)", real:"A man's fiancée has an affair with his best friend, triggering his slow unraveling." }
-  ]
-};
+// ---- 2. ITEM CONTENT (words/people/movies + real answers) -----------------
+// PRIMARY: live-generated per round via the generateItem Cloud Function,
+// which asks Claude — with web search enabled — for a genuinely real item
+// and verifies it before responding. Only the term comes back to the
+// client; the real answer is written straight to Firestore server-side
+// (balderlaugh_round_answers/{gameId}_{roundIndex}, get-only, can't be
+// listed/browsed) and fetched at voting time, same trust model as below.
+//
+// FALLBACK: if generation fails (function not deployed yet, network
+// hiccup, model couldn't produce a verifiable answer), falls back to the
+// pre-seeded bank in Firestore (see seed/seed.js) — same get-only,
+// can't-be-listed protection:
+//   balderlaugh_meta/itemIndex   — {category: [{id, term}, ...]}  (no answers)
+//   balderlaugh_items/{itemId}   — {category, term, real}
+const generateItemFn = httpsCallable(functionsClient, 'generateItem');
+
+let itemIndexCache = null;
+async function getItemIndex(){
+  if(itemIndexCache) return itemIndexCache;
+  const snap = await getDoc(doc(db, 'balderlaugh_meta', 'itemIndex'));
+  itemIndexCache = snap.exists() ? snap.data() : { oddWords:[], obscurePeople:[], movies:[] };
+  return itemIndexCache;
+}
+async function getSeedAnswer(itemId){
+  const snap = await getDoc(doc(db, 'balderlaugh_items', itemId));
+  return snap.exists() ? snap.data().real : '(answer unavailable)';
+}
+async function getGeneratedAnswer(answerId){
+  const snap = await getDoc(doc(db, 'balderlaugh_round_answers', answerId));
+  return snap.exists() ? snap.data().real : '(answer unavailable)';
+}
 const CAT_LABEL = { oddWords:"Odd Words", obscurePeople:"Obscure People", movies:"That's Really a Movie?" };
 const WRITING_SECONDS = 90;
 const VOTING_SECONDS  = 60;
@@ -422,7 +448,6 @@ function uuid(){ return 'xxxxxxxx-xxxx'.replace(/x/g, () => (Math.random()*16|0)
 let myUid = localStorage.getItem('balderlaugh_uid');
 if(!myUid){ myUid = uuid(); localStorage.setItem('balderlaugh_uid', myUid); }
 let myName = localStorage.getItem('balderlaugh_name') || '';
-
 // ---- 4. STATE -------------------------------------------------------------
 let currentGameCode = null;
 let unsubGame = null;
@@ -482,7 +507,7 @@ function initHome(){
       createdAt: serverTimestamp(),
       settings: { numRounds:6, categories:['oddWords','obscurePeople','movies'], crowdFunny:true, ccc:false, csf:false, includeClaude:false },
       players: { [myUid]: { name, score:0 } },
-      usedItemIds: [],
+      usedTerms: [],
       round: null
     });
     joinGame(code);
@@ -528,8 +553,15 @@ async function joinGame(code){
   if(!snap.exists()){ $('home-err').textContent = 'No game with that code.'; return; }
   const name = myName.trim() || 'Player';
   const g = snap.data();
+  const others = Object.entries(g.players||{}).filter(([uid]) => uid !== myUid);
+  const taken = others.some(([,p]) => (p.name||'').trim().toLowerCase() === name.toLowerCase());
+  if(taken){ $('home-err').textContent = 'That name is taken — try a different one.'; return; }
+  $('home-err').textContent = '';
   if(!g.players || !g.players[myUid]){
     await updateDoc(doc(db, GAMES, code), { [`players.${myUid}`]: { name, score:0 } });
+  } else if(g.players[myUid].name !== name){
+    // Name changed since last visit (e.g. rejoining after a reload) — keep it in sync.
+    await updateDoc(doc(db, GAMES, code), { [`players.${myUid}.name`]: name });
   }
   currentGameCode = code;
   attachGameListener(code);
@@ -539,6 +571,7 @@ async function joinGame(code){
 function attachGameListener(code){
   if(unsubGame) unsubGame();
   if(unsubOpenGames) unsubOpenGames();
+  localStorage.setItem('balderlaugh_current_game', code);
   unsubGame = onSnapshot(doc(db, GAMES, code), snap => {
     if(!snap.exists()){ leaveToHome(); return; }
     game = snap.data();
@@ -548,9 +581,66 @@ function attachGameListener(code){
 function leaveToHome(){
   if(unsubGame) unsubGame();
   clearInterval(timerInterval);
+  localStorage.removeItem('balderlaugh_current_game');
   currentGameCode = null; game = null; lastPhaseKey = null;
   showScreen('screen-home');
   listenOpenGames();
+}
+
+// Leaving mid-game (not just from the lobby) needs the same cleanup —
+// remove yourself from players, hand off host if it was you, go home.
+async function leaveGame(){
+  if(!currentGameCode || !game){ leaveToHome(); return; }
+  const wasHost = isHost();
+  const remaining = Object.keys(game.players||{}).filter(uid => uid !== myUid);
+  try{
+    const updates = { [`players.${myUid}`]: deleteField() };
+    if(wasHost && remaining.length){
+      updates.hostUid = remaining[0];
+      updates.hostName = game.players[remaining[0]].name;
+    }
+    await updateDoc(doc(db, GAMES, currentGameCode), updates);
+  } catch(err){
+    console.error('Leave game failed, returning home anyway:', err);
+  } finally {
+    leaveToHome();
+  }
+}
+
+// Sitting out keeps a player in the game (score intact, still visible to
+// everyone) but excludes them from the "waiting on everyone" counts, so
+// the room can move at full speed without them until they opt back in.
+function amISittingOut(){
+  return !!(game && game.players && game.players[myUid] && game.players[myUid].sittingOut);
+}
+function activePlayerUids(){
+  const players = (game && game.players) || {};
+  return Object.keys(players).filter(uid => !players[uid].sittingOut);
+}
+async function toggleSitOut(){
+  if(!currentGameCode || !game) return;
+  await updateDoc(doc(db, GAMES, currentGameCode), { [`players.${myUid}.sittingOut`]: !amISittingOut() });
+}
+
+// On load, try to reattach to whatever game this device was last in,
+// rather than always dropping the player back at the home screen.
+async function tryResume(){
+  const savedCode = localStorage.getItem('balderlaugh_current_game');
+  if(!savedCode) return false;
+  try{
+    const snap = await getDoc(doc(db, GAMES, savedCode));
+    if(!snap.exists() || !snap.data().players || !snap.data().players[myUid]){
+      localStorage.removeItem('balderlaugh_current_game');
+      return false;
+    }
+    currentGameCode = savedCode;
+    attachGameListener(savedCode);
+    return true;
+  } catch(err){
+    console.error('Resume failed:', err);
+    localStorage.removeItem('balderlaugh_current_game');
+    return false;
+  }
 }
 
 function route(){
@@ -561,7 +651,11 @@ function route(){
     const phaseKey = `${game.round.index}-${phase}`;
     const isNewPhase = phaseKey !== lastPhaseKey;
     lastPhaseKey = phaseKey;
-    if(phase === 'writing'){ renderWriting(isNewPhase); showScreen('screen-writing'); }
+    if(phase === 'generating'){
+      $('loading-message').textContent = 'Writing the prompt\u2026';
+      showScreen('screen-loading');
+    }
+    else if(phase === 'writing'){ renderWriting(isNewPhase); showScreen('screen-writing'); }
     else if(phase === 'voting'){ renderVoting(isNewPhase); showScreen('screen-voting'); }
     else if(phase === 'reveal'){ renderReveal(isNewPhase); showScreen('screen-reveal'); }
   }
@@ -600,26 +694,7 @@ function renderLobby(){
   $('btn-start-game').style.display = isHost() ? 'block' : 'none';
   $('lobby-wait-note').style.display = isHost() ? 'none' : 'block';
 
-  $('btn-leave-lobby').onclick = async () => {
-    const wasHost = isHost();
-    const remaining = Object.keys(game.players||{}).filter(uid => uid !== myUid);
-    try{
-      const updates = { [`players.${myUid}`]: deleteField() };
-      // If the host leaves, hand off to whoever's left so the lobby
-      // doesn't get stuck with no one able to start/advance the game.
-      if(wasHost && remaining.length){
-        updates.hostUid = remaining[0];
-        updates.hostName = game.players[remaining[0]].name;
-      }
-      await updateDoc(doc(db, GAMES, currentGameCode), updates);
-    } catch(err){
-      console.error('Leave game failed, returning home anyway:', err);
-    } finally {
-      // Always get the player back to the home/browse screen, even if
-      // the Firestore write above failed for some reason.
-      leaveToHome();
-    }
-  };
+  $('btn-leave-lobby').onclick = leaveGame;
 
   if(isHost()){
     $('btn-start-game').onclick = startGame;
@@ -640,16 +715,47 @@ async function startGame(){
   await beginRound(0, categories, []);
 }
 
-async function beginRound(index, categories, usedIds){
+async function beginRound(index, categories, usedTerms){
   const cat = categories[index % categories.length];
-  const pool = DATA_BANK[cat].filter(item => !usedIds.includes(item.id));
-  const bank = pool.length ? pool : DATA_BANK[cat]; // reshuffle in if exhausted
-  const item = bank[Math.floor(Math.random()*bank.length)];
+
+  // Show a loading state immediately — generation takes a few seconds
+  // (it's doing a real web search), so don't leave the previous screen
+  // sitting there looking stalled.
+  await updateDoc(doc(db, GAMES, currentGameCode), {
+    round: {
+      index, category: cat, phase: 'generating', term: null, itemId: null,
+      answerSource: null, answerId: null, phaseEndsAt: null,
+      submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false
+    }
+  });
+
+  let term, itemId = null, answerSource, answerId = null;
+  try{
+    const result = await generateItemFn({ category: cat, excludeTerms: usedTerms, gameId: currentGameCode, roundIndex: index });
+    term = result.data.term;
+    answerId = result.data.answerId;
+    answerSource = 'generated';
+  } catch(err){
+    // Function not deployed yet, network hiccup, or the model couldn't
+    // produce a verifiable answer — fall back to the pre-seeded bank
+    // rather than stalling the round.
+    console.error('Live generation failed, falling back to the seeded bank:', err);
+    const idx = await getItemIndex();
+    const catList = (idx[cat]||[]).filter(it => !usedTerms.includes(it.term));
+    const bank = catList.length ? catList : (idx[cat]||[]);
+    if(bank.length === 0){
+      console.error('No fallback items available either for category', cat, '— did the seed script run?');
+      return;
+    }
+    const item = bank[Math.floor(Math.random()*bank.length)];
+    term = item.term; itemId = item.id; answerSource = 'seed';
+  }
+
   const phaseEndsAt = Date.now() + WRITING_SECONDS*1000;
   await updateDoc(doc(db, GAMES, currentGameCode), {
-    usedItemIds: [...usedIds, item.id],
+    usedTerms: [...usedTerms, term],
     round: {
-      index, category: cat, itemId: item.id, term: item.term,
+      index, category: cat, term, itemId, answerSource, answerId,
       phase: 'writing', phaseEndsAt,
       submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false
     }
@@ -663,30 +769,44 @@ function renderWriting(isNew){
   $('writing-cat').textContent = CAT_LABEL[r.category];
   $('writing-term').textContent = r.term;
 
-  const already = r.submissions && r.submissions[myUid];
-  $('writing-input-area').style.display = already ? 'none' : 'block';
-  $('writing-submitted').style.display = already ? 'block' : 'none';
+  const sittingOut = amISittingOut();
+  $('btn-sitout-writing').textContent = sittingOut ? "I'm back" : 'Sit out';
+  $('btn-sitout-writing').onclick = toggleSitOut;
+  $('btn-jointhisround-writing').onclick = toggleSitOut;
 
   const submittedCount = Object.keys(r.submissions||{}).length;
-  const playerCount = Object.keys(game.players||{}).length;
+  const playerCount = activePlayerUids().length; // sitting-out players don't count toward "everyone's in"
   $('writing-count').textContent = `${submittedCount} / ${playerCount}`;
 
-  if(isNew) $('writing-textarea').value = '';
+  $('writing-sitting-out').style.display = sittingOut ? 'block' : 'none';
+  if(sittingOut){
+    $('writing-input-area').style.display = 'none';
+    $('writing-submitted').style.display = 'none';
+  } else {
+    const already = r.submissions && r.submissions[myUid];
+    $('writing-input-area').style.display = already ? 'none' : 'block';
+    $('writing-submitted').style.display = already ? 'block' : 'none';
+    $('writing-submitted-msg').textContent = 'Nice bluff. Waiting on everyone else\u2026';
 
-  $('btn-submit-bluff').onclick = async () => {
-    const text = $('writing-textarea').value.trim();
-    if(!text) return;
-    await updateDoc(doc(db, GAMES, currentGameCode), {
-      [`round.submissions.${myUid}`]: { text, author: myUid }
-    });
-  };
+    if(isNew) $('writing-textarea').value = '';
+
+    $('btn-submit-bluff').onclick = async () => {
+      const text = $('writing-textarea').value.trim();
+      if(!text) return;
+      await updateDoc(doc(db, GAMES, currentGameCode), {
+        [`round.submissions.${myUid}`]: { text, author: myUid }
+      });
+    };
+  }
 
   runTimer('writing-timer', r.phaseEndsAt, () => {
-    if(isHost()) maybeAdvanceFromWriting();
+    maybeAdvanceFromWriting();
   });
 
-  // host: auto-advance the moment everyone's in
-  if(isHost() && submittedCount >= playerCount && playerCount > 0){
+  // Auto-advance the moment every ACTIVE (not sitting-out) player's in —
+  // any client can trigger this, so a locked/backgrounded host phone
+  // can't stall the room.
+  if(submittedCount >= playerCount && playerCount > 0){
     maybeAdvanceFromWriting();
   }
 }
@@ -699,10 +819,16 @@ async function maybeAdvanceFromWriting(){
     if(r.phase !== 'writing') return;
     const ids = Object.keys(r.submissions||{});
     const order = seededShuffle([...ids, 'REAL'], Date.now());
+    // Fetch the real answer right when voting begins (not before) — this
+    // is the only moment this item's answer ever gets sent to a browser.
+    const answerText = r.answerSource === 'generated'
+      ? await getGeneratedAnswer(r.answerId)
+      : await getSeedAnswer(r.itemId);
     await updateDoc(doc(db, GAMES, currentGameCode), {
       'round.phase':'voting',
       'round.phaseEndsAt': Date.now() + VOTING_SECONDS*1000,
-      'round.shuffleOrder': order
+      'round.shuffleOrder': order,
+      'round.answerText': answerText
     });
   } finally { advancing = false; }
 }
@@ -714,8 +840,14 @@ function renderVoting(isNew){
   $('voting-cat').textContent = CAT_LABEL[r.category];
   $('voting-term').textContent = r.term;
 
+  const sittingOut = amISittingOut();
+  $('btn-sitout-voting').textContent = sittingOut ? "I'm back" : 'Sit out';
+  $('btn-sitout-voting').onclick = toggleSitOut;
+  $('btn-jointhisround-voting').onclick = toggleSitOut;
+
   const order = r.shuffleOrder || [];
-  const item = DATA_BANK[r.category].find(x => x.id === r.itemId);
+  // The real answer text is already on the round doc — it was fetched
+  // from Firestore once, right when voting began (see maybeAdvanceFromWriting).
 
   let selectedReal = null, selectedFunny = null;
   const existingVote = r.votes && r.votes[myUid];
@@ -725,7 +857,7 @@ function renderVoting(isNew){
     container.innerHTML = '';
     order.forEach((id, i) => {
       const isReal = id === 'REAL';
-      const text = isReal ? item.real : (r.submissions[id] ? r.submissions[id].text : '');
+      const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
       const isMine = id === myUid;
       const div = document.createElement('div');
       div.className = 'sub-option';
@@ -747,36 +879,44 @@ function renderVoting(isNew){
       container.appendChild(div);
     });
   }
-  buildList($('voting-real-list'), 'real');
-  $('voting-funny-section').style.display = game.settings.crowdFunny ? 'block' : 'none';
-  if(game.settings.crowdFunny) buildList($('voting-funny-list'), 'funny');
 
   function updateSubmitEnabled(){
     const need = game.settings.crowdFunny ? (selectedReal && selectedFunny) : selectedReal;
     $('btn-submit-votes').disabled = !need;
   }
-  updateSubmitEnabled();
-
-  const already = !!existingVote;
-  $('voting-real-section').style.display = already ? 'none' : 'block';
-  $('voting-funny-section').style.display = (already || !game.settings.crowdFunny) ? 'none' : 'block';
-  $('btn-submit-votes').style.display = already ? 'none' : 'block';
-  $('voting-waiting').style.display = already ? 'block' : 'none';
 
   const votedCount = Object.keys(r.votes||{}).length;
-  const playerCount = Object.keys(game.players||{}).length;
+  const playerCount = activePlayerUids().length; // sitting-out players don't count toward "everyone's in"
   $('voting-count').textContent = `${votedCount} / ${playerCount}`;
 
-  $('btn-submit-votes').onclick = async () => {
-    const payload = { real: selectedReal };
-    if(game.settings.crowdFunny) payload.funny = selectedFunny;
-    await updateDoc(doc(db, GAMES, currentGameCode), { [`round.votes.${myUid}`]: payload });
-  };
+  $('voting-sitting-out').style.display = sittingOut ? 'block' : 'none';
+  if(sittingOut){
+    $('voting-real-section').style.display = 'none';
+    $('voting-funny-section').style.display = 'none';
+    $('btn-submit-votes').style.display = 'none';
+    $('voting-waiting').style.display = 'none';
+  } else {
+    buildList($('voting-real-list'), 'real');
+    if(game.settings.crowdFunny) buildList($('voting-funny-list'), 'funny');
+    updateSubmitEnabled();
+
+    const already = !!existingVote;
+    $('voting-real-section').style.display = already ? 'none' : 'block';
+    $('voting-funny-section').style.display = (already || !game.settings.crowdFunny) ? 'none' : 'block';
+    $('btn-submit-votes').style.display = already ? 'none' : 'block';
+    $('voting-waiting').style.display = already ? 'block' : 'none';
+
+    $('btn-submit-votes').onclick = async () => {
+      const payload = { real: selectedReal };
+      if(game.settings.crowdFunny) payload.funny = selectedFunny;
+      await updateDoc(doc(db, GAMES, currentGameCode), { [`round.votes.${myUid}`]: payload });
+    };
+  }
 
   runTimer('voting-timer', r.phaseEndsAt, () => {
-    if(isHost()) maybeAdvanceFromVoting();
+    maybeAdvanceFromVoting();
   });
-  if(isHost() && votedCount >= playerCount && playerCount > 0){
+  if(votedCount >= playerCount && playerCount > 0){
     maybeAdvanceFromVoting();
   }
 }
@@ -787,11 +927,9 @@ async function maybeAdvanceFromVoting(){
   try{
     const r = game.round;
     if(r.phase !== 'voting') return;
-    const item = DATA_BANK[r.category].find(x => x.id === r.itemId);
     const scored = computeScores(r, game.players);
     await updateDoc(doc(db, GAMES, currentGameCode), {
       'round.phase':'reveal',
-      'round.answerText': item.real,
       'round.scored': true,
       players: scored.players,
       [`round.scoreDeltas`]: scored.deltas,
@@ -841,6 +979,10 @@ function renderReveal(isNew){
   $('reveal-cat').textContent = CAT_LABEL[r.category];
   $('reveal-term').textContent = r.term;
 
+  const sittingOut = amISittingOut();
+  $('btn-sitout-reveal').textContent = sittingOut ? "I'm back in" : 'Sit out next round';
+  $('btn-sitout-reveal').onclick = toggleSitOut;
+
   const order = r.shuffleOrder || [];
   const voteTally = {};
   Object.values(r.votes||{}).forEach(v => { if(v.real) voteTally[v.real] = (voteTally[v.real]||0)+1; });
@@ -883,7 +1025,7 @@ function renderReveal(isNew){
     if(nextIndex >= game.settings.numRounds){
       await updateDoc(doc(db, GAMES, currentGameCode), { status:'ended' });
     } else {
-      await beginRound(nextIndex, game.settings.categories, game.usedItemIds||[]);
+      await beginRound(nextIndex, game.settings.categories, game.usedTerms||[]);
     }
   };
 }
@@ -903,7 +1045,7 @@ function renderGameOver(){
   $('btn-play-again').onclick = async () => {
     const resetPlayers = {};
     Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0 }; });
-    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedItemIds: [] });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [] });
   };
   $('btn-gameover-home').onclick = leaveToHome;
 }
@@ -926,8 +1068,17 @@ function runTimer(elId, endsAt, onExpire){
 }
 
 // ---- 14. BOOT ---------------------------------------------------------------
-initHome();
-showScreen('screen-home');
+$('btn-leave-writing').onclick = leaveGame;
+$('btn-leave-voting').onclick = leaveGame;
+$('btn-leave-reveal').onclick = leaveGame;
+
+(async () => {
+  const resumed = await tryResume();
+  if(!resumed){
+    initHome();
+    showScreen('screen-home');
+  }
+})();
 </script>
 </body>
 </html>
