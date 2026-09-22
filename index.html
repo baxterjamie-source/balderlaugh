@@ -601,8 +601,24 @@ function renderLobby(){
   $('lobby-wait-note').style.display = isHost() ? 'none' : 'block';
 
   $('btn-leave-lobby').onclick = async () => {
-    await updateDoc(doc(db, GAMES, currentGameCode), { [`players.${myUid}`]: deleteField() });
-    leaveToHome();
+    const wasHost = isHost();
+    const remaining = Object.keys(game.players||{}).filter(uid => uid !== myUid);
+    try{
+      const updates = { [`players.${myUid}`]: deleteField() };
+      // If the host leaves, hand off to whoever's left so the lobby
+      // doesn't get stuck with no one able to start/advance the game.
+      if(wasHost && remaining.length){
+        updates.hostUid = remaining[0];
+        updates.hostName = game.players[remaining[0]].name;
+      }
+      await updateDoc(doc(db, GAMES, currentGameCode), updates);
+    } catch(err){
+      console.error('Leave game failed, returning home anyway:', err);
+    } finally {
+      // Always get the player back to the home/browse screen, even if
+      // the Firestore write above failed for some reason.
+      leaveToHome();
+    }
   };
 
   if(isHost()){
