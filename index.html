@@ -120,7 +120,7 @@
     margin-bottom:10px;border:2px solid transparent;cursor:pointer;line-height:1.45;font-size:15px;
   }
   .sub-option:active{filter:brightness(.97);}
-  .sub-option.selected{border-color:var(--fox);}
+  .sub-option.selected{border:3px solid var(--fox);background:rgba(193,82,28,.18);}
   .sub-option.disabled{cursor:default;opacity:.55;}
   .sub-option .idx{font-weight:700;color:var(--fox);margin-right:6px;}
   .sub-option .flags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
@@ -360,13 +360,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDhQO70r9B55hTJEjT_5qjfFWOUcfJkDo0",
-  authDomain: "cottagerestocklist.firebaseapp.com",
-  projectId: "cottagerestocklist",
-  storageBucket: "cottagerestocklist.firebasestorage.app",
-  messagingSenderId: "1061783772523",
-  appId: "1:1061783772523:web:5f6118355535b46862c02e",
-  measurementId: "G-PQC6PQVHBN"
+  apiKey: "PASTE_ME",
+  authDomain: "PASTE_ME.firebaseapp.com",
+  projectId: "PASTE_ME",
+  storageBucket: "PASTE_ME.appspot.com",
+  messagingSenderId: "PASTE_ME",
+  appId: "PASTE_ME"
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -715,11 +714,9 @@ function renderVoting(isNew){
       const disabled = mode==='real' ? (isMine) : (isMine);
       if(disabled) div.classList.add('disabled');
       div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
-      if(isMine){
-        const f = document.createElement('div'); f.className='flags';
-        f.innerHTML = `<span class="flag you">YOURS</span>`;
-        div.appendChild(f);
-      }
+      // "Yours" is intentionally not labeled — hidden by default so it
+      // doesn't stand out while scanning the list. The tile still can't
+      // be selected (see `disabled` above).
       if(!disabled){
         div.onclick = () => {
           container.querySelectorAll('.sub-option').forEach(o => o.classList.remove('selected'));
