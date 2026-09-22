@@ -120,7 +120,8 @@
     margin-bottom:10px;border:2px solid transparent;cursor:pointer;line-height:1.45;font-size:15px;
   }
   .sub-option:active{filter:brightness(.97);}
-  .sub-option.selected{border:3px solid var(--fox);background:rgba(193,82,28,.18);}
+  .sub-option.selected{border:3px solid #fff;background:var(--fox);color:#fff;box-shadow:0 4px 14px rgba(193,82,28,.45);}
+  .sub-option.selected .idx{color:#fff;}
   .sub-option.disabled{cursor:default;opacity:.55;}
   .sub-option .idx{font-weight:700;color:var(--fox);margin-right:6px;}
   .sub-option .flags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
@@ -778,7 +779,7 @@ async function maybeAdvanceFromVoting(){
       'round.scored': true,
       players: scored.players,
       [`round.scoreDeltas`]: scored.deltas,
-      [`round.funniestId`]: scored.funniestId
+      [`round.funniestIds`]: scored.funniestIds
     });
   } finally { advancing = false; }
 }
@@ -801,14 +802,20 @@ function computeScores(r, players){
     }
   });
 
-  let funniestId = null;
+  // Ties are real — with a small player count they're common, and everyone
+  // tied for the top vote count should get the badge, not just whichever
+  // one happened to be tallied first.
+  let funniestIds = [];
   if(r.votes){
     const tally = {};
     Object.values(r.votes).forEach(v => { if(v.funny){ tally[v.funny] = (tally[v.funny]||0)+1; } });
     let max = 0;
-    Object.entries(tally).forEach(([id,count]) => { if(count>max){ max=count; funniestId=id; } });
+    Object.values(tally).forEach(count => { if(count>max) max = count; });
+    if(max > 0){
+      funniestIds = Object.entries(tally).filter(([,count]) => count===max).map(([id]) => id);
+    }
   }
-  return { players: updated, deltas, funniestId };
+  return { players: updated, deltas, funniestIds };
 }
 
 // ---- 11. REVEAL ---------------------------------------------------------
@@ -837,7 +844,7 @@ function renderReveal(isNew){
     else flags.innerHTML += `<span class="flag votes">by ${escapeHtml(authorName)}</span>`;
     const votes = voteTally[id] || 0;
     if(votes>0) flags.innerHTML += `<span class="flag votes">${votes} vote${votes===1?'':'s'}</span>`;
-    if(game.settings.crowdFunny && r.funniestId === id) flags.innerHTML += `<span class="flag funniest">😂 funniest</span>`;
+    if(game.settings.crowdFunny && r.funniestIds && r.funniestIds.includes(id)) flags.innerHTML += `<span class="flag funniest">😂 funniest</span>`;
     div.appendChild(flags);
     list.appendChild(div);
   });
