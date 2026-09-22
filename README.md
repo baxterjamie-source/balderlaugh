@@ -1,5 +1,17 @@
 # Balderlaugh — setup notes
 
+## Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyDhQO70r9B55hTJEjT_5qjfFWOUcfJkDo0",
+  authDomain: "cottagerestocklist.firebaseapp.com",
+  projectId: "cottagerestocklist",
+  storageBucket: "cottagerestocklist.firebasestorage.app",
+  messagingSenderId: "1061783772523",
+  appId: "1:1061783772523:web:5f6118355535b46862c02e",
+  measurementId: "G-PQC6PQVHBN"
+};
+
+
 ## What's working right now
 - Discoverable lobby list ("Jamie's Game", "Pat's Game"...) + join-by-code fallback
 - Explicit host transfer ("Make host" next to any player)
