@@ -258,23 +258,32 @@ Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
   return { bluff: parsed.bluff };
 });
 
-// ---- CCC: judge a free-text guess against the real answer -----------------
-exports.judgeGuess = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
-  const { term, realAnswer, guess } = request.data;
-  if (!term || !realAnswer || !guess) {
-    throw new Error("term, realAnswer, and guess are all required.");
+// ---- CCC: mark any human bluff that's surprisingly close to the truth -----
+// Bragging rights only, no scoring — Claude reads the real answer and every
+// human bluff (never Claude's own, if Include Claude is on) and flags any
+// that landed close to actually correct, purely by luck or half-knowledge.
+exports.judgeCloseCalls = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
+  const { term, realAnswer, submissions } = request.data; // submissions: [{id, text}]
+  if (!term || !realAnswer || !Array.isArray(submissions) || submissions.length === 0) {
+    return { closeIds: [] };
   }
 
-  const prompt = `You're judging a party game. The real definition/description of "${term}" is:
+  const list = submissions.map((s, i) => `${i + 1}. ${s.text}`).join("\n");
+  const prompt = `You're judging a party game. The real definition/description of
+"${term}" is:
 "${realAnswer}"
 
-A player guessed:
-"${guess}"
+These are bluffs players wrote, not knowing the real answer:
+${list}
 
-Is the player's guess close enough in substance to count as correct? Minor
-wording differences are fine; it needs to capture the real meaning, not just
-sound plausible. Reply with ONLY a JSON object: {"correct": true|false,
-"reason": "one short sentence"}`;
+Some bluffs might coincidentally land close to the actual truth, even
+though the player was just guessing. Identify any that are genuinely
+close in substance to the real answer (not just similar-sounding) — this
+is meant to be rare, a nice "wow, you were almost right" moment, not
+generous. Most rounds should have zero.
+
+Reply with ONLY a JSON object: {"closeIndexes": [<1-based numbers from
+the list above, or an empty array if none qualify>]}`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -285,23 +294,26 @@ sound plausible. Reply with ONLY a JSON object: {"correct": true|false,
     },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      max_tokens: 200,
+      max_tokens: 300,
       messages: [{ role: "user", content: prompt }]
     })
   });
   const data = await res.json();
   if (!res.ok) {
-    console.error("judgeGuess: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
-    return { correct: false, reason: "Judge call failed." };
+    console.error("judgeCloseCalls: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
+    return { closeIds: [] };
   }
   const text = (data.content || []).map(b => b.text || "").join("");
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   try {
     if (!jsonMatch) throw new Error("no JSON in response");
-    return JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(jsonMatch[0]);
+    const indexes = Array.isArray(parsed.closeIndexes) ? parsed.closeIndexes : [];
+    const closeIds = indexes.map(n => submissions[n - 1]).filter(Boolean).map(s => s.id);
+    return { closeIds };
   } catch {
-    // If parsing fails, don't award the badge — fail closed, not open.
-    return { correct: false, reason: "Could not parse judge response." };
+    // Fail closed — no badge, not a broken one.
+    return { closeIds: [] };
   }
 });
 
