@@ -987,6 +987,12 @@ async function maybeAdvanceFromWriting(){
     // from a no-repeat-until-exhausted queue of active players.
     const { readerUid, remainingQueue } = pickNextReader(game.readerQueue, activePlayerUids());
 
+    // Any client can trigger this transition, and the work above involves
+    // real network calls — another client may have already completed the
+    // same transition while we were waiting. Re-check right before
+    // writing, not just at the top, or a slow second caller can stomp a
+    // faster first one's work.
+    if(game.round.phase !== 'writing') return;
     await updateDoc(doc(db, GAMES, currentGameCode), {
       readerQueue: remainingQueue,
       'round.phase':'reading',
@@ -1159,6 +1165,14 @@ async function maybeAdvanceFromVoting(){
   try{
     const r = game.round;
     if(r.phase !== 'voting') return;
+    // Capture the scoring baseline NOW, not later — the judge calls below
+    // take several real seconds, during which another client could
+    // already complete this same transition and update game.players out
+    // from under us. Scoring off a stale local snapshot is fine (we
+    // re-check before writing, below); scoring off a baseline that
+    // silently updated mid-calculation is how a round's points got
+    // applied twice.
+    const playersBaseline = game.players;
 
     // CSF: Claude casts one funniest vote of its own, HUMAN bluffs only
     // (Claude's own entry, if Include Claude is on, is excluded — this is
@@ -1189,7 +1203,12 @@ async function maybeAdvanceFromVoting(){
       }
     }
 
-    const scored = computeScores(r, game.players, csfWinnerId);
+    const scored = computeScores(r, playersBaseline, csfWinnerId);
+
+    // Another client may have already finished this exact transition while
+    // we were awaiting the judge calls above — if so, back out instead of
+    // overwriting real state with a stale or doubled computation.
+    if(game.round.phase !== 'voting') return;
 
     await updateDoc(doc(db, GAMES, currentGameCode), {
       'round.phase':'reveal',
