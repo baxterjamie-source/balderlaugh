@@ -31,10 +31,11 @@
 
 const { onCall } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
-const admin = require("firebase-admin");
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 
@@ -74,20 +75,44 @@ Once verified, respond with ONLY a JSON object (no other text):
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1500,
+      model: "claude-sonnet-5",
+      // Web search queries, results, and any commentary all draw from this
+      // same budget before the model gets to writing the final JSON — 1500
+      // was too tight and was likely truncating the response mid-answer.
+      max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
       tools: [{ type: "web_search_20250305", name: "web_search" }]
     })
   });
   const data = await res.json();
-  // Response may interleave text/tool_use/tool_result blocks across
-  // multiple search turns — only the text blocks matter for the final answer.
-  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  if (!res.ok) {
+    // The API itself rejected the request (bad model name, auth issue,
+    // rate limit, etc.) — this is NOT the same as a parseable-but-wrong
+    // response, and treating it as one was hiding the real error. Surface
+    // it plainly.
+    console.error("generateItem: Anthropic API returned an error — status:", res.status,
+      "| body:", JSON.stringify(data).slice(0, 1500));
+    throw new Error(`Anthropic API error (${res.status}): ${data?.error?.message || "unknown"}`);
+  }
+  // With web search enabled, the model often adds a sentence of commentary
+  // before or after the JSON ("Based on my search, here's..."), and search
+  // turns can produce multiple text blocks. Pull the JSON object out of the
+  // LAST text block rather than requiring the whole response to be clean
+  // JSON, which broke on any surrounding prose.
+  const textBlocks = (data.content || []).filter(b => b.type === "text").map(b => b.text);
+  const lastText = textBlocks.length ? textBlocks[textBlocks.length - 1] : "";
+  const jsonMatch = lastText.match(/\{[\s\S]*\}/);
   let parsed;
-  try {
-    parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-  } catch {
+  if (jsonMatch) {
+    try { parsed = JSON.parse(jsonMatch[0]); } catch { /* falls through to the error below */ }
+  }
+  if (!parsed) {
+    // Log what actually came back — without this, a parse failure is a
+    // dead end in the logs with no way to tell truncation, a refusal, and
+    // a genuine format miss apart.
+    console.error("generateItem parse failure — stop_reason:", data.stop_reason,
+      "| last text block:", lastText.slice(0, 500),
+      "| full content:", JSON.stringify(data.content || []).slice(0, 1000));
     throw new Error("Could not parse a generated item from the model response.");
   }
   if (!parsed.term || !parsed.real) {
@@ -104,11 +129,61 @@ Once verified, respond with ONLY a JSON object (no other text):
     real: parsed.real,
     source: parsed.source || null,
     category,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    createdAt: FieldValue.serverTimestamp()
   });
 
   // Only the term goes back to the caller — the real answer stays server-side.
   return { term: parsed.term, answerId };
+});
+
+// ---- Include Claude: write Claude's own bluff for the round ----------------
+// Given only the term (never the real answer — same information a human
+// player has), asks Claude for a plausible, funny, FALSE definition.
+exports.generateBluff = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
+  const { term, category } = request.data;
+  if (!term || !category) {
+    throw new Error("term and category are required.");
+  }
+
+  const prompt = `You're playing Balderlaugh, a Balderdash-style bluffing party
+game. The category is ${CATEGORY_BRIEF[category] || category}. The term is "${term}".
+
+Write a funny, plausible-SOUNDING but FALSE definition/bio/plot-summary for
+"${term}" — something that could genuinely trick other players into voting
+for it as the real answer. Match the length and tone of a real entry
+(1-2 sentences). Go for actually funny, not just false.
+
+Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY.value(),
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-5",
+      max_tokens: 300,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("generateBluff: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
+    throw new Error(`Anthropic API error (${res.status}): ${data?.error?.message || "unknown"}`);
+  }
+  const text = (data.content || []).map(b => b.text || "").join("");
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  let parsed;
+  if (jsonMatch) {
+    try { parsed = JSON.parse(jsonMatch[0]); } catch { /* falls through */ }
+  }
+  if (!parsed || !parsed.bluff) {
+    console.error("generateBluff parse failure — raw text:", text.slice(0, 500));
+    throw new Error("Could not parse a bluff from the model response.");
+  }
+  return { bluff: parsed.bluff };
 });
 
 // ---- CCC: judge a free-text guess against the real answer -----------------
@@ -137,15 +212,21 @@ sound plausible. Reply with ONLY a JSON object: {"correct": true|false,
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 200,
       messages: [{ role: "user", content: prompt }]
     })
   });
   const data = await res.json();
+  if (!res.ok) {
+    console.error("judgeGuess: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
+    return { correct: false, reason: "Judge call failed." };
+  }
   const text = (data.content || []).map(b => b.text || "").join("");
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
   try {
-    return JSON.parse(text.replace(/```json|```/g, "").trim());
+    if (!jsonMatch) throw new Error("no JSON in response");
+    return JSON.parse(jsonMatch[0]);
   } catch {
     // If parsing fails, don't award the badge — fail closed, not open.
     return { correct: false, reason: "Could not parse judge response." };
@@ -181,15 +262,21 @@ object: {"funniestIndex": <1-based number from the list above>, "reason":
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 200,
       messages: [{ role: "user", content: prompt }]
     })
   });
   const data = await res.json();
+  if (!res.ok) {
+    console.error("judgeFunniest: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
+    return { winnerId: null, reason: "Judge call failed." };
+  }
   const text = (data.content || []).map(b => b.text || "").join("");
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
   try {
-    const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+    if (!jsonMatch) throw new Error("no JSON in response");
+    const parsed = JSON.parse(jsonMatch[0]);
     if (parsed.funniestIndex == null) return { winnerId: null, reason: parsed.reason };
     const winner = submissions[parsed.funniestIndex - 1];
     return { winnerId: winner ? winner.id : null, reason: parsed.reason };
