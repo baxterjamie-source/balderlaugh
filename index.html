@@ -218,6 +218,17 @@
         <option value="12">12 rounds</option>
       </select>
 
+      <label>Time to write a bluff</label>
+      <select id="setting-writing-seconds">
+        <option value="120">2:00</option>
+        <option value="150">2:30</option>
+        <option value="180" selected>3:00</option>
+        <option value="210">3:30</option>
+        <option value="240">4:00</option>
+        <option value="270">4:30</option>
+        <option value="300">5:00</option>
+      </select>
+
       <label>Categories in the mix</label>
       <div class="stack" style="gap:4px;">
         <label class="row" style="margin:4px 0;"><span>Odd Words</span><input type="checkbox" id="cat-oddWords" checked></label>
@@ -447,7 +458,8 @@ async function getGeneratedAnswer(answerId){
   return snap.exists() ? snap.data().real : '(answer unavailable)';
 }
 const CAT_LABEL = { oddWords:"Odd Words", obscurePeople:"Obscure People", movies:"That's Really a Movie?" };
-const WRITING_SECONDS = 90;
+// Writing time is now a per-game host setting (game.settings.writingSeconds);
+// voting stays fixed.
 const VOTING_SECONDS  = 60;
 
 // ---- 3. IDENTITY --------------------------------------------------------
@@ -710,11 +722,12 @@ function renderLobby(){
 
 async function startGame(){
   const numRounds = parseInt($('setting-rounds').value, 10);
+  const writingSeconds = parseInt($('setting-writing-seconds').value, 10);
   const categories = ['oddWords','obscurePeople','movies'].filter(c => $(`cat-${c}`).checked);
   if(categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
   if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
   const settings = {
-    numRounds, categories,
+    numRounds, writingSeconds, categories,
     crowdFunny: $('toggle-crowdFunny').checked,
     ccc: $('toggle-ccc').checked,
     csf: $('toggle-csf').checked,
@@ -760,8 +773,6 @@ async function beginRound(index, categories, usedTerms){
     term = item.term; itemId = item.id; answerSource = 'seed';
   }
 
-  const phaseEndsAt = Date.now() + WRITING_SECONDS*1000;
-
   // Include Claude: get its bluff now, alongside the term — it works from
   // just the term, same as a human player would, never told the real
   // answer, so it's not advantaged over anyone else.
@@ -778,6 +789,11 @@ async function beginRound(index, categories, usedTerms){
       console.error('generateBluff failed, continuing without Claude this round:', err);
     }
   }
+
+  // The timer starts NOW — after everything (term + Claude's bluff, if
+  // any) is actually ready — not earlier, or players lose real time to
+  // network/generation latency before they can even see the prompt.
+  const phaseEndsAt = Date.now() + game.settings.writingSeconds*1000;
 
   await updateDoc(doc(db, GAMES, currentGameCode), {
     usedTerms: [...usedTerms, term],
@@ -801,8 +817,13 @@ function renderWriting(isNew){
   $('btn-sitout-writing').onclick = toggleSitOut;
   $('btn-jointhisround-writing').onclick = toggleSitOut;
 
-  const submittedCount = Object.keys(r.submissions||{}).length;
-  const playerCount = activePlayerUids().length; // sitting-out players don't count toward "everyone's in"
+  const activeUids = activePlayerUids();
+  // Claude's own entry (Include Claude) is pre-seeded into submissions at
+  // round start, but it isn't a player — it must not count toward "has
+  // everyone submitted," or a single real player finishing could satisfy
+  // the threshold and kick everyone else into voting early.
+  const submittedCount = Object.keys(r.submissions||{}).filter(uid => activeUids.includes(uid)).length;
+  const playerCount = activeUids.length; // sitting-out players don't count toward "everyone's in"
   $('writing-count').textContent = `${submittedCount} / ${playerCount}`;
 
   $('writing-sitting-out').style.display = sittingOut ? 'block' : 'none';
