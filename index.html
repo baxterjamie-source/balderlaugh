@@ -232,16 +232,16 @@
         <label class="switch"><input type="checkbox" id="toggle-crowdFunny" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">CCC — free-guess bonus</div><div class="sub">Coming soon — needs the Claude judge Cloud Function</div></div>
-        <label class="switch"><input type="checkbox" id="toggle-ccc" disabled><span class="track"></span><span class="thumb"></span></label>
+        <div><div class="lbl">CCC — free-guess bonus</div><div class="sub">Guess the real answer before voting for a +1 bonus, judged by Claude</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-ccc"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Coming soon — needs the Claude judge Cloud Function</div></div>
-        <label class="switch"><input type="checkbox" id="toggle-csf" disabled><span class="track"></span><span class="thumb"></span></label>
+        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Claude picks the funniest human bluff each round — bragging rights only</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-csf"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">Include Claude</div><div class="sub">Coming soon — Claude writes its own bluff each round</div></div>
-        <label class="switch"><input type="checkbox" id="toggle-includeClaude" disabled><span class="track"></span><span class="thumb"></span></label>
+        <div><div class="lbl">Include Claude</div><div class="sub">Claude writes its own bluff each round — eligible for crowd funniest, not CSF</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-includeClaude"><span class="track"></span><span class="thumb"></span></label>
       </div>
     </div>
 
@@ -270,6 +270,10 @@
     <div id="writing-input-area">
       <label id="writing-label" for="writing-textarea">Write a believable definition</label>
       <textarea id="writing-textarea" maxlength="220" placeholder="Make it sound real..."></textarea>
+      <div id="writing-ccc-area" style="display:none;margin-top:14px;">
+        <label for="writing-guess">Know the real answer? Guess now for a bonus point (optional)</label>
+        <input type="text" id="writing-guess" maxlength="200" placeholder="Your guess...">
+      </div>
       <button class="btn" id="btn-submit-bluff" style="margin-top:14px;">Submit bluff</button>
     </div>
     <div id="writing-submitted" style="display:none;">
@@ -423,6 +427,9 @@ const GAMES = "balderlaugh_games";
 //   balderlaugh_meta/itemIndex   — {category: [{id, term}, ...]}  (no answers)
 //   balderlaugh_items/{itemId}   — {category, term, real}
 const generateItemFn = httpsCallable(functionsClient, 'generateItem');
+const generateBluffFn = httpsCallable(functionsClient, 'generateBluff'); // Include Claude
+const judgeGuessFn = httpsCallable(functionsClient, 'judgeGuess');       // CCC
+const judgeFunniestFn = httpsCallable(functionsClient, 'judgeFunniest'); // CSF
 
 let itemIndexCache = null;
 async function getItemIndex(){
@@ -709,7 +716,9 @@ async function startGame(){
   const settings = {
     numRounds, categories,
     crowdFunny: $('toggle-crowdFunny').checked,
-    ccc: false, csf: false, includeClaude: false // gated until the Cloud Function judge exists
+    ccc: $('toggle-ccc').checked,
+    csf: $('toggle-csf').checked,
+    includeClaude: $('toggle-includeClaude').checked
   };
   await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing' });
   await beginRound(0, categories, []);
@@ -752,12 +761,30 @@ async function beginRound(index, categories, usedTerms){
   }
 
   const phaseEndsAt = Date.now() + WRITING_SECONDS*1000;
+
+  // Include Claude: get its bluff now, alongside the term — it works from
+  // just the term, same as a human player would, never told the real
+  // answer, so it's not advantaged over anyone else.
+  const submissions = {};
+  if(game.settings.includeClaude){
+    try{
+      const bluffResult = await generateBluffFn({ term, category: cat });
+      if(bluffResult.data && bluffResult.data.bluff){
+        submissions['CLAUDE'] = { text: bluffResult.data.bluff, author: 'CLAUDE' };
+      }
+    } catch(err){
+      // Skip Claude's entry this round rather than blocking it — Include
+      // Claude is a nice-to-have, not core to the round happening.
+      console.error('generateBluff failed, continuing without Claude this round:', err);
+    }
+  }
+
   await updateDoc(doc(db, GAMES, currentGameCode), {
     usedTerms: [...usedTerms, term],
     round: {
       index, category: cat, term, itemId, answerSource, answerId,
       phase: 'writing', phaseEndsAt,
-      submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false
+      submissions, votes: {}, shuffleOrder: null, answerText: null, scored: false
     }
   });
 }
@@ -787,15 +814,19 @@ function renderWriting(isNew){
     $('writing-input-area').style.display = already ? 'none' : 'block';
     $('writing-submitted').style.display = already ? 'block' : 'none';
     $('writing-submitted-msg').textContent = 'Nice bluff. Waiting on everyone else\u2026';
+    $('writing-ccc-area').style.display = game.settings.ccc ? 'block' : 'none';
 
-    if(isNew) $('writing-textarea').value = '';
+    if(isNew){ $('writing-textarea').value = ''; $('writing-guess').value = ''; }
 
     $('btn-submit-bluff').onclick = async () => {
       const text = $('writing-textarea').value.trim();
       if(!text) return;
-      await updateDoc(doc(db, GAMES, currentGameCode), {
-        [`round.submissions.${myUid}`]: { text, author: myUid }
-      });
+      const updates = { [`round.submissions.${myUid}`]: { text, author: myUid } };
+      if(game.settings.ccc){
+        const guess = $('writing-guess').value.trim();
+        if(guess) updates[`round.guesses.${myUid}`] = guess;
+      }
+      await updateDoc(doc(db, GAMES, currentGameCode), updates);
     };
   }
 
@@ -824,11 +855,31 @@ async function maybeAdvanceFromWriting(){
     const answerText = r.answerSource === 'generated'
       ? await getGeneratedAnswer(r.answerId)
       : await getSeedAnswer(r.itemId);
+
+    // CCC: judge every free-text guess against the now-known real answer,
+    // right as voting opens — this has to happen with the real answer in
+    // hand, but before anyone's seen the voting list.
+    let cccResults = {};
+    if(game.settings.ccc && r.guesses && Object.keys(r.guesses).length){
+      const entries = Object.entries(r.guesses);
+      const judged = await Promise.all(entries.map(async ([uid, guess]) => {
+        try{
+          const res = await judgeGuessFn({ term: r.term, realAnswer: answerText, guess });
+          return [uid, res.data];
+        } catch(err){
+          console.error('judgeGuess failed for', uid, err);
+          return [uid, { correct: false, reason: 'Judge call failed.' }];
+        }
+      }));
+      cccResults = Object.fromEntries(judged);
+    }
+
     await updateDoc(doc(db, GAMES, currentGameCode), {
       'round.phase':'voting',
       'round.phaseEndsAt': Date.now() + VOTING_SECONDS*1000,
       'round.shuffleOrder': order,
-      'round.answerText': answerText
+      'round.answerText': answerText,
+      'round.cccResults': cccResults
     });
   } finally { advancing = false; }
 }
@@ -928,12 +979,32 @@ async function maybeAdvanceFromVoting(){
     const r = game.round;
     if(r.phase !== 'voting') return;
     const scored = computeScores(r, game.players);
+
+    // CSF: Claude picks the funniest HUMAN bluff (Claude's own entry, if
+    // Include Claude is on, is excluded — this is Claude judging others,
+    // not itself).
+    let csfWinnerId = null;
+    if(game.settings.csf){
+      const humanSubs = Object.entries(r.submissions||{})
+        .filter(([id]) => id !== 'CLAUDE')
+        .map(([id, s]) => ({ id, text: s.text }));
+      if(humanSubs.length){
+        try{
+          const res = await judgeFunniestFn({ term: r.term, submissions: humanSubs });
+          csfWinnerId = res.data.winnerId || null;
+        } catch(err){
+          console.error('judgeFunniest failed:', err);
+        }
+      }
+    }
+
     await updateDoc(doc(db, GAMES, currentGameCode), {
       'round.phase':'reveal',
       'round.scored': true,
       players: scored.players,
       [`round.scoreDeltas`]: scored.deltas,
-      [`round.funniestIds`]: scored.funniestIds
+      [`round.funniestIds`]: scored.funniestIds,
+      [`round.csfWinnerId`]: csfWinnerId
     });
   } finally { advancing = false; }
 }
@@ -955,6 +1026,17 @@ function computeScores(r, players){
       }
     }
   });
+
+  // CCC: +1 for each player Claude judged as having correctly guessed the
+  // real answer before ever seeing the voting list.
+  if(r.cccResults){
+    Object.entries(r.cccResults).forEach(([uid, result]) => {
+      if(result && result.correct && updated[uid]){
+        updated[uid].score += 1;
+        deltas[uid] = (deltas[uid]||0) + 1;
+      }
+    });
+  }
 
   // Ties are real — with a small player count they're common, and everyone
   // tied for the top vote count should get the badge, not just whichever
@@ -991,8 +1073,9 @@ function renderReveal(isNew){
   list.innerHTML = '';
   order.forEach((id, i) => {
     const isReal = id === 'REAL';
+    const isClaude = id === 'CLAUDE';
     const text = isReal ? r.answerText : (r.submissions[id] ? r.submissions[id].text : '');
-    const authorName = isReal ? null : (game.players[r.submissions[id]?.author]?.name || '—');
+    const authorName = isReal ? null : (isClaude ? 'Claude' : (game.players[r.submissions[id]?.author]?.name || '—'));
     const div = document.createElement('div');
     div.className = 'sub-option disabled';
     if(isReal) div.style.border = '2px solid var(--moss)';
@@ -1003,6 +1086,7 @@ function renderReveal(isNew){
     const votes = voteTally[id] || 0;
     if(votes>0) flags.innerHTML += `<span class="flag votes">${votes} vote${votes===1?'':'s'}</span>`;
     if(game.settings.crowdFunny && r.funniestIds && r.funniestIds.includes(id)) flags.innerHTML += `<span class="flag funniest">😂 funniest</span>`;
+    if(game.settings.csf && r.csfWinnerId === id) flags.innerHTML += `<span class="flag csf">🏆 CSF</span>`;
     div.appendChild(flags);
     list.appendChild(div);
   });
@@ -1014,7 +1098,9 @@ function renderReveal(isNew){
     const row = document.createElement('div');
     row.className = 'leader-row' + (i===0 ? ' first':'');
     const delta = (r.scoreDeltas && r.scoreDeltas[uid]) || 0;
-    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;">${escapeHtml(p.name)}</span><span class="score">${p.score}${delta>0?` <span style="color:var(--moss);font-size:12px;">+${delta}</span>`:''}</span>`;
+    const cccBadge = (game.settings.ccc && r.cccResults && r.cccResults[uid] && r.cccResults[uid].correct)
+      ? ` <span class="flag ccc">🎯 CCC</span>` : '';
+    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;">${escapeHtml(p.name)}${cccBadge}</span><span class="score">${p.score}${delta>0?` <span style="color:var(--moss);font-size:12px;">+${delta}</span>`:''}</span>`;
     standings.appendChild(row);
   });
 
