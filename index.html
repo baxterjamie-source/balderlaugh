@@ -229,6 +229,17 @@
         <option value="300">5:00</option>
       </select>
 
+      <label>Time to vote</label>
+      <select id="setting-voting-seconds">
+        <option value="120">2:00</option>
+        <option value="150">2:30</option>
+        <option value="180" selected>3:00</option>
+        <option value="210">3:30</option>
+        <option value="240">4:00</option>
+        <option value="270">4:30</option>
+        <option value="300">5:00</option>
+      </select>
+
       <label>Categories in the mix</label>
       <div class="stack" style="gap:4px;">
         <label class="row" style="margin:4px 0;"><span>Odd Words</span><input type="checkbox" id="cat-oddWords" checked></label>
@@ -247,12 +258,16 @@
         <label class="switch"><input type="checkbox" id="toggle-ccc"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Claude picks the funniest human bluff each round — bragging rights only</div></div>
+        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Claude also casts one funniest vote — human bluffs only, folded into the same tally as everyone else's</div></div>
         <label class="switch"><input type="checkbox" id="toggle-csf"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
         <div><div class="lbl">Include Claude</div><div class="sub">Claude writes its own bluff each round — eligible for crowd funniest, not CSF</div></div>
         <label class="switch"><input type="checkbox" id="toggle-includeClaude"><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">Play until there's a clear winner</div><div class="sub">If the last round ends in a tie for first, keep adding rounds until it breaks</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-playUntilWinner"><span class="track"></span><span class="thumb"></span></label>
       </div>
     </div>
 
@@ -369,11 +384,13 @@
     <div class="center" style="margin-bottom:6px;">
       <div class="cat" style="color:var(--gold);font-weight:700;font-size:12px;letter-spacing:.08em;">GAME OVER</div>
       <h1 style="font-size:30px;">Final scores</h1>
+      <div class="note" id="gameover-tie-note" style="display:none;color:var(--gold);">👑 It's a tie!</div>
     </div>
     <div id="gameover-standings"></div>
     <div class="footer-actions">
-      <button class="btn" id="btn-play-again">Back to lobby</button>
-      <button class="btn ghost" id="btn-gameover-home" style="margin-top:10px;">Leave to home</button>
+      <button class="btn" id="btn-play-again">Play again — same group</button>
+      <div class="note center" id="btn-play-again-note" style="display:none;margin:8px 0;">Waiting for the host to start a new game, or leave below.</div>
+      <button class="btn ghost" id="btn-gameover-home" style="margin-top:10px;">Leave this game</button>
     </div>
   </section>
 
@@ -485,9 +502,8 @@ async function markTermUsed(term, category){
   });
 }
 
-// Writing time is now a per-game host setting (game.settings.writingSeconds);
-// voting stays fixed.
-const VOTING_SECONDS  = 60;
+// Writing and voting time are both per-game host settings now
+// (game.settings.writingSeconds / votingSeconds).
 
 // ---- 3. IDENTITY --------------------------------------------------------
 function uuid(){ return 'xxxxxxxx-xxxx'.replace(/x/g, () => (Math.random()*16|0).toString(16)); }
@@ -592,6 +608,11 @@ function listenOpenGames(){
 }
 function escapeHtml(s){
   const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+function formatRoundLabel(r){
+  const n = game.settings.numRounds;
+  if(r.index + 1 <= n) return `Round ${r.index+1} of ${n}`;
+  return `Bonus round ${r.index+1 - n} (tiebreaker)`; // "play until clear winner" overtime
 }
 
 async function joinGame(code){
@@ -750,15 +771,17 @@ function renderLobby(){
 async function startGame(){
   const numRounds = parseInt($('setting-rounds').value, 10);
   const writingSeconds = parseInt($('setting-writing-seconds').value, 10);
+  const votingSeconds = parseInt($('setting-voting-seconds').value, 10);
   const categories = ['oddWords','obscurePeople','movies'].filter(c => $(`cat-${c}`).checked);
   if(categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
   if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
   const settings = {
-    numRounds, writingSeconds, categories,
+    numRounds, writingSeconds, votingSeconds, categories,
     crowdFunny: $('toggle-crowdFunny').checked,
     ccc: $('toggle-ccc').checked,
     csf: $('toggle-csf').checked,
-    includeClaude: $('toggle-includeClaude').checked
+    includeClaude: $('toggle-includeClaude').checked,
+    playUntilWinner: $('toggle-playUntilWinner').checked
   };
   await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing' });
   await beginRound(0, categories, []);
@@ -767,23 +790,25 @@ async function startGame(){
 async function beginRound(index, categories, usedTerms){
   const cat = categories[index % categories.length];
 
-  // Show a loading state immediately — generation takes a few seconds
-  // (it's doing a real web search), so don't leave the previous screen
-  // sitting there looking stalled.
-  await updateDoc(doc(db, GAMES, currentGameCode), {
-    round: {
-      index, category: cat, phase: 'generating', term: null, itemId: null,
-      answerSource: null, answerId: null, phaseEndsAt: null,
-      submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false
-    }
-  });
-
-  // Cross-game cooldown, on top of this game's own usedTerms — soft
-  // preference, not a hard block: if honoring it would leave nothing to
-  // pick from, fall back to ignoring it rather than stalling the round.
-  let recentTerms = [];
-  try{ recentTerms = await getRecentlyUsedTerms(); }
-  catch(err){ console.error('Could not fetch recently-used terms, continuing without cross-game dedupe this round:', err); }
+  // Show a loading state immediately, and fetch the cross-game cooldown
+  // list in parallel with it (they're independent — no reason to wait on
+  // one before starting the other).
+  const [, recentTermsResult] = await Promise.allSettled([
+    updateDoc(doc(db, GAMES, currentGameCode), {
+      round: {
+        index, category: cat, phase: 'generating', term: null, itemId: null,
+        answerSource: null, answerId: null, phaseEndsAt: null,
+        submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false
+      }
+    }),
+    getRecentlyUsedTerms()
+  ]);
+  // Soft preference, not a hard block: if the cooldown fetch itself
+  // failed, just proceed without cross-game dedupe this round.
+  const recentTerms = recentTermsResult.status === 'fulfilled' ? recentTermsResult.value : [];
+  if(recentTermsResult.status === 'rejected'){
+    console.error('Could not fetch recently-used terms, continuing without cross-game dedupe this round:', recentTermsResult.reason);
+  }
   const excludeTerms = [...new Set([...usedTerms, ...recentTerms])];
 
   let term, itemId = null, answerSource, answerId = null;
@@ -814,13 +839,14 @@ async function beginRound(index, categories, usedTerms){
     term = item.term; itemId = item.id; answerSource = 'seed';
   }
 
-  // Include Claude: get its bluff now, alongside the term — it works from
-  // just the term, same as a human player would, never told the real
-  // answer, so it's not advantaged over anyone else.
+  // Include Claude: get its bluff now, alongside the term — it needs the
+  // real answer for overlap-avoidance (see generateBluff), so this can't
+  // run in parallel with the term fetch above; it genuinely has to wait
+  // for it.
   const submissions = {};
   if(game.settings.includeClaude){
     try{
-      const bluffResult = await generateBluffFn({ term, category: cat });
+      const bluffResult = await generateBluffFn({ term, category: cat, answerSource, answerId, itemId });
       if(bluffResult.data && bluffResult.data.bluff){
         submissions['CLAUDE'] = { text: bluffResult.data.bluff, author: 'CLAUDE' };
       }
@@ -832,8 +858,8 @@ async function beginRound(index, categories, usedTerms){
   }
 
   // Record this term for the cross-game cooldown, regardless of source.
-  try{ await markTermUsed(term, cat); }
-  catch(err){ console.error('Could not record term as used:', err); }
+  // Bookkeeping only — don't make players wait on this write.
+  markTermUsed(term, cat).catch(err => console.error('Could not record term as used:', err));
 
   // The timer starts NOW — after everything (term + Claude's bluff, if
   // any) is actually ready — not earlier, or players lose real time to
@@ -853,7 +879,7 @@ async function beginRound(index, categories, usedTerms){
 // ---- 9. WRITING ---------------------------------------------------------
 function renderWriting(isNew){
   const r = game.round;
-  $('writing-round-pill').textContent = `Round ${r.index+1} of ${game.settings.numRounds}`;
+  $('writing-round-pill').textContent = formatRoundLabel(r);
   $('writing-cat').textContent = CAT_LABEL[r.category];
   $('writing-term').textContent = r.term;
 
@@ -942,7 +968,7 @@ async function maybeAdvanceFromWriting(){
 
     await updateDoc(doc(db, GAMES, currentGameCode), {
       'round.phase':'voting',
-      'round.phaseEndsAt': Date.now() + VOTING_SECONDS*1000,
+      'round.phaseEndsAt': Date.now() + game.settings.votingSeconds*1000,
       'round.shuffleOrder': order,
       'round.answerText': answerText,
       'round.cccResults': cccResults
@@ -953,7 +979,7 @@ async function maybeAdvanceFromWriting(){
 // ---- 10. VOTING ---------------------------------------------------------
 function renderVoting(isNew){
   const r = game.round;
-  $('voting-round-pill').textContent = `Round ${r.index+1} of ${game.settings.numRounds}`;
+  $('voting-round-pill').textContent = formatRoundLabel(r);
   $('voting-cat').textContent = CAT_LABEL[r.category];
   $('voting-term').textContent = r.term;
 
@@ -1044,11 +1070,13 @@ async function maybeAdvanceFromVoting(){
   try{
     const r = game.round;
     if(r.phase !== 'voting') return;
-    const scored = computeScores(r, game.players);
 
-    // CSF: Claude picks the funniest HUMAN bluff (Claude's own entry, if
-    // Include Claude is on, is excluded — this is Claude judging others,
-    // not itself).
+    // CSF: Claude casts one funniest vote of its own, HUMAN bluffs only
+    // (Claude's own entry, if Include Claude is on, is excluded — this is
+    // Claude judging others, not itself). Folded directly into the same
+    // funny-vote tally as everyone else's — simpler than a separate
+    // trophy system, and it means a tie between the crowd's pick and
+    // Claude's pick just shows as a shared 😂 badge, same as any other tie.
     let csfWinnerId = null;
     if(game.settings.csf){
       const humanSubs = Object.entries(r.submissions||{})
@@ -1064,18 +1092,19 @@ async function maybeAdvanceFromVoting(){
       }
     }
 
+    const scored = computeScores(r, game.players, csfWinnerId);
+
     await updateDoc(doc(db, GAMES, currentGameCode), {
       'round.phase':'reveal',
       'round.scored': true,
       players: scored.players,
       [`round.scoreDeltas`]: scored.deltas,
-      [`round.funniestIds`]: scored.funniestIds,
-      [`round.csfWinnerId`]: csfWinnerId
+      [`round.funniestIds`]: scored.funniestIds
     });
   } finally { advancing = false; }
 }
 
-function computeScores(r, players){
+function computeScores(r, players, csfWinnerId){
   const updated = JSON.parse(JSON.stringify(players));
   const deltas = {};
   Object.keys(updated).forEach(uid => deltas[uid] = 0);
@@ -1108,9 +1137,10 @@ function computeScores(r, players){
   // tied for the top vote count should get the badge, not just whichever
   // one happened to be tallied first.
   let funniestIds = [];
-  if(r.votes){
+  if(r.votes || csfWinnerId){
     const tally = {};
-    Object.values(r.votes).forEach(v => { if(v.funny){ tally[v.funny] = (tally[v.funny]||0)+1; } });
+    Object.values(r.votes||{}).forEach(v => { if(v.funny){ tally[v.funny] = (tally[v.funny]||0)+1; } });
+    if(csfWinnerId){ tally[csfWinnerId] = (tally[csfWinnerId]||0)+1; } // Claude's own vote, same tally
     let max = 0;
     Object.values(tally).forEach(count => { if(count>max) max = count; });
     if(max > 0){
@@ -1123,7 +1153,7 @@ function computeScores(r, players){
 // ---- 11. REVEAL ---------------------------------------------------------
 function renderReveal(isNew){
   const r = game.round;
-  $('reveal-round-pill').textContent = `Round ${r.index+1} of ${game.settings.numRounds}`;
+  $('reveal-round-pill').textContent = formatRoundLabel(r);
   $('reveal-cat').textContent = CAT_LABEL[r.category];
   $('reveal-term').textContent = r.term;
 
@@ -1151,8 +1181,7 @@ function renderReveal(isNew){
     else flags.innerHTML += `<span class="flag votes">by ${escapeHtml(authorName)}</span>`;
     const votes = voteTally[id] || 0;
     if(votes>0) flags.innerHTML += `<span class="flag votes">${votes} vote${votes===1?'':'s'}</span>`;
-    if(game.settings.crowdFunny && r.funniestIds && r.funniestIds.includes(id)) flags.innerHTML += `<span class="flag funniest">😂 funniest</span>`;
-    if(game.settings.csf && r.csfWinnerId === id) flags.innerHTML += `<span class="flag csf">🏆 CSF</span>`;
+    if((game.settings.crowdFunny || game.settings.csf) && r.funniestIds && r.funniestIds.includes(id)) flags.innerHTML += `<span class="flag funniest">😂 funniest</span>`;
     div.appendChild(flags);
     list.appendChild(div);
   });
@@ -1175,6 +1204,15 @@ function renderReveal(isNew){
   $('btn-next-round').onclick = async () => {
     const nextIndex = r.index + 1;
     if(nextIndex >= game.settings.numRounds){
+      const scoresNow = Object.values(game.players).map(p => p.score);
+      const top = Math.max(...scoresNow);
+      const tied = scoresNow.filter(s => s === top).length > 1;
+      if(tied && game.settings.playUntilWinner){
+        // Tiebreaker round — round count keeps climbing past the original
+        // numRounds until someone actually pulls ahead.
+        await beginRound(nextIndex, game.settings.categories, game.usedTerms||[]);
+        return;
+      }
       await updateDoc(doc(db, GAMES, currentGameCode), { status:'ended' });
     } else {
       await beginRound(nextIndex, game.settings.categories, game.usedTerms||[]);
@@ -1187,13 +1225,18 @@ function renderGameOver(){
   const standings = $('gameover-standings');
   standings.innerHTML = '';
   const sorted = Object.entries(game.players).sort((a,b) => b[1].score - a[1].score);
+  const topScore = sorted.length ? sorted[0][1].score : 0;
+  const winnerCount = sorted.filter(([,p]) => p.score === topScore).length;
+  $('gameover-tie-note').style.display = winnerCount > 1 ? 'block' : 'none';
   sorted.forEach(([uid,p], i) => {
+    const isWinner = p.score === topScore; // ties all get the crown, not just whoever sorted first
     const row = document.createElement('div');
-    row.className = 'leader-row' + (i===0 ? ' first':'');
-    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;">${escapeHtml(p.name)}${i===0?' 👑':''}</span><span class="score">${p.score}</span>`;
+    row.className = 'leader-row' + (isWinner ? ' first':'');
+    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="score">${p.score}</span>`;
     standings.appendChild(row);
   });
   $('btn-play-again').style.display = isHost() ? 'block' : 'none';
+  $('btn-play-again-note').style.display = isHost() ? 'none' : 'block';
   $('btn-play-again').onclick = async () => {
     const resetPlayers = {};
     Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0 }; });

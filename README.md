@@ -155,14 +155,37 @@ still misjudge a source or the search could turn up something misleading.
 Reasonably trustworthy, not guaranteed.
 
 ## Things worth playtesting / tuning
-- Timer lengths: writing is 90s, voting is 60s — both are constants near the
-  top of the script (`WRITING_SECONDS`, `VOTING_SECONDS`), easy to tweak.
-- Generation latency: a few seconds per round while `generateItem` searches
-  and verifies. Watch how that feels in practice — if it drags, the
-  function's `max_tokens` or search behavior could be tuned down.
+- Both writing and voting time are now host-set per game (2:00-5:00, 30s
+  steps, lobby settings) rather than fixed constants.
+- Generation latency: with Include Claude on, the bluff call now has to
+  wait for the real answer first (needed for overlap-avoidance — see
+  below), so those two calls can't run in parallel anymore. Some added
+  round-start delay there is an inherent tradeoff, not a bug.
 - No "kick a player" control if someone drops off mid-game and doesn't
   come back — the game will just keep waiting on their submission/vote
   until the timer expires and moves on without them.
 - Same device, multiple browser tabs share the same local player identity
   (by design) — for a real multi-device test, use separate phones or
   separate browsers/incognito windows.
+- "Play until there's a clear winner" (lobby toggle) adds tiebreaker
+  rounds past the configured round count if the last round ends tied for
+  first — the round pill shows "Bonus round N (tiebreaker)" once past the
+  original count.
+- Not built yet, flagged as a deliberately separate follow-up: a "Reader"
+  role (rotating player who sees all submissions first and reveals them
+  to the table on their own signal, closer to physical Balderdash) and a
+  single combined voting list (one row per submission with both a "real"
+  and "funniest" mark, instead of the list rendering twice). Both are
+  meaningful enough changes to scope properly rather than bolt on.
+
+## Include Claude's bluff quality
+`generateBluff` now sees the real answer server-side (never sent to any
+browser) specifically so it can avoid reusing the real answer's specific
+words — testing showed staying fully blind still produced accidental
+overlap (e.g. both a real and fake definition of an "yesterday"-related
+word using the word "yesterday"), since Claude's own general knowledge of
+well-documented terms tends to converge with the truth even without being
+told it. Length is also now hard-capped (30 words, at most one specific
+number/date total) rather than softly suggested, after a test round
+produced a real answer with five stacked statistics in one sentence
+despite an earlier, softer instruction against exactly that.
