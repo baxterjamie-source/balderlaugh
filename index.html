@@ -404,8 +404,8 @@
 // so it doesn't collide with e.g. cottagerestocklist's own collections).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-  collection, query, where, orderBy, limit, serverTimestamp, deleteField
+  getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot,
+  collection, query, where, orderBy, limit, serverTimestamp, deleteField, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
@@ -458,6 +458,33 @@ async function getGeneratedAnswer(answerId){
   return snap.exists() ? snap.data().real : '(answer unavailable)';
 }
 const CAT_LABEL = { oddWords:"Odd Words", obscurePeople:"Obscure People", movies:"That's Really a Movie?" };
+
+// ---- Cross-game cooldown --------------------------------------------------
+// Both live generation and the seeded fallback have independently
+// resurfaced the same word/person/movie — this tracks every term ever
+// used, across ALL games, so a fresh one isn't chosen again for 60 days.
+// Holds no secrets (the term itself is shown to every player every round
+// anyway), so it's plainly readable/writable, unlike the answer-key
+// collections. Reset this collection in Firestore whenever a clean slate
+// is wanted (e.g. once testing wraps, before a real game night).
+const COOLDOWN_DAYS = 60;
+function normalizeTermId(term){
+  return (term||'').trim().toLowerCase().replace(/[\/.\s]+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 200) || ('t-' + Date.now());
+}
+async function getRecentlyUsedTerms(){
+  const cutoff = Timestamp.fromMillis(Date.now() - COOLDOWN_DAYS*24*60*60*1000);
+  const q = query(collection(db, 'balderlaugh_used_terms'), where('lastUsedAt', '>', cutoff));
+  const snap = await getDocs(q);
+  const terms = [];
+  snap.forEach(d => { if(d.data().term) terms.push(d.data().term); });
+  return terms;
+}
+async function markTermUsed(term, category){
+  await setDoc(doc(db, 'balderlaugh_used_terms', normalizeTermId(term)), {
+    term, category, lastUsedAt: serverTimestamp()
+  });
+}
+
 // Writing time is now a per-game host setting (game.settings.writingSeconds);
 // voting stays fixed.
 const VOTING_SECONDS  = 60;
@@ -671,7 +698,7 @@ function route(){
     const isNewPhase = phaseKey !== lastPhaseKey;
     lastPhaseKey = phaseKey;
     if(phase === 'generating'){
-      $('loading-message').textContent = 'Writing the prompt\u2026';
+      $('loading-message').textContent = 'Generating an item (this can take a few seconds)';
       showScreen('screen-loading');
     }
     else if(phase === 'writing'){ renderWriting(isNewPhase); showScreen('screen-writing'); }
@@ -751,9 +778,17 @@ async function beginRound(index, categories, usedTerms){
     }
   });
 
+  // Cross-game cooldown, on top of this game's own usedTerms — soft
+  // preference, not a hard block: if honoring it would leave nothing to
+  // pick from, fall back to ignoring it rather than stalling the round.
+  let recentTerms = [];
+  try{ recentTerms = await getRecentlyUsedTerms(); }
+  catch(err){ console.error('Could not fetch recently-used terms, continuing without cross-game dedupe this round:', err); }
+  const excludeTerms = [...new Set([...usedTerms, ...recentTerms])];
+
   let term, itemId = null, answerSource, answerId = null;
   try{
-    const result = await generateItemFn({ category: cat, excludeTerms: usedTerms, gameId: currentGameCode, roundIndex: index });
+    const result = await generateItemFn({ category: cat, excludeTerms, gameId: currentGameCode, roundIndex: index });
     term = result.data.term;
     answerId = result.data.answerId;
     answerSource = 'generated';
@@ -763,8 +798,14 @@ async function beginRound(index, categories, usedTerms){
     // rather than stalling the round.
     console.error('Live generation failed, falling back to the seeded bank:', err);
     const idx = await getItemIndex();
-    const catList = (idx[cat]||[]).filter(it => !usedTerms.includes(it.term));
-    const bank = catList.length ? catList : (idx[cat]||[]);
+    const fullList = idx[cat] || [];
+    // Try honoring the full cooldown first; if that empties the pool
+    // (small seed bank, long cooldown, heavy testing), fall back to just
+    // this-game dedupe, then finally to the whole list if even that's
+    // exhausted — always keep the round playable.
+    const strict = fullList.filter(it => !excludeTerms.includes(it.term));
+    const gameOnly = fullList.filter(it => !usedTerms.includes(it.term));
+    const bank = strict.length ? strict : (gameOnly.length ? gameOnly : fullList);
     if(bank.length === 0){
       console.error('No fallback items available either for category', cat, '— did the seed script run?');
       return;
@@ -789,6 +830,10 @@ async function beginRound(index, categories, usedTerms){
       console.error('generateBluff failed, continuing without Claude this round:', err);
     }
   }
+
+  // Record this term for the cross-game cooldown, regardless of source.
+  try{ await markTermUsed(term, cat); }
+  catch(err){ console.error('Could not record term as used:', err); }
 
   // The timer starts NOW — after everything (term + Claude's bluff, if
   // any) is actually ready — not earlier, or players lose real time to

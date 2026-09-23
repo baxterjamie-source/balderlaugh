@@ -115,11 +115,30 @@ match /balderlaugh_round_answers/{answerId} {
   allow list: if false;    // can't browse other games'/rounds' answers
   allow write: if false;   // only generateItem (Admin SDK, server-side) writes this
 }
+match /balderlaugh_used_terms/{termId} {
+  allow read, write: if true;   // no secrets here — the term itself is shown to every player anyway
+}
 ```
 
 The `get`/`list` split is doing the real work here: a client can still ask
 Firestore for the one specific item or round-answer it currently needs, but
 can't query either collection to see everything in it at once.
+
+## Cross-game term cooldown
+`balderlaugh_used_terms` tracks every word/person/movie used across ALL
+games (not just the current one), each stamped with when it was last used.
+Both live generation and the seeded fallback check this before picking —
+anything used in the last 60 days (`COOLDOWN_DAYS` in `index.html`) is
+avoided where possible. It's a soft preference, not a hard block: if
+honoring it would leave nothing left to pick from (a small seed bank plus
+heavy testing, say), the game quietly falls back to ignoring it rather than
+stalling a round.
+
+**To reset it** (e.g. once testing wraps, for a clean slate before a real
+game night): Firestore Database → Data tab → open `balderlaugh_used_terms`
+→ delete the collection (the "⋮" menu on the collection has a "Delete
+collection" option). Nothing else depends on it, so it's safe to wipe
+anytime.
 
 ## Known limitation (read before a big game night)
 Game *state* — submissions, votes, live scores — is still wide open in
