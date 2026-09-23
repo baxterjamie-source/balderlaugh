@@ -261,10 +261,6 @@
         <label class="switch"><input type="checkbox" id="toggle-crowdFunny" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">CCC — Claude Certified Close</div><div class="sub">🎯 marks any human bluff Claude judges as surprisingly close to the truth — bragging rights only, no points</div></div>
-        <label class="switch"><input type="checkbox" id="toggle-ccc"><span class="track"></span><span class="thumb"></span></label>
-      </div>
-      <div class="toggle-row">
         <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Claude also casts one funniest vote — human bluffs only, folded into the same tally as everyone else's</div></div>
         <label class="switch"><input type="checkbox" id="toggle-csf"><span class="track"></span><span class="thumb"></span></label>
       </div>
@@ -822,7 +818,6 @@ async function startGame(){
   const settings = {
     numRounds, writingSeconds, votingSeconds, categories,
     crowdFunny: $('toggle-crowdFunny').checked,
-    ccc: $('toggle-ccc').checked,
     csf: $('toggle-csf').checked,
     includeClaude: $('toggle-includeClaude').checked,
     playUntilWinner: $('toggle-playUntilWinner').checked
@@ -1185,7 +1180,7 @@ async function maybeAdvanceFromVoting(){
     // CCC: mark any human bluff Claude judges as surprisingly close to the
     // real answer — bragging rights only, no scoring impact.
     let cccCloseIds = [];
-    if(game.settings.ccc && humanSubs.length){
+    if(humanSubs.length){
       try{
         const res = await judgeCloseCallsFn({ term: r.term, realAnswer: r.answerText, submissions: humanSubs });
         cccCloseIds = res.data.closeIds || [];
@@ -1269,7 +1264,7 @@ function renderReveal(isNew){
     else flags.innerHTML += `<span class="flag votes">by ${escapeHtml(authorName)}</span>`;
     const votes = voteTally[id] || 0;
     if(votes>0) flags.innerHTML += `<span class="flag votes">${votes} vote${votes===1?'':'s'}</span>`;
-    if(game.settings.ccc && r.cccCloseIds && r.cccCloseIds.includes(id)) flags.innerHTML += `<span class="flag ccc">🎯 close call</span>`;
+    if(r.cccCloseIds && r.cccCloseIds.includes(id)) flags.innerHTML += `<span class="flag ccc">🎯 close call</span>`;
     div.appendChild(flags);
     const funnyCount = (r.funnyTally && r.funnyTally[id]) || 0;
     if((game.settings.crowdFunny || game.settings.csf) && funnyCount > 0){
