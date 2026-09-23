@@ -543,6 +543,20 @@ function pickNextReader(queue, activeUids){
   return { readerUid, remainingQueue };
 }
 
+// Same shuffled-bag pattern as the Reader rotation: random order, no
+// repeats until every category's been used once, then reshuffled — so a
+// repeat can land right at that reshuffle boundary (e.g. round 3 and
+// round 4 happen to match), but never more predictably than that.
+function pickNextCategory(queue, categories){
+  let q = (queue||[]).filter(c => categories.includes(c));
+  if(q.length === 0 && categories.length > 0){
+    q = seededShuffle(categories, Date.now());
+  }
+  const cat = q[0] || categories[0];
+  const remainingQueue = q.slice(1);
+  return { cat, remainingQueue };
+}
+
 // ---- 3. IDENTITY --------------------------------------------------------
 function uuid(){ return 'xxxxxxxx-xxxx'.replace(/x/g, () => (Math.random()*16|0).toString(16)); }
 let myUid = localStorage.getItem('balderlaugh_uid');
@@ -609,6 +623,7 @@ function initHome(){
       players: { [myUid]: { name, score:0 } },
       usedTerms: [],
       readerQueue: [],
+      categoryQueue: [],
       round: null
     });
     joinGame(code);
@@ -827,13 +842,14 @@ async function startGame(){
 }
 
 async function beginRound(index, categories, usedTerms){
-  const cat = categories[index % categories.length];
+  const { cat, remainingQueue: categoryQueue } = pickNextCategory(game.categoryQueue, categories);
 
   // Show a loading state immediately, and fetch the cross-game cooldown
   // list in parallel with it (they're independent — no reason to wait on
   // one before starting the other).
   const [, recentTermsResult] = await Promise.allSettled([
     updateDoc(doc(db, GAMES, currentGameCode), {
+      categoryQueue,
       round: {
         index, category: cat, phase: 'generating', term: null, itemId: null,
         answerSource: null, answerId: null, phaseEndsAt: null,
@@ -1347,7 +1363,7 @@ function renderGameOver(){
   $('btn-play-again').onclick = async () => {
     const resetPlayers = {};
     Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0 }; });
-    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [] });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [] });
   };
   $('btn-gameover-home').onclick = leaveToHome;
 }
