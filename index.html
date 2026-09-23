@@ -1060,20 +1060,17 @@ function renderReading(isNew){
     const order = r.shuffleOrder || [];
     const list = $('reading-list');
     list.innerHTML = '';
+    // The Reader is blind to which one is real, same as everyone else —
+    // they're purely reading the list aloud, not the "dasher" who already
+    // knows the answer. No distinguishing mark on any row.
     order.forEach((id, i) => {
       const isReal = id === 'REAL';
       const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
       const div = document.createElement('div');
-      // Full-opacity, non-interactive — this isn't a voting screen, just a
-      // read-aloud list, so it shouldn't look dimmed/disabled like one.
+      // Full-opacity, no border/background changes — this is a plain
+      // read-aloud list, not a voting or reveal screen.
       div.className = 'sub-option readonly';
-      if(isReal) div.style.border = '2px solid var(--moss)';
       div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
-      if(isReal){
-        const flags = document.createElement('div'); flags.className='flags';
-        flags.innerHTML = `<span class="flag real">REAL ANSWER</span>`;
-        div.appendChild(flags);
-      }
       list.appendChild(div);
     });
     $('btn-show-group').onclick = () => maybeAdvanceFromReading();
