@@ -123,6 +123,7 @@
   .sub-option.selected{border:3px solid #fff;background:var(--fox);color:#fff;box-shadow:0 4px 14px rgba(193,82,28,.45);}
   .sub-option.selected .idx{color:#fff;}
   .sub-option.disabled{cursor:default;opacity:.55;}
+  .sub-option.readonly{cursor:default;}
   .sub-option .idx{font-weight:700;color:var(--fox);margin-right:6px;}
   .sub-option .flags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
   .flag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;}
@@ -333,10 +334,11 @@
     <div class="timer" id="reading-timer">8:00</div>
 
     <div id="reading-reader-view" style="display:none;">
-      <h3 style="font-size:16px;margin-bottom:4px;">You are the Reader!</h3>
-      <div class="note" style="margin-bottom:14px;">Read each response aloud to the group. Once you're done, press "Show Group."</div>
+      <div class="card parchment" style="text-align:center;margin-bottom:14px;">
+        <div style="font-size:22px;font-weight:700;color:var(--fox);">📖 You are the Reader!</div>
+        <div style="margin-top:6px;">Read each response aloud to the group. When you're done, press "Show Group" below.</div>
+      </div>
       <div id="reading-list"></div>
-      <button class="btn" id="btn-show-group" style="margin-top:14px;">Show Group</button>
     </div>
 
     <div id="reading-waiting-view" style="display:none;">
@@ -344,6 +346,10 @@
         <div id="reading-waiting-msg" style="font-size:18px;color:var(--text-light);">Someone is the Reader.</div>
         <div class="note" style="margin-top:10px;">Simmer down and put your listening ears on.<br>You'll see the submissions once the Reader is done.</div>
       </div>
+    </div>
+
+    <div class="footer-actions" id="reading-footer" style="display:none;">
+      <button class="btn" id="btn-show-group">Show Group</button>
     </div>
   </section>
 
@@ -1048,6 +1054,7 @@ function renderReading(isNew){
   const isReader = r.readerUid === myUid;
   $('reading-reader-view').style.display = isReader ? 'block' : 'none';
   $('reading-waiting-view').style.display = isReader ? 'none' : 'block';
+  $('reading-footer').style.display = isReader ? 'block' : 'none';
 
   if(isReader){
     const order = r.shuffleOrder || [];
@@ -1057,7 +1064,9 @@ function renderReading(isNew){
       const isReal = id === 'REAL';
       const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
       const div = document.createElement('div');
-      div.className = 'sub-option disabled';
+      // Full-opacity, non-interactive — this isn't a voting screen, just a
+      // read-aloud list, so it shouldn't look dimmed/disabled like one.
+      div.className = 'sub-option readonly';
       if(isReal) div.style.border = '2px solid var(--moss)';
       div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
       if(isReal){
