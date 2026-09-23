@@ -171,12 +171,25 @@ Reasonably trustworthy, not guaranteed.
   rounds past the configured round count if the last round ends tied for
   first — the round pill shows "Bonus round N (tiebreaker)" once past the
   original count.
-- Not built yet, flagged as a deliberately separate follow-up: a "Reader"
-  role (rotating player who sees all submissions first and reveals them
-  to the table on their own signal, closer to physical Balderdash) and a
-  single combined voting list (one row per submission with both a "real"
-  and "funniest" mark, instead of the list rendering twice). Both are
-  meaningful enough changes to scope properly rather than bolt on.
+
+## The Reader role
+A new phase sits between writing and voting: one player each round is
+assigned Reader (a shuffled, no-repeat-until-exhausted rotation of active
+players — `game.readerQueue`, rebuilt whenever it empties out). Only the
+Reader sees the full shuffled list, real answer marked, no authors shown
+— same blind-to-authorship rule as the reveal screen always had. Everyone
+else just sees who's reading and waits. The Reader has an 8-minute cap
+(`READING_SECONDS`) before it auto-advances for the whole table, same
+any-client-can-trigger resilience pattern as the writing/voting timers —
+but pressing "Show Group" is what actually starts the voting clock,
+never the reading time itself.
+
+## Single combined voting list
+Each submission now gets one row with its own "Real" and "😂 Funniest"
+chips, instead of the list rendering twice under two separate headers.
+Selecting a chip on one row deselects it everywhere else (still
+single-select per vote type) — the same submission's row can hold both
+selections at once.
 
 ## Include Claude's bluff quality
 `generateBluff` now sees the real answer server-side (never sent to any

@@ -131,6 +131,12 @@
   .flag.ccc{background:var(--gold);color:#3a2c00;}
   .flag.csf{background:var(--fox);color:#fff;}
   .flag.funniest{background:#7A4FA0;color:#fff;}
+  .vote-chips{display:flex;gap:8px;margin-top:10px;}
+  .vote-chip{font-size:12px;font-weight:700;padding:7px 14px;border-radius:20px;border:2px solid var(--ink-3);background:transparent;cursor:pointer;font-family:inherit;}
+  .vote-chip.real{border-color:var(--fox);color:var(--fox);}
+  .vote-chip.real.selected{background:var(--fox);color:#fff;}
+  .vote-chip.funny{border-color:#7A4FA0;color:#7A4FA0;}
+  .vote-chip.funny.selected{background:#7A4FA0;color:#fff;}
   .flag.you{background:var(--parchment-2);color:var(--text-dark);}
 
   .waiting{text-align:center;color:var(--muted);font-size:14px;padding:18px 0;}
@@ -314,7 +320,34 @@
     </div>
   </section>
 
-  <!-- ============ VOTING ============ -->
+  <!-- ============ READING (the Reader reveals to the table) ============ -->
+  <section class="screen" id="screen-reading">
+    <div class="topbar">
+      <span class="roundpill" id="reading-round-pill">Round 1 of 6</span>
+      <button class="btn ghost small" id="btn-leave-reading">Leave</button>
+    </div>
+    <div class="prompt-card">
+      <div class="cat" id="reading-cat">ODD WORDS</div>
+      <div class="term" id="reading-term">Fudgel</div>
+    </div>
+    <div class="timer" id="reading-timer">8:00</div>
+
+    <div id="reading-reader-view" style="display:none;">
+      <h3 style="font-size:16px;margin-bottom:4px;">You are the Reader!</h3>
+      <div class="note" style="margin-bottom:14px;">Read each response aloud to the group. Once you're done, press "Show Group."</div>
+      <div id="reading-list"></div>
+      <button class="btn" id="btn-show-group" style="margin-top:14px;">Show Group</button>
+    </div>
+
+    <div id="reading-waiting-view" style="display:none;">
+      <div class="waiting">
+        <div id="reading-waiting-msg" style="font-size:18px;color:var(--text-light);">Someone is the Reader.</div>
+        <div class="note" style="margin-top:10px;">Simmer down and put your listening ears on.<br>You'll see the submissions once the Reader is done.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VOTING (single combined list) ============ -->
   <section class="screen" id="screen-voting">
     <div class="topbar">
       <span class="roundpill" id="voting-round-pill">Round 1 of 6</span>
@@ -329,16 +362,8 @@
     </div>
     <div class="timer" id="voting-timer">1:00</div>
 
-    <div id="voting-real-section">
-      <h3 style="font-size:16px;">Which one is the real definition?</h3>
-      <div id="voting-real-list"></div>
-    </div>
-
-    <div id="voting-funny-section" style="display:none;">
-      <div class="divider"></div>
-      <h3 style="font-size:16px;">Which one made you laugh hardest?</h3>
-      <div id="voting-funny-list"></div>
-    </div>
+    <div class="note" id="voting-instructions" style="margin-bottom:12px;">Vote for the real answer and the funniest answer — one item can get both!</div>
+    <div id="voting-list"></div>
 
     <div id="voting-sitting-out" class="card" style="display:none;text-align:center;">
       <div style="margin-bottom:10px;">You're sitting this round out — everyone else can still play without waiting on you.</div>
@@ -504,6 +529,20 @@ async function markTermUsed(term, category){
 
 // Writing and voting time are both per-game host settings now
 // (game.settings.writingSeconds / votingSeconds).
+const READING_SECONDS = 480; // 8 min cap — the Reader has the floor, not unlimited power
+
+// Rotates who's Reader — a shuffled bag drawn down with no repeats until
+// exhausted, then reshuffled. Skips anyone no longer active (sat out,
+// left) rather than handing them the round.
+function pickNextReader(queue, activeUids){
+  let q = (queue||[]).filter(uid => activeUids.includes(uid));
+  if(q.length === 0 && activeUids.length > 0){
+    q = seededShuffle(activeUids, Date.now());
+  }
+  const readerUid = q[0] || null;
+  const remainingQueue = q.slice(1);
+  return { readerUid, remainingQueue };
+}
 
 // ---- 3. IDENTITY --------------------------------------------------------
 function uuid(){ return 'xxxxxxxx-xxxx'.replace(/x/g, () => (Math.random()*16|0).toString(16)); }
@@ -570,6 +609,7 @@ function initHome(){
       settings: { numRounds:6, categories:['oddWords','obscurePeople','movies'], crowdFunny:true, ccc:false, csf:false, includeClaude:false },
       players: { [myUid]: { name, score:0 } },
       usedTerms: [],
+      readerQueue: [],
       round: null
     });
     joinGame(code);
@@ -723,6 +763,7 @@ function route(){
       showScreen('screen-loading');
     }
     else if(phase === 'writing'){ renderWriting(isNewPhase); showScreen('screen-writing'); }
+    else if(phase === 'reading'){ renderReading(isNewPhase); showScreen('screen-reading'); }
     else if(phase === 'voting'){ renderVoting(isNewPhase); showScreen('screen-voting'); }
     else if(phase === 'reveal'){ renderReveal(isNewPhase); showScreen('screen-reveal'); }
   }
@@ -966,14 +1007,75 @@ async function maybeAdvanceFromWriting(){
       cccResults = Object.fromEntries(judged);
     }
 
+    // Reader: pick who gets the table's spotlight this round, drawing
+    // from a no-repeat-until-exhausted queue of active players.
+    const { readerUid, remainingQueue } = pickNextReader(game.readerQueue, activePlayerUids());
+
     await updateDoc(doc(db, GAMES, currentGameCode), {
-      'round.phase':'voting',
-      'round.phaseEndsAt': Date.now() + game.settings.votingSeconds*1000,
+      readerQueue: remainingQueue,
+      'round.phase':'reading',
+      'round.phaseEndsAt': Date.now() + READING_SECONDS*1000,
       'round.shuffleOrder': order,
       'round.answerText': answerText,
-      'round.cccResults': cccResults
+      'round.cccResults': cccResults,
+      'round.readerUid': readerUid
     });
   } finally { advancing = false; }
+}
+
+// The Reader releases the list to the table (or the 8-min cap does it for
+// them) — the voting clock starts HERE, not while they were reading.
+async function maybeAdvanceFromReading(){
+  if(advancing) return;
+  advancing = true;
+  try{
+    const r = game.round;
+    if(r.phase !== 'reading') return;
+    await updateDoc(doc(db, GAMES, currentGameCode), {
+      'round.phase':'voting',
+      'round.phaseEndsAt': Date.now() + game.settings.votingSeconds*1000
+    });
+  } finally { advancing = false; }
+}
+
+// ---- 9b. READING ---------------------------------------------------------
+function renderReading(isNew){
+  const r = game.round;
+  $('reading-round-pill').textContent = formatRoundLabel(r);
+  $('reading-cat').textContent = CAT_LABEL[r.category];
+  $('reading-term').textContent = r.term;
+
+  const isReader = r.readerUid === myUid;
+  $('reading-reader-view').style.display = isReader ? 'block' : 'none';
+  $('reading-waiting-view').style.display = isReader ? 'none' : 'block';
+
+  if(isReader){
+    const order = r.shuffleOrder || [];
+    const list = $('reading-list');
+    list.innerHTML = '';
+    order.forEach((id, i) => {
+      const isReal = id === 'REAL';
+      const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
+      const div = document.createElement('div');
+      div.className = 'sub-option disabled';
+      if(isReal) div.style.border = '2px solid var(--moss)';
+      div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
+      if(isReal){
+        const flags = document.createElement('div'); flags.className='flags';
+        flags.innerHTML = `<span class="flag real">REAL ANSWER</span>`;
+        div.appendChild(flags);
+      }
+      list.appendChild(div);
+    });
+    $('btn-show-group').onclick = () => maybeAdvanceFromReading();
+  } else {
+    const readerName = (game.players[r.readerUid] && game.players[r.readerUid].name) || 'Someone';
+    $('reading-waiting-msg').textContent = `${readerName} is the Reader.`;
+  }
+
+  runTimer('reading-timer', r.phaseEndsAt, () => {
+    maybeAdvanceFromReading();
+  });
 }
 
 // ---- 10. VOTING ---------------------------------------------------------
@@ -995,37 +1097,48 @@ function renderVoting(isNew){
   let selectedReal = null, selectedFunny = null;
   const existingVote = r.votes && r.votes[myUid];
   if(existingVote){ selectedReal = existingVote.real; selectedFunny = existingVote.funny; }
+  const already = !!existingVote;
 
-  function buildList(container, mode, excludeOwn){
+  function updateSubmitEnabled(){
+    const need = game.settings.crowdFunny ? (selectedReal && selectedFunny) : selectedReal;
+    $('btn-submit-votes').disabled = !need;
+  }
+
+  // One list, one row per submission — each row carries its own Real /
+  // Funniest chips rather than the whole list rendering twice.
+  function buildList(){
+    const container = $('voting-list');
     container.innerHTML = '';
     order.forEach((id, i) => {
       const isReal = id === 'REAL';
       const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
       const isMine = id === myUid;
       const div = document.createElement('div');
-      div.className = 'sub-option';
-      const disabled = mode==='real' ? (isMine) : (isMine);
-      if(disabled) div.classList.add('disabled');
+      div.className = 'sub-option' + (isMine ? ' disabled' : '');
       div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
+
       // "Yours" is intentionally not labeled — hidden by default so it
-      // doesn't stand out while scanning the list. The tile still can't
-      // be selected (see `disabled` above).
-      if(!disabled){
-        div.onclick = () => {
-          container.querySelectorAll('.sub-option').forEach(o => o.classList.remove('selected'));
-          div.classList.add('selected');
-          if(mode==='real') selectedReal = id; else selectedFunny = id;
-          updateSubmitEnabled();
-        };
-        if((mode==='real' && selectedReal===id) || (mode==='funny' && selectedFunny===id)) div.classList.add('selected');
+      // doesn't stand out while scanning the list.
+      if(!isMine){
+        const chips = document.createElement('div'); chips.className = 'vote-chips';
+        const realChip = document.createElement('button');
+        realChip.type = 'button';
+        realChip.className = 'vote-chip real' + (selectedReal===id ? ' selected' : '');
+        realChip.textContent = 'Real';
+        realChip.onclick = () => { selectedReal = id; buildList(); updateSubmitEnabled(); };
+        chips.appendChild(realChip);
+        if(game.settings.crowdFunny){
+          const funnyChip = document.createElement('button');
+          funnyChip.type = 'button';
+          funnyChip.className = 'vote-chip funny' + (selectedFunny===id ? ' selected' : '');
+          funnyChip.textContent = '😂 Funniest';
+          funnyChip.onclick = () => { selectedFunny = id; buildList(); updateSubmitEnabled(); };
+          chips.appendChild(funnyChip);
+        }
+        div.appendChild(chips);
       }
       container.appendChild(div);
     });
-  }
-
-  function updateSubmitEnabled(){
-    const need = game.settings.crowdFunny ? (selectedReal && selectedFunny) : selectedReal;
-    $('btn-submit-votes').disabled = !need;
   }
 
   const votedCount = Object.keys(r.votes||{}).length;
@@ -1034,18 +1147,19 @@ function renderVoting(isNew){
 
   $('voting-sitting-out').style.display = sittingOut ? 'block' : 'none';
   if(sittingOut){
-    $('voting-real-section').style.display = 'none';
-    $('voting-funny-section').style.display = 'none';
+    $('voting-list').style.display = 'none';
+    $('voting-instructions').style.display = 'none';
     $('btn-submit-votes').style.display = 'none';
     $('voting-waiting').style.display = 'none';
   } else {
-    buildList($('voting-real-list'), 'real');
-    if(game.settings.crowdFunny) buildList($('voting-funny-list'), 'funny');
+    $('voting-instructions').textContent = game.settings.crowdFunny
+      ? "Vote for the real answer and the funniest answer — one item can get both!"
+      : "Vote for the real answer.";
+    buildList();
     updateSubmitEnabled();
 
-    const already = !!existingVote;
-    $('voting-real-section').style.display = already ? 'none' : 'block';
-    $('voting-funny-section').style.display = (already || !game.settings.crowdFunny) ? 'none' : 'block';
+    $('voting-list').style.display = already ? 'none' : 'block';
+    $('voting-instructions').style.display = already ? 'none' : 'block';
     $('btn-submit-votes').style.display = already ? 'none' : 'block';
     $('voting-waiting').style.display = already ? 'block' : 'none';
 
@@ -1240,7 +1354,7 @@ function renderGameOver(){
   $('btn-play-again').onclick = async () => {
     const resetPlayers = {};
     Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0 }; });
-    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [] });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [] });
   };
   $('btn-gameover-home').onclick = leaveToHome;
 }
@@ -1264,6 +1378,7 @@ function runTimer(elId, endsAt, onExpire){
 
 // ---- 14. BOOT ---------------------------------------------------------------
 $('btn-leave-writing').onclick = leaveGame;
+$('btn-leave-reading').onclick = leaveGame;
 $('btn-leave-voting').onclick = leaveGame;
 $('btn-leave-reveal').onclick = leaveGame;
 
