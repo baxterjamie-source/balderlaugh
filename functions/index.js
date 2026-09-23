@@ -41,9 +41,35 @@ const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 
 const CATEGORY_BRIEF = {
   oddWords: `a genuinely real, obscure English dictionary word (not invented, not a proper noun) along with its real dictionary definition`,
-  obscurePeople: `a real, historically documented but little-known person, along with an accurate one-to-two sentence account of what they're known for`,
-  movies: `a real, obscure (but actually released) movie — title plus year — along with an accurate one-to-two sentence plot summary`
+  obscurePeople: `a real, historically documented but little-known person, along with an accurate account of what they're known for`,
+  movies: `a real, obscure (but actually released) movie — title plus year — along with an accurate plot summary`
 };
+
+// Picking a random length/style target BEFORE writing the prompt, rather
+// than just asking the model for "1-2 sentences" and hoping — left alone,
+// it defaults to maximum density every time (precise dates, named
+// mechanisms, stacked specifics), which becomes an obvious tell once
+// there's a mix of human bluffs on the list that don't read that way.
+// Used for BOTH the real answer and Claude's bluff, each drawn
+// independently per round, so length itself carries no signal about
+// which entry is real. A soft per-tier cap on stacked specifics wasn't
+// enough — a real response still landed 5 numbers deep in one sentence —
+// so every tier now carries the same hard, absolute ceiling.
+const HARD_CAP = "HARD LIMIT, no exceptions: never exceed 30 words total, and never state more than ONE specific number, date, or quantity in the whole thing — not one per clause, ONE total, or zero.";
+const LENGTH_STYLES = [
+  { instruction: `One short phrase, well under 12 words. No specific numbers or dates at all — describe it in general terms only. ${HARD_CAP}`, weight: 4 },
+  { instruction: `One plain sentence, 12-20 words. ${HARD_CAP}`, weight: 4 },
+  { instruction: `One or two short sentences, up to 30 words total — this is the most detail you're allowed to give. ${HARD_CAP}`, weight: 2 }
+];
+function pickLengthStyle(){
+  const total = LENGTH_STYLES.reduce((s, x) => s + x.weight, 0);
+  let r = Math.random() * total;
+  for (const s of LENGTH_STYLES) {
+    if (r < s.weight) return s.instruction;
+    r -= s.weight;
+  }
+  return LENGTH_STYLES[0].instruction;
+}
 
 // ---- Live item generation, grounded with web search ------------------------
 exports.generateItem = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
@@ -54,6 +80,7 @@ exports.generateItem = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) 
   const avoid = Array.isArray(excludeTerms) && excludeTerms.length
     ? `\n\nAlready used this game, so pick something different: ${excludeTerms.join(", ")}.`
     : "";
+  const lengthStyle = pickLengthStyle();
 
   const prompt = `You're generating content for a party game called Balderlaugh, a
 Balderdash-style bluffing game. I need ${CATEGORY_BRIEF[category]}.
@@ -64,8 +91,10 @@ the "real" answer being genuinely true, not something you recall
 unverified from memory. Pick something obscure enough to not be
 immediately obvious, but confirmable.${avoid}
 
+For the "real" field's length and level of detail: ${lengthStyle}
+
 Once verified, respond with ONLY a JSON object (no other text):
-{"term": "the word/person name/movie title", "real": "the real definition/bio/plot summary, 1-2 sentences", "source": "brief note on where you verified this"}`;
+{"term": "the word/person name/movie title", "real": "the real definition/bio/plot summary", "source": "brief note on where you verified this"}`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -137,21 +166,64 @@ Once verified, respond with ONLY a JSON object (no other text):
 });
 
 // ---- Include Claude: write Claude's own bluff for the round ----------------
-// Given only the term (never the real answer — same information a human
-// player has), asks Claude for a plausible, funny, FALSE definition.
+// Now sees the real answer server-side (never sent to any browser — same
+// document a normal player never gets to see before reveal) so it can
+// mechanically avoid reusing its specific words, rather than guessing at
+// what might overlap. Testing showed the blind approach still produced
+// accidental shared vocabulary ("yesterday" in both a real and fake
+// definition of a word about yesterday) since Claude's own general
+// knowledge of well-documented terms naturally converges with the truth.
 exports.generateBluff = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
-  const { term, category } = request.data;
+  const { term, category, answerSource, answerId, itemId } = request.data;
   if (!term || !category) {
     throw new Error("term and category are required.");
   }
+
+  let realAnswer = null;
+  try {
+    if (answerSource === 'generated' && answerId) {
+      const snap = await db.collection('balderlaugh_round_answers').doc(answerId).get();
+      if (snap.exists) realAnswer = snap.data().real;
+    } else if (answerSource === 'seed' && itemId) {
+      const snap = await db.collection('balderlaugh_items').doc(itemId).get();
+      if (snap.exists) realAnswer = snap.data().real;
+    }
+  } catch (err) {
+    console.error('generateBluff: could not fetch real answer for overlap-avoidance, continuing blind:', err);
+  }
+
+  const lengthStyle = pickLengthStyle();
+  const overlapRule = realAnswer
+    ? `The REAL answer (for your reference only — never reveal or paraphrase it) is:
+"${realAnswer}"
+
+Your bluff must share ZERO of the same specific/content words as that real
+answer — no matching nouns, adjectives, numbers, or proper nouns. Common
+small words (a, the, of, who, is) don't count, and reusing the term "${term}"
+itself is fine since every player already sees it. But if the real answer
+says "Scottish," don't also say "Scottish" — invent a different origin
+entirely. If it says "island," avoid "island" too. Go a genuinely different
+direction, not a close variant.`
+    : `If you happen to already know anything genuinely true about "${term}" —
+nationality, era, actual profession, or any other real fact — do NOT
+include it, even accurately. Invent a different version of every detail.`;
 
   const prompt = `You're playing Balderlaugh, a Balderdash-style bluffing party
 game. The category is ${CATEGORY_BRIEF[category] || category}. The term is "${term}".
 
 Write a funny, plausible-SOUNDING but FALSE definition/bio/plot-summary for
 "${term}" — something that could genuinely trick other players into voting
-for it as the real answer. Match the length and tone of a real entry
-(1-2 sentences). Go for actually funny, not just false.
+for it as the real answer. Go for actually funny, not just false — surprising
+and unexpected beats safe and generic.
+
+Write it like a person improvising a guess on the spot would, not like an
+encyclopedia entry — don't invent precise dates, exact durations, or named
+mechanisms just to sound authoritative; those over-specific details are a
+tell that this was AI-generated, not a real human bluff.
+
+${overlapRule}
+
+For the length and level of detail: ${lengthStyle}
 
 Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
 
