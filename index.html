@@ -182,6 +182,11 @@
   .laugh.claude{display:inline-flex;}
   .laugh.claude .e{filter:hue-rotate(185deg) saturate(1.6);}
   .laugh-img{width:20px;height:20px;display:block;}
+  .laugh.egg{cursor:pointer;}
+  .egg-bubble{position:fixed;z-index:57;display:none;background:#fff;color:var(--text-dark);border:2px solid #AEB8C6;
+    border-radius:14px;padding:10px 14px;font-size:15px;line-height:1.4;box-shadow:0 12px 30px rgba(0,0,0,.4);}
+  .egg-bubble.open{display:block;animation:toastin .2s ease;}
+  .egg-who{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748B;margin-bottom:3px;}
   .csf-key .laugh-img{width:18px;height:18px;}
   .csf-key{font-size:13px;color:var(--muted);margin:2px 0 4px;line-height:1.5;}
   .csf-key .row-key{display:flex;align-items:center;gap:6px;margin-top:4px;}
@@ -208,6 +213,21 @@
     80%{transform:translate(4px,-1px)} 90%{transform:translate(-2px,1px)} 100%{transform:translate(0,0) rotate(0)}
   }
   .shake{animation:shake .5s ease-out;}
+  /* ---- Round screens: ⋯ menu + round label live inside the item card ---- */
+  .hidden-actions{display:none;}
+  .prompt-card{position:relative;padding-bottom:30px !important;}
+  .menu-btn{position:absolute;top:6px;right:8px;width:36px;height:32px;border:none;background:transparent;
+    color:#8a7f6a;font-size:22px;line-height:1;cursor:pointer;border-radius:8px;font-family:inherit;}
+  .menu-btn:active{background:rgba(0,0,0,.06);}
+  .round-corner{position:absolute;right:12px;bottom:8px;font-size:11px;color:#8a7f6a;font-weight:600;letter-spacing:.02em;}
+  .menu-pop{position:fixed;z-index:58;min-width:190px;background:var(--ink-2);border:1px solid var(--ink-3);border-radius:12px;
+    box-shadow:0 12px 30px rgba(0,0,0,.45);padding:6px;display:none;}
+  .menu-pop.open{display:block;}
+  .menu-pop button{display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text-light);
+    font-size:15px;padding:11px 12px;border-radius:8px;cursor:pointer;font-family:inherit;}
+  .menu-pop button:active{background:var(--ink-3);}
+  .menu-pop .danger{color:#E7877D;}
+
   /* ---- Loading / generating screen ---- */
   .load-title{font-family:'Inter',sans-serif;font-weight:800;font-size:26px;letter-spacing:.1em;color:var(--text-light);}
   .load-main{font-family:'Fraunces',serif;font-size:22px;color:var(--text-light);margin-top:10px;}
@@ -284,7 +304,6 @@
   <!-- ============ HOME (name entry + open games) ============ -->
   <section class="screen" id="screen-home">
     <div class="brand"><span class="mark">Balderlaugh</span><span class="brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="26" cy="30" r="21" fill="#D4A017"/><path d="M15 23.5q4.5-5.5 9 0M28 23.5q4.5-5.5 9 0" stroke="#3a2c00" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M10.5 27.5q-3.5 5.5 0 8q3.5-2.5 0-8z" fill="#7DD3FC"/><path d="M13 32h24q-1.5 13-12 13q-10.5 0-12-13z" fill="#3a2c00"/><path d="M17.5 40.5q7.5-4.5 15 0q-3 4-7.5 4q-4.5 0-7.5-4z" fill="#E86A5A"/><g transform="rotate(16 49 43)"><rect x="39" y="26" width="19" height="32" rx="4.5" fill="#1B1F2A" stroke="#F2E9D8" stroke-width="2.6"/><rect x="42.5" y="30.5" width="12" height="20" rx="1.5" fill="#F2E9D8"/><path d="M45 35h7M45 39.5h5M45 44h7" stroke="#C1521C" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="tag">bluff, guess, laugh</span></div>
-    <div class="subhead">Write a believable lie. Fool your friends. Score points for the ones who fall for it.</div>
 
     <label for="input-name">Your name</label>
     <input type="text" id="input-name" placeholder="e.g. Jamie" maxlength="24" autocomplete="off">
@@ -374,23 +393,23 @@
       <div class="divider"></div>
 
       <div class="toggle-row">
-        <div><div class="lbl">Crowd funniest vote</div><div class="sub">Everyone also votes for the funniest bluff — bragging rights, unless Points for funniest is on</div></div>
+        <div><div class="lbl">Crowd funniest vote</div><div class="sub">Everyone also picks the funniest</div></div>
         <label class="switch"><input type="checkbox" id="toggle-crowdFunny" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Claude also casts one funniest vote — human bluffs only, folded into the same tally as everyone else's</div></div>
+        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Claude casts a funniest vote too</div></div>
         <label class="switch"><input type="checkbox" id="toggle-csf"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">Points for funniest</div><div class="sub">+1 for every funniest vote your bluff gets — Claude's vote included. Needs crowd funniest or CSF on</div></div>
+        <div><div class="lbl">Points for funniest</div><div class="sub">+1 per funniest vote</div></div>
         <label class="switch"><input type="checkbox" id="toggle-funnyPoints"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">Include Claude</div><div class="sub">Claude plays too — writes a bluff each round and scores for everyone it fools (never judges its own for CSF)</div></div>
+        <div><div class="lbl">Include Claude</div><div class="sub">Claude writes a bluff and scores</div></div>
         <label class="switch"><input type="checkbox" id="toggle-includeClaude"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">Wander watch 👀</div><div class="sub">Leave the game screen mid-round and the whole table finds out</div></div>
+        <div><div class="lbl">Wander watch 👀</div><div class="sub">Leaving the screen gets noticed 👀</div></div>
         <label class="switch"><input type="checkbox" id="toggle-wanderWatch" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div id="settings-save-wrap" style="display:none;margin-top:14px;">
@@ -409,8 +428,8 @@
 
   <!-- ============ WRITING ============ -->
   <section class="screen" id="screen-writing">
-    <div class="topbar">
-      <span class="roundpill" id="writing-round-pill">Round 1 of 6</span>
+    <div class="hidden-actions" aria-hidden="true">
+      
       <div style="display:flex;gap:6px;">
         <button class="btn ghost small" id="btn-sitout-writing">Sit out</button>
         <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-writing">Leave</button>
@@ -419,6 +438,8 @@
     <div class="prompt-card">
       <div class="cat" id="writing-cat">ODD WORDS</div>
       <div class="term" id="writing-term">Fudgel</div>
+      <button class="menu-btn" type="button" aria-label="Menu" data-screen="writing">⋯</button>
+      <div class="round-corner" id="writing-round-pill">Round 1 of 6</div>
     </div>
     <div class="timer" id="writing-timer">1:30</div>
 
@@ -442,13 +463,15 @@
 
   <!-- ============ READING (the Reader reveals to the table) ============ -->
   <section class="screen" id="screen-reading">
-    <div class="topbar">
-      <span class="roundpill" id="reading-round-pill">Round 1 of 6</span>
+    <div class="hidden-actions" aria-hidden="true">
+      
       <div style="display:flex;gap:6px;"><button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-reading">Leave</button></div>
     </div>
     <div class="prompt-card">
       <div class="cat" id="reading-cat">ODD WORDS</div>
       <div class="term" id="reading-term">Fudgel</div>
+      <button class="menu-btn" type="button" aria-label="Menu" data-screen="reading">⋯</button>
+      <div class="round-corner" id="reading-round-pill">Round 1 of 6</div>
     </div>
     <div class="timer" id="reading-timer">8:00</div>
 
@@ -456,7 +479,7 @@
       <div class="card parchment" style="text-align:center;margin-bottom:14px;">
         <div style="font-size:22px;font-weight:700;color:var(--fox);">📖 You are the Reader!</div>
         <div style="font-size:17px;font-weight:700;color:var(--fox);margin-top:2px;">Read now, vote later.</div>
-        <div style="margin-top:8px;">Read each response aloud to the group. When you're done, press "Show Group" below.</div>
+        <div style="margin-top:8px;">Read each one aloud, then tap Show Group.</div>
       </div>
       <div id="reading-list"></div>
     </div>
@@ -464,8 +487,8 @@
     <div id="reading-waiting-view" style="display:none;">
       <div class="waiting">
         <div id="reading-waiting-msg" style="font-size:18px;color:var(--text-light);">Someone is the Reader.</div>
-        <div class="note" style="margin-top:10px;font-size:14px;">Simmer down and put your listening ears on.</div>
-        <div style="font-size:17px;font-weight:700;color:var(--fox);margin-top:10px;">Listen first, then you'll get a chance to see them and vote.</div>
+        <div class="note" style="margin-top:10px;font-size:14px;">Simmer down people…</div>
+        <div style="font-size:17px;font-weight:700;color:var(--fox);margin-top:10px;">Listen first. Vote next.</div>
       </div>
     </div>
 
@@ -476,8 +499,8 @@
 
   <!-- ============ VOTING (single combined list) ============ -->
   <section class="screen" id="screen-voting">
-    <div class="topbar">
-      <span class="roundpill" id="voting-round-pill">Round 1 of 6</span>
+    <div class="hidden-actions" aria-hidden="true">
+      
       <div style="display:flex;gap:6px;">
         <button class="btn ghost small" id="btn-sitout-voting">Sit out</button>
         <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-voting">Leave</button>
@@ -486,10 +509,12 @@
     <div class="prompt-card">
       <div class="cat" id="voting-cat">ODD WORDS</div>
       <div class="term" id="voting-term">Fudgel</div>
+      <button class="menu-btn" type="button" aria-label="Menu" data-screen="voting">⋯</button>
+      <div class="round-corner" id="voting-round-pill">Round 1 of 6</div>
     </div>
     <div class="timer" id="voting-timer">1:00</div>
 
-    <div class="note" id="voting-instructions" style="margin-bottom:12px;">Vote for the real answer and the funniest answer — one item can get both!</div>
+    <div class="note" id="voting-instructions" style="margin-bottom:12px;">Pick the real one and the funniest.</div>
     <div id="voting-list"></div>
 
     <div id="voting-sitting-out" class="card" style="display:none;text-align:center;">
@@ -508,8 +533,8 @@
 
   <!-- ============ REVEAL ============ -->
   <section class="screen" id="screen-reveal">
-    <div class="topbar">
-      <span class="roundpill" id="reveal-round-pill">Round 1 of 6</span>
+    <div class="hidden-actions" aria-hidden="true">
+      
       <div style="display:flex;gap:6px;">
         <button class="btn ghost small" id="btn-sitout-reveal">Sit out next round</button>
         <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-reveal">Leave</button>
@@ -518,6 +543,8 @@
     <div class="prompt-card">
       <div class="cat" id="reveal-cat">ODD WORDS</div>
       <div class="term" id="reveal-term">Fudgel</div>
+      <button class="menu-btn" type="button" aria-label="Menu" data-screen="reveal">⋯</button>
+      <div class="round-corner" id="reveal-round-pill">Round 1 of 6</div>
     </div>
     <h3 style="font-size:16px;margin-bottom:8px;">Voting Results</h3>
     <div id="reveal-list"></div>
@@ -528,7 +555,6 @@
     <div id="reveal-standings"></div>
     <div id="reveal-wander-wrap" style="display:none;">
       <div class="divider"></div>
-      <h3 style="font-size:16px;">Wander watch 👀</h3>
       <div id="reveal-wander"></div>
     </div>
 
@@ -563,6 +589,16 @@
     <div class="sheet-head"><h2 style="margin:0;">⚙ Settings</h2><button class="x" type="button" id="btn-close-settings" aria-label="Close">✕</button></div>
     <div id="settings-sheet-body"></div>
   </div>
+</div>
+
+<!-- Claude's funniest-vote easter egg -->
+<div class="egg-bubble" id="egg-bubble" role="dialog"><div class="egg-who">Claude says…</div><div id="egg-text"></div></div>
+
+<!-- ⋯ menu for round screens -->
+<div class="menu-pop" id="menu-pop" role="menu">
+  <button type="button" id="menu-sitout">Sit out</button>
+  <button type="button" id="menu-settings">⚙ Settings</button>
+  <button type="button" id="menu-leave" class="danger">Leave game</button>
 </div>
 
 <!-- Wander watch alerts -->
@@ -1287,6 +1323,30 @@ function closeSettingsSheet(){
   $('settings-sheet').classList.remove('open');
 }
 $('btn-close-settings').onclick = closeSettingsSheet;
+
+// ---- ⋯ menu (Sit out / Settings / Leave) --------------------------------------
+// The original per-screen buttons still exist (hidden) and keep all their
+// logic and labels; the menu just offers them from one tidy spot.
+let menuScreen = null;
+function closeMenu(){ $('menu-pop').classList.remove('open'); menuScreen = null; }
+document.querySelectorAll('.menu-btn').forEach(btn => btn.onclick = (e) => {
+  e.stopPropagation();
+  const pop = $('menu-pop');
+  if(pop.classList.contains('open')){ closeMenu(); return; }
+  menuScreen = btn.dataset.screen;
+  const sit = $(`btn-sitout-${menuScreen}`);
+  $('menu-sitout').style.display = sit ? 'block' : 'none';
+  if(sit) $('menu-sitout').textContent = sit.textContent;
+  $('menu-settings').style.display = isHost() ? 'block' : 'none';
+  const r = btn.getBoundingClientRect();
+  pop.style.top = `${r.bottom + 6}px`;
+  pop.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+  pop.classList.add('open');
+});
+$('menu-sitout').onclick = () => { const b = $(`btn-sitout-${menuScreen}`); closeMenu(); if(b) b.click(); };
+$('menu-settings').onclick = () => { closeMenu(); openSettingsSheet(); };
+$('menu-leave').onclick = () => { const b = $(`btn-leave-${menuScreen}`); closeMenu(); if(b) b.click(); };
+document.addEventListener('click', (e) => { if(!e.target.closest('#menu-pop')) closeMenu(); });
 document.querySelectorAll('.host-gear').forEach(b => b.onclick = openSettingsSheet);
 $('btn-save-settings').onclick = async () => {
   const st = readSettingsForm();
@@ -1784,10 +1844,8 @@ function renderVoting(isNew){
     $('voting-waiting').style.display = 'none';
   } else {
     $('voting-instructions').textContent = game.settings.crowdFunny
-      ? (game.settings.funnyPoints
-          ? "Vote for the real answer and the funniest answer — one item can get both! Funniest votes are worth a point this game."
-          : "Vote for the real answer and the funniest answer — one item can get both!")
-      : "Vote for the real answer.";
+      ? (game.settings.funnyPoints ? "Pick the real one and the funniest (worth a point this game)." : "Pick the real one and the funniest.")
+      : "Pick the real one.";
     buildList();
     updateSubmitEnabled();
 
@@ -1831,7 +1889,7 @@ async function maybeAdvanceFromVoting(){
     // (Claude's own entry, if Include Claude is on, is excluded — this is
     // Claude judging others, not itself). Folded directly into the same
     // funny-vote tally as everyone else's.
-    let csfWinnerId = null;
+    let csfWinnerId = null, csfReason = null;
     const humanSubs = Object.entries(r.submissions||{})
       .filter(([id]) => id !== 'CLAUDE')
       .map(([id, s]) => ({ id, text: s.text }));
@@ -1839,6 +1897,7 @@ async function maybeAdvanceFromVoting(){
       try{
         const res = await judgeFunniestFn({ term: r.term, submissions: humanSubs });
         csfWinnerId = res.data.winnerId || null;
+        csfReason = (csfWinnerId && res.data.reason) ? String(res.data.reason).slice(0, 300) : null;
       } catch(err){
         console.error('judgeFunniest failed:', err);
       }
@@ -1871,7 +1930,8 @@ async function maybeAdvanceFromVoting(){
       [`round.scoreDeltas`]: scored.deltas,
       [`round.funnyTally`]: scored.funnyTally,
       [`round.cccCloseIds`]: cccCloseIds,
-      'round.csfPick': csfWinnerId || null, // which laugh was Claude's, for the blue 😂
+      'round.csfPick': csfWinnerId || null, // which funniest vote was Claude's (grey 😂)
+      'round.csfReason': csfReason,          // Claude's one-liner on why — the easter egg
       'round.revealedAt': Date.now() // lets clients show the splash only on a live reveal, not a reload
     });
   } finally { advancing = false; }
@@ -1983,11 +2043,33 @@ function laughSrc(hex){
     return (laughCache[hex] = c.toDataURL());
   }catch(e){ return (laughCache[hex] = null); }
 }
-function laughHtml(hex, who){
+function laughHtml(hex, who, egg){
   const src = laughSrc(hex);
   const t = escapeHtml(who || '');
-  return src ? `<span class="laugh" title="${t}"><img class="laugh-img" src="${src}" alt="😂"></span>` : `<span class="laugh" title="${t}">😂</span>`;
+  const eggAttr = egg ? ` data-egg="${escapeHtml(egg)}"` : '';
+  const cls = egg ? 'laugh egg' : 'laugh';
+  return src ? `<span class="${cls}" title="${t}"${eggAttr}><img class="laugh-img" src="${src}" alt="😂"></span>` : `<span class="${cls}" title="${t}"${eggAttr}>😂</span>`;
 }
+
+// Easter egg: tap Claude's grey 😂 to see why Claude found that bluff funniest.
+// No hint anywhere — just there for whoever's curious enough to poke it.
+function showEgg(el){
+  const bub = $('egg-bubble');
+  $('egg-text').textContent = el.dataset.egg;
+  bub.classList.add('open');
+  const r = el.getBoundingClientRect();
+  const w = Math.min(280, window.innerWidth - 24);
+  bub.style.width = w + 'px';
+  bub.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width/2 - w/2)) + 'px';
+  const below = r.bottom + 10;
+  bub.style.top = (below + bub.offsetHeight > window.innerHeight - 12 ? r.top - bub.offsetHeight - 10 : below) + 'px';
+}
+document.addEventListener('click', (e) => {
+  const egg = e.target.closest && e.target.closest('.laugh.egg');
+  if(egg){ e.stopPropagation(); showEgg(egg); return; }
+  if(!e.target.closest('#egg-bubble')) $('egg-bubble').classList.remove('open');
+});
+window.addEventListener('scroll', () => $('egg-bubble').classList.remove('open'), { passive:true });
 
 // ---- 11. REVEAL ---------------------------------------------------------
 function renderReveal(isNew){
@@ -2006,10 +2088,10 @@ function renderReveal(isNew){
 
   const list = $('reveal-list');
   list.innerHTML = '';
-  const anyLaughs = r.funnyTally && Object.values(r.funnyTally).some(n => n > 0);
-  $('csf-key').style.display = anyLaughs ? 'block' : 'none';
-  $('csf-key').innerHTML = `<div>Funniest votes are coloured by who voted.</div>`
-    + (r.csfPick ? `<div class="row-key">${laughHtml(CLAUDE_LAUGH, 'Claude')}<span>Claude's funniest vote</span></div>` : '');
+  // Only Claude's grey vote needs a key — player colours speak for themselves.
+  const claudeLaughed = !!(r.csfPick && r.funnyTally && r.funnyTally[r.csfPick]);
+  $('csf-key').style.display = claudeLaughed ? 'block' : 'none';
+  $('csf-key').innerHTML = claudeLaughed ? `<div class="row-key">${laughHtml(CLAUDE_LAUGH, 'Claude')}<span>Claude's funniest vote</span></div>` : '';
   order.forEach((id) => {
     const isReal = id === 'REAL';
     const isClaude = id === 'CLAUDE';
@@ -2043,7 +2125,9 @@ function renderReveal(isNew){
     laughers.sort((a,b) => (a==='CLAUDE'?-1:order.indexOf(a)) - (b==='CLAUDE'?-1:order.indexOf(b)));
     laughers.forEach(uid => {
       const who = uid === 'CLAUDE' ? 'Claude' : (game.players[uid] ? game.players[uid].name : '');
-      flags.innerHTML += laughHtml(uid === 'CLAUDE' ? CLAUDE_LAUGH : playerColor(uid).bg, who);
+      flags.innerHTML += uid === 'CLAUDE'
+        ? laughHtml(CLAUDE_LAUGH, who, r.csfReason)
+        : laughHtml(playerColor(uid).bg, who);
     });
     div.appendChild(flags);
     list.appendChild(div);
