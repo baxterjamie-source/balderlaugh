@@ -193,6 +193,13 @@
   .leader-row.colored .rank{color:inherit;opacity:.7;}
   .leader-row.colored .score{color:inherit;}
   .leader-row.colored.first{border:2px solid var(--gold);box-shadow:0 0 0 2px rgba(212,160,23,.35);}
+  .gs-name{flex:1;min-width:0;padding:0 8px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .gs-stats{display:flex;gap:10px;margin-right:12px;font-size:14px;flex:0 0 auto;}
+  .gs-stat{display:inline-flex;align-items:center;gap:3px;}
+  .cards-ico{width:1.35em;height:1.2em;display:inline-block;vertical-align:-.2em;}
+  .emo{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}
+  .gs-stat b{font-weight:700;font-variant-numeric:tabular-nums;}
+  .gs-stat.zero{opacity:.5;}
   .leader-row .delta{font-size:12px;font-weight:700;background:rgba(0,0,0,.28);color:#fff;padding:2px 7px;border-radius:10px;margin-left:6px;}
 
   /* ---- Round-leader "mic drop" splash ---- */
@@ -568,16 +575,17 @@
   <section class="screen" id="screen-gameover">
     <div class="center" style="margin-bottom:6px;">
       <div class="cat" style="color:var(--gold);font-weight:700;font-size:12px;letter-spacing:.08em;">GAME OVER</div>
-      <h1 style="font-size:30px;">Final scores</h1>
+      <h1 style="font-size:30px;">Game summary</h1>
       <div class="note" id="gameover-tie-note" style="display:none;color:var(--gold);">👑 It's a tie!</div>
     </div>
     <div id="gameover-standings"></div>
+    <div class="note center" style="margin-top:4px;"><span class="emo">✅</span> spotted the real one · <span id="legend-cards"></span> fooled someone · <span class="emo">😂</span> funniest votes</div>
     <div class="footer-actions">
       <button class="btn" id="btn-tiebreak" style="display:none;background:var(--gold);color:#3a2c00;margin-bottom:10px;">⚔️ Tiebreaker — play until someone pulls ahead</button>
       <div class="note center" id="tiebreak-note" style="display:none;margin:0 0 10px;">Tied at the top — the host can call a tiebreaker.</div>
       <button class="btn" id="btn-play-again">Play again — same group</button>
       <div class="note center" id="btn-play-again-note" style="display:none;margin:8px 0;">Waiting for the host to start a new game, or leave below.</div>
-      <button class="btn ghost" id="btn-gameover-home" style="margin-top:10px;">Leave this game</button>
+      <button class="btn" id="btn-gameover-home" style="margin-top:10px;background:transparent;border:2px solid var(--parchment);color:var(--parchment);">Leave this game</button>
     </div>
   </section>
 
@@ -857,9 +865,9 @@ class JoinError extends Error {}
 // Everyone with a score: the players, plus Claude when it's in the game
 // (Include Claude on) or has already banked points.
 function scoreboard(){
-  const rows = Object.entries((game && game.players) || {}).map(([uid,p]) => [uid, { name:p.name, score:p.score||0 }]);
+  const rows = Object.entries((game && game.players) || {}).map(([uid,p]) => [uid, { name:p.name, score:p.score||0, stats:p.stats||null }]);
   const cs = (game && game.claudeScore) || 0;
-  if((game && game.settings && game.settings.includeClaude) || cs > 0) rows.push(['CLAUDE', { name:'Claude', score:cs }]);
+  if((game && game.settings && game.settings.includeClaude) || cs > 0) rows.push(['CLAUDE', { name:'Claude', score:cs, stats:(game && game.claudeStats) || null }]);
   return rows.sort((a,b) => b[1].score - a[1].score);
 }
 
@@ -1365,7 +1373,7 @@ async function startGame(){
   if(settings.categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
   if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
   const categories = settings.categories;
-  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing', claudeScore: 0, tiebreak: false, pendingSettings: deleteField() });
+  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing', claudeScore: 0, claudeStats: null, tiebreak: false, pendingSettings: deleteField() });
   await beginRound(0, categories, []);
 }
 
@@ -1884,6 +1892,7 @@ async function maybeAdvanceFromVoting(){
     // applied twice.
     const playersBaseline = game.players;
     const claudeBaseline = game.claudeScore || 0;
+    const claudeStatsBaseline = game.claudeStats || null;
 
     // CSF: Claude casts one funniest vote of its own, HUMAN bluffs only
     // (Claude's own entry, if Include Claude is on, is excluded — this is
@@ -1915,7 +1924,7 @@ async function maybeAdvanceFromVoting(){
       }
     }
 
-    const scored = computeScores(r, playersBaseline, csfWinnerId, claudeBaseline);
+    const scored = computeScores(r, playersBaseline, csfWinnerId, claudeBaseline, claudeStatsBaseline);
 
     // Another client may have already finished this exact transition while
     // we were awaiting the judge calls above — if so, back out instead of
@@ -1927,6 +1936,7 @@ async function maybeAdvanceFromVoting(){
       'round.scored': true,
       players: scored.players,
       claudeScore: scored.claudeScore,
+      claudeStats: scored.claudeStats || null,
       [`round.scoreDeltas`]: scored.deltas,
       [`round.funnyTally`]: scored.funnyTally,
       [`round.cccCloseIds`]: cccCloseIds,
@@ -1937,14 +1947,23 @@ async function maybeAdvanceFromVoting(){
   } finally { advancing = false; }
 }
 
-function computeScores(r, players, csfWinnerId, claudeScore = 0){
+// Running game totals shown on the Game summary: ✅ spotted the real one,
+// 🎭 fooled someone with a bluff, 😂 funniest votes received.
+// Bluff icon: a fanned hand of cards (poker bluffing), drawn so it looks the same everywhere.
+const CARDS_ICON = `<svg class="cards-ico" viewBox="0 0 32 28" aria-hidden="true"><g stroke="#1B1F2A" stroke-width="1.3"><rect x="6" y="4" width="13" height="19" rx="2" fill="#fff" transform="rotate(-22 12.5 22)"/><rect x="9.5" y="3" width="13" height="19" rx="2" fill="#fff"/><rect x="13" y="4" width="13" height="19" rx="2" fill="#fff" transform="rotate(22 19.5 22)"/></g><path d="M11 8.5c1.4-1.8 3.4 0 1.2 2l-1.2 1.1-1.2-1.1c-2.2-2 -.2-3.8 1.2-2z" fill="#DC2626" transform="rotate(-22 12.5 22)"/><text x="19.2" y="15.2" transform="rotate(22 19.5 22)" font-size="9" font-weight="700" text-anchor="middle" fill="#1B1F2A" font-family="Georgia,serif">A</text><path d="M19.5 17.3c-1.6 1.6-3.2 2.4-3.2 3.7 0 1 .8 1.6 1.7 1.4.5-.1.9-.4 1.1-.8l-.4 1.6h1.6l-.4-1.6c.2.4.6.7 1.1.8.9.2 1.7-.4 1.7-1.4 0-1.3-1.6-2.1-3.2-3.7z" fill="#1B1F2A" transform="rotate(22 19.5 22) translate(0 -6.2) scale(1)"/></svg>`;
+function bumpStat(p, key, n = 1){
+  if(!p) return;
+  p.stats = p.stats || { correct:0, fooled:0, funny:0 };
+  p.stats[key] = (p.stats[key] || 0) + n;
+}
+function computeScores(r, players, csfWinnerId, claudeScore = 0, claudeStats = null){
   const updated = JSON.parse(JSON.stringify(players));
   // Claude plays as a bluffer (Include Claude): it scores for fooling people
   // and, with Points for funniest, for laughs — but never guesses the real
   // answer (its bluff call has already seen it). Its score lives outside
   // game.players so it never counts as someone the room is waiting on.
   const claudeIn = !!(r.submissions && r.submissions.CLAUDE);
-  if(claudeIn) updated.CLAUDE = { name: 'Claude', score: claudeScore };
+  if(claudeIn) updated.CLAUDE = { name: 'Claude', score: claudeScore, stats: claudeStats ? { ...claudeStats } : { correct:0, fooled:0, funny:0 } };
   const deltas = {};
   Object.keys(updated).forEach(uid => deltas[uid] = 0);
 
@@ -1955,11 +1974,13 @@ function computeScores(r, players, csfWinnerId, claudeScore = 0){
     if(v.real === 'REAL' && updated[voterUid]){
       updated[voterUid].score += 2;
       deltas[voterUid] = (deltas[voterUid]||0) + 2;
+      bumpStat(updated[voterUid], 'correct');
     } else if(v.real && r.submissions[v.real]){
       const authorUid = r.submissions[v.real].author;
       if(updated[authorUid]){
         updated[authorUid].score += 1;
         deltas[authorUid] = (deltas[authorUid]||0) + 1;
+        bumpStat(updated[authorUid], 'fooled');
       }
     }
   });
@@ -1972,6 +1993,10 @@ function computeScores(r, players, csfWinnerId, claudeScore = 0){
     if(v.funny && v.funny !== voterUid){ funnyTally[v.funny] = (funnyTally[v.funny]||0)+1; }
   });
   if(csfWinnerId){ funnyTally[csfWinnerId] = (funnyTally[csfWinnerId]||0)+1; }
+  Object.entries(funnyTally).forEach(([subId, n]) => {
+    const authorUid = r.submissions[subId] && r.submissions[subId].author;
+    bumpStat(updated[authorUid], 'funny', n);
+  });
 
   // Points for funniest (host setting): +1 to a bluff's author for every
   // funniest vote it got — players' and Claude's (CSF) alike. Claude's own
@@ -1986,9 +2011,9 @@ function computeScores(r, players, csfWinnerId, claudeScore = 0){
     });
   }
 
-  let newClaude = claudeScore;
-  if(claudeIn){ newClaude = updated.CLAUDE.score; delete updated.CLAUDE; }
-  return { players: updated, deltas, funnyTally, claudeScore: newClaude };
+  let newClaude = claudeScore, newClaudeStats = claudeStats;
+  if(claudeIn){ newClaude = updated.CLAUDE.score; newClaudeStats = updated.CLAUDE.stats; delete updated.CLAUDE; }
+  return { players: updated, deltas, funnyTally, claudeScore: newClaude, claudeStats: newClaudeStats };
 }
 
 // ---- Coloured laughs ---------------------------------------------------------
@@ -2155,6 +2180,12 @@ function renderReveal(isNew){
   }
 
   $('btn-next-round').style.display = isHost() ? 'block' : 'none';
+  {
+    // Last round (and no tiebreaker still running)? The button leads to the summary.
+    const st = effectiveSettings();
+    const ends = r.index + 1 >= st.numRounds && !(game.tiebreak && breakableTieAtTop());
+    $('btn-next-round').textContent = ends ? 'Game summary' : 'Next round';
+  }
   $('reveal-wait-note').style.display = isHost() ? 'none' : 'block';
   $('btn-next-round').onclick = async () => {
     const nextIndex = r.index + 1;
@@ -2430,6 +2461,7 @@ function renderGameOver(){
   const sorted = scoreboard();
   const topScore = sorted.length ? sorted[0][1].score : 0;
   const winnerCount = sorted.filter(([,p]) => p.score === topScore).length;
+  $('legend-cards').innerHTML = CARDS_ICON;
   $('gameover-tie-note').style.display = winnerCount > 1 ? 'block' : 'none';
   sorted.forEach(([uid,p], i) => {
     const isWinner = p.score === topScore; // ties all get the crown, not just whoever sorted first
@@ -2437,7 +2469,11 @@ function renderGameOver(){
     row.className = 'leader-row colored' + (isWinner ? ' first':'');
     const col = playerColor(uid);
     row.style.background = col.bg; row.style.color = col.fg;
-    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;font-weight:600;">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="score">${p.score}</span>`;
+    const st = p.stats || {};
+    const stat = (icon, n, label) => `<span class="gs-stat${n ? '' : ' zero'}" title="${label}"><span class="emo">${icon}</span><b>${n||0}</b></span>`;
+    const stats = (uid === 'CLAUDE' ? '' : stat('✅', st.correct, 'Spotted the real one'))
+      + stat(CARDS_ICON, st.fooled, 'Fooled someone') + stat('😂', st.funny, 'Funniest votes');
+    row.innerHTML = `<span class="rank">${i+1}</span><span class="gs-name">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="gs-stats">${stats}</span><span class="score">${p.score}</span>`;
     standings.appendChild(row);
   });
   const canBreak = breakableTieAtTop();
@@ -2453,7 +2489,7 @@ function renderGameOver(){
   $('btn-play-again').onclick = async () => {
     const resetPlayers = {};
     Object.entries(game.players).filter(([,p]) => !p.left).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0, color: Number.isInteger(p.color) ? p.color : firstFreeColor(resetPlayers, uid) }; });
-    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], claudeScore: 0, tiebreak: false, createdAt: serverTimestamp(), settings: effectiveSettings(), pendingSettings: deleteField() });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], claudeScore: 0, claudeStats: null, tiebreak: false, createdAt: serverTimestamp(), settings: effectiveSettings(), pendingSettings: deleteField() });
   };
   $('btn-gameover-home').onclick = leaveToHome;
 }
