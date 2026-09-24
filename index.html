@@ -158,6 +158,74 @@
   .center{text-align:center;}
   .spacer{flex:1;}
   .divider{height:1px;background:var(--ink-3);margin:18px 0;}
+
+  /* ---- Anti-copy: nothing on screen is selectable except the text boxes
+     players actually type into (keeps "long-press → Search" off the prompt) */
+  body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  input,textarea,select{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;}
+
+  /* ---- Brand icon ---- */
+  .brand-icon{display:inline-flex;align-self:center;width:36px;height:36px;margin-left:-4px;}
+  .brand-icon svg{width:100%;height:100%;display:block;}
+  #input-joincode::placeholder{font-size:14px;text-transform:none;}
+
+  /* ---- Player colours ---- */
+  .pdot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.15);}
+  .flags{align-items:center;gap:6px;}
+  .flag.author{font-size:11px;padding:3px 10px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18);}
+  .laugh{font-size:18px;line-height:1;}
+  .leader-row.colored .rank{color:inherit;opacity:.7;}
+  .leader-row.colored .score{color:inherit;}
+  .leader-row.colored.first{border:2px solid var(--gold);box-shadow:0 0 0 2px rgba(212,160,23,.35);}
+  .leader-row .delta{font-size:12px;font-weight:700;background:rgba(0,0,0,.28);color:#fff;padding:2px 7px;border-radius:10px;margin-left:6px;}
+
+  /* ---- Round-leader "mic drop" splash ---- */
+  .splash{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;background:rgba(10,12,18,.55);opacity:0;transition:opacity .35s ease;padding:16px;}
+  .splash.show{opacity:1;}
+  .splash-block{width:min(88vw,420px);padding:28px 22px;border-radius:20px;text-align:center;border:4px solid #fff;
+    box-shadow:0 24px 60px rgba(0,0,0,.55);opacity:0;}
+  .splash-name{font-family:'Fraunces',serif;font-size:36px;font-weight:700;line-height:1.1;word-break:break-word;}
+  .splash-leads{font-size:17px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-top:8px;}
+  .splash-pts{font-family:'Fraunces',serif;font-size:48px;font-weight:700;margin-top:2px;}
+  /* Same shake as the Mic Drop in Darts Baseball (overlayShake) */
+  @keyframes shake{
+    0%{transform:translate(0,0) rotate(0)} 10%{transform:translate(-10px,-3px) rotate(-0.4deg)}
+    20%{transform:translate(9px,3px) rotate(0.4deg)} 30%{transform:translate(-8px,4px) rotate(-0.3deg)}
+    40%{transform:translate(8px,-3px) rotate(0.3deg)} 50%{transform:translate(-6px,3px) rotate(-0.2deg)}
+    60%{transform:translate(6px,-2px) rotate(0.2deg)} 70%{transform:translate(-4px,2px)}
+    80%{transform:translate(4px,-1px)} 90%{transform:translate(-2px,1px)} 100%{transform:translate(0,0) rotate(0)}
+  }
+  .shake{animation:shake .5s ease-out;}
+  /* ---- Host settings gear + sheet ---- */
+  .gear{width:36px;height:36px;padding:0;font-size:18px;line-height:1;}
+  .sheet{position:fixed;inset:0;z-index:55;background:rgba(10,12,18,.7);display:none;overflow-y:auto;padding:16px;}
+  .sheet.open{display:block;}
+  .sheet-inner{max-width:456px;margin:12px auto 40px;}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .sheet-head .x{width:40px;height:40px;border-radius:50%;border:none;background:var(--parchment);color:var(--ink);font-size:20px;font-weight:700;cursor:pointer;}
+  .paste-note{font-size:13px;color:var(--gold);min-height:1em;margin-top:6px;}
+
+  /* ---- Wander watch toasts ---- */
+  .toasts{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;z-index:60;
+    display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 12px;pointer-events:none;}
+  .toast{pointer-events:auto;width:min(100%,456px);display:flex;align-items:center;gap:12px;
+    background:var(--parchment);color:var(--text-dark);border:3px solid var(--gold);border-radius:16px;
+    padding:12px 12px 12px 14px;box-shadow:0 12px 32px rgba(0,0,0,.45);animation:toastin .3s ease;}
+  .toast .eyes{font-size:40px;line-height:1;flex:0 0 auto;}
+  .toast .msg{flex:1;font-size:15px;line-height:1.4;}
+  .toast .msg .who{display:inline-block;font-weight:700;padding:1px 9px;border-radius:20px;}
+  .toast .x{flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:none;background:var(--ink);color:#fff;
+    font-size:20px;font-weight:700;cursor:pointer;line-height:1;}
+  .toast.leaving{opacity:0;transform:translateY(-8px);transition:opacity .25s, transform .25s;}
+  @keyframes toastin{from{opacity:0;transform:translateY(-14px);}to{opacity:1;transform:none;}}
+  .wander-line{font-size:14px;color:var(--text-light);padding:8px 2px;border-bottom:1px solid var(--ink-3);}
+  .wander-line:last-child{border-bottom:none;}
+  .wander-line .who{display:inline-block;font-weight:700;padding:1px 9px;border-radius:20px;}
+
+  @media (prefers-reduced-motion: reduce){
+    .shake{animation:none;}
+  }
 </style>
 </head>
 <body>
@@ -175,7 +243,7 @@
 
   <!-- ============ HOME (name entry + open games) ============ -->
   <section class="screen" id="screen-home">
-    <div class="brand"><span class="mark">Balderlaugh</span><span class="tag">bluff &amp; laugh</span></div>
+    <div class="brand"><span class="mark">Balderlaugh</span><span class="brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="26" cy="30" r="21" fill="#D4A017"/><path d="M15 23.5q4.5-5.5 9 0M28 23.5q4.5-5.5 9 0" stroke="#3a2c00" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M10.5 27.5q-3.5 5.5 0 8q3.5-2.5 0-8z" fill="#7DD3FC"/><path d="M13 32h24q-1.5 13-12 13q-10.5 0-12-13z" fill="#3a2c00"/><path d="M17.5 40.5q7.5-4.5 15 0q-3 4-7.5 4q-4.5 0-7.5-4z" fill="#E86A5A"/><g transform="rotate(16 49 43)"><rect x="39" y="26" width="19" height="32" rx="4.5" fill="#1B1F2A" stroke="#F2E9D8" stroke-width="2.6"/><rect x="42.5" y="30.5" width="12" height="20" rx="1.5" fill="#F2E9D8"/><path d="M45 35h7M45 39.5h5M45 44h7" stroke="#C1521C" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="tag">bluff, guess, laugh</span></div>
     <div class="subhead">Write a believable lie. Fool your friends. Score points for the ones who fall for it.</div>
 
     <label for="input-name">Your name</label>
@@ -193,7 +261,7 @@
     <div class="footer-actions stack">
       <button class="btn" id="btn-create-game">Start a new game</button>
       <div class="row" style="gap:8px;">
-        <input type="text" id="input-joincode" placeholder="Have a code?" maxlength="6" style="text-transform:uppercase;">
+        <input type="text" id="input-joincode" placeholder="Click a game above or enter code" maxlength="6" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" style="text-transform:uppercase;">
         <button class="btn secondary small" id="btn-join-code">Join</button>
       </div>
     </div>
@@ -217,6 +285,7 @@
 
     <div class="card" id="host-settings-card">
       <strong>Game settings</strong>
+      <div class="note" id="settings-midgame-note" style="display:none;margin-top:4px;">Changes kick in from the next new round.</div>
       <label>Rounds</label>
       <select id="setting-rounds">
         <option value="4">4 rounds</option>
@@ -257,7 +326,7 @@
       <div class="divider"></div>
 
       <div class="toggle-row">
-        <div><div class="lbl">Crowd funniest vote</div><div class="sub">Everyone also votes for the funniest bluff — bragging rights only</div></div>
+        <div><div class="lbl">Crowd funniest vote</div><div class="sub">Everyone also votes for the funniest bluff — bragging rights, unless Points for funniest is on</div></div>
         <label class="switch"><input type="checkbox" id="toggle-crowdFunny" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
@@ -265,14 +334,27 @@
         <label class="switch"><input type="checkbox" id="toggle-csf"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">Include Claude</div><div class="sub">Claude writes its own bluff each round — eligible for crowd funniest, not CSF</div></div>
+        <div><div class="lbl">Points for funniest</div><div class="sub">+1 for every funniest vote your bluff gets — Claude's vote included. Needs crowd funniest or CSF on</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-funnyPoints"><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">Include Claude</div><div class="sub">Claude plays too — writes a bluff each round and scores for everyone it fools (never judges its own for CSF)</div></div>
         <label class="switch"><input type="checkbox" id="toggle-includeClaude"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
         <div><div class="lbl">Play until there's a clear winner</div><div class="sub">If the last round ends in a tie for first, keep adding rounds until it breaks</div></div>
         <label class="switch"><input type="checkbox" id="toggle-playUntilWinner"><span class="track"></span><span class="thumb"></span></label>
       </div>
+      <div class="toggle-row">
+        <div><div class="lbl">Wander watch 👀</div><div class="sub">Leave the game screen mid-round and the whole table finds out</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-wanderWatch" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div id="settings-save-wrap" style="display:none;margin-top:14px;">
+        <button class="btn" id="btn-save-settings">Save — applies next round</button>
+        <div class="err" id="settings-err"></div>
+      </div>
     </div>
+    <div id="settings-home"></div>
 
     <div class="footer-actions">
       <button class="btn" id="btn-start-game">Start game</button>
@@ -287,7 +369,7 @@
       <span class="roundpill" id="writing-round-pill">Round 1 of 6</span>
       <div style="display:flex;gap:6px;">
         <button class="btn ghost small" id="btn-sitout-writing">Sit out</button>
-        <button class="btn ghost small" id="btn-leave-writing">Leave</button>
+        <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-writing">Leave</button>
       </div>
     </div>
     <div class="prompt-card">
@@ -299,6 +381,7 @@
     <div id="writing-input-area">
       <label id="writing-label" for="writing-textarea">Write a believable definition</label>
       <textarea id="writing-textarea" maxlength="220" placeholder="Make it sound real..."></textarea>
+      <div class="paste-note" id="paste-note"></div>
       <button class="btn" id="btn-submit-bluff" style="margin-top:14px;">Submit bluff</button>
     </div>
     <div id="writing-submitted" style="display:none;">
@@ -317,7 +400,7 @@
   <section class="screen" id="screen-reading">
     <div class="topbar">
       <span class="roundpill" id="reading-round-pill">Round 1 of 6</span>
-      <button class="btn ghost small" id="btn-leave-reading">Leave</button>
+      <div style="display:flex;gap:6px;"><button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-reading">Leave</button></div>
     </div>
     <div class="prompt-card">
       <div class="cat" id="reading-cat">ODD WORDS</div>
@@ -351,7 +434,7 @@
       <span class="roundpill" id="voting-round-pill">Round 1 of 6</span>
       <div style="display:flex;gap:6px;">
         <button class="btn ghost small" id="btn-sitout-voting">Sit out</button>
-        <button class="btn ghost small" id="btn-leave-voting">Leave</button>
+        <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-voting">Leave</button>
       </div>
     </div>
     <div class="prompt-card">
@@ -383,7 +466,7 @@
       <span class="roundpill" id="reveal-round-pill">Round 1 of 6</span>
       <div style="display:flex;gap:6px;">
         <button class="btn ghost small" id="btn-sitout-reveal">Sit out next round</button>
-        <button class="btn ghost small" id="btn-leave-reveal">Leave</button>
+        <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-reveal">Leave</button>
       </div>
     </div>
     <div class="prompt-card">
@@ -396,6 +479,11 @@
     <div class="divider"></div>
     <h3 style="font-size:16px;">Standings</h3>
     <div id="reveal-standings"></div>
+    <div id="reveal-wander-wrap" style="display:none;">
+      <div class="divider"></div>
+      <h3 style="font-size:16px;">Wander watch 👀</h3>
+      <div id="reveal-wander"></div>
+    </div>
 
     <div class="footer-actions">
       <button class="btn" id="btn-next-round">Next round</button>
@@ -418,6 +506,28 @@
     </div>
   </section>
 
+</div>
+
+<!-- Host settings sheet (mid-game) — the lobby's settings card is moved in here while open -->
+<div class="sheet" id="settings-sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head"><h2 style="margin:0;">⚙ Settings</h2><button class="x" type="button" id="btn-close-settings" aria-label="Close">✕</button></div>
+    <div id="settings-sheet-body"></div>
+  </div>
+</div>
+
+<!-- Wander watch alerts -->
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- Round-leader splash ("mic drop") — sits above every screen -->
+<div class="splash" id="splash" aria-live="polite">
+  <div id="splash-shaker">
+    <div class="splash-block" id="splash-block">
+      <div class="splash-name" id="splash-name"></div>
+      <div class="splash-leads" id="splash-leads">Leads Round</div>
+      <div class="splash-pts" id="splash-pts">+2 points!</div>
+    </div>
+  </div>
 </div>
 
 <script type="module">
@@ -446,7 +556,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot,
-  collection, query, where, orderBy, limit, serverTimestamp, deleteField, Timestamp
+  collection, query, where, orderBy, limit, serverTimestamp, deleteField, Timestamp, runTransaction, increment
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
@@ -536,7 +646,7 @@ const READING_SECONDS = 480; // 8 min cap — the Reader has the floor, not unli
 function pickNextReader(queue, activeUids){
   let q = (queue||[]).filter(uid => activeUids.includes(uid));
   if(q.length === 0 && activeUids.length > 0){
-    q = seededShuffle(activeUids, Date.now());
+    q = randomShuffle(activeUids);
   }
   const readerUid = q[0] || null;
   const remainingQueue = q.slice(1);
@@ -550,7 +660,7 @@ function pickNextReader(queue, activeUids){
 function pickNextCategory(queue, categories){
   let q = (queue||[]).filter(c => categories.includes(c));
   if(q.length === 0 && categories.length > 0){
-    q = seededShuffle(categories, Date.now());
+    q = randomShuffle(categories);
   }
   const cat = q[0] || categories[0];
   const remainingQueue = q.slice(1);
@@ -577,7 +687,8 @@ function showScreen(id){
   $(id).classList.add('active');
 }
 function genCode(){
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  // Letters only (no I/O to avoid 1/0 confusion) — no keyboard switching on phones.
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   let c = '';
   for(let i=0;i<5;i++) c += chars[Math.floor(Math.random()*chars.length)];
   return c;
@@ -588,17 +699,78 @@ function fmtTime(ms){
   const m = Math.floor(s/60), r = s%60;
   return `${m}:${String(r).padStart(2,'0')}`;
 }
-// deterministic-ish shuffle using a numeric seed so every client renders
-// the same order once shuffleOrder is written to the game doc.
-function seededShuffle(arr, seed){
+// Cryptographically random Fisher–Yates shuffle (the old seeded LCG was
+// weak and partly predictable from the timestamp).
+function randomShuffle(arr){
   const a = [...arr];
-  let s = seed;
+  const rnd = new Uint32Array(Math.max(1, a.length));
+  crypto.getRandomValues(rnd);
   for(let i=a.length-1;i>0;i--){
-    s = (s * 9301 + 49297) % 233280;
-    const j = Math.floor((s/233280) * (i+1));
+    const j = rnd[i] % (i+1);
     [a[i],a[j]] = [a[j],a[i]];
   }
   return a;
+}
+
+// Evens out formatting so the real answer doesn't stand out just because
+// it's the only one with a capital letter and a period at the end.
+function tidy(s){
+  let t = (s||'').replace(/\s+/g,' ').trim();
+  if(!t) return t;
+  t = t[0].toUpperCase() + t.slice(1);
+  if(!/[.!?…"”')\]]$/.test(t)) t += '.';
+  return t;
+}
+
+// ---- Players: cap, reserved names, colours --------------------------------
+const MAX_PLAYERS = 8;
+const RESERVED_NAMES = ['claude','claud'];
+function isReservedName(n){
+  return RESERVED_NAMES.includes((n||'').toLowerCase().replace(/[^a-z]/g,''));
+}
+// Eight player colours, deliberately avoiding the game's own meaning-colours:
+// fox orange (buttons / "Real" chip), moss green (real answer), gold
+// (host / leader) and purple (funniest). Claude gets its own slate.
+const PLAYER_COLORS = [
+  { bg:'#2563EB', fg:'#FFFFFF' }, // blue
+  { bg:'#EC4899', fg:'#FFFFFF' }, // pink
+  { bg:'#0D9488', fg:'#FFFFFF' }, // teal
+  { bg:'#A3E635', fg:'#1A2A04' }, // lime
+  { bg:'#DC2626', fg:'#FFFFFF' }, // crimson
+  { bg:'#7DD3FC', fg:'#0C2A3A' }, // sky
+  { bg:'#8D6E63', fg:'#FFFFFF' }, // cocoa
+  { bg:'#E5E7EB', fg:'#1B1F2A' }, // silver
+];
+const CLAUDE_COLOR = { bg:'#64748B', fg:'#FFFFFF' };
+function firstFreeColor(players, exceptUid){
+  const used = new Set(Object.entries(players||{})
+    .filter(([u]) => u !== exceptUid).map(([,p]) => p.color).filter(Number.isInteger));
+  let c = 0; while(used.has(c)) c++;
+  return c % PLAYER_COLORS.length;
+}
+// uid -> palette entry. Uses each player's stored colour; anyone without
+// one (games started before colours existed) gets the next free slot.
+function playerColor(uid){
+  if(uid === 'CLAUDE') return CLAUDE_COLOR;
+  const players = (game && game.players) || {};
+  const used = new Set(); const map = {};
+  Object.entries(players).forEach(([u,p]) => {
+    if(Number.isInteger(p.color) && !used.has(p.color)){ map[u] = p.color; used.add(p.color); }
+  });
+  Object.keys(players).sort().forEach(u => {
+    if(map[u] === undefined){ let c = 0; while(used.has(c)) c++; map[u] = c; used.add(c); }
+  });
+  return PLAYER_COLORS[(map[uid] ?? 0) % PLAYER_COLORS.length];
+}
+class JoinError extends Error {}
+
+// Everyone with a score: the players, plus Claude when it's in the game
+// (Include Claude on) or has already banked points.
+function scoreboard(){
+  const rows = Object.entries((game && game.players) || {}).map(([uid,p]) => [uid, { name:p.name, score:p.score||0 }]);
+  const cs = (game && game.claudeScore) || 0;
+  if((game && game.settings && game.settings.includeClaude) || cs > 0) rows.push(['CLAUDE', { name:'Claude', score:cs }]);
+  return rows.sort((a,b) => b[1].score - a[1].score);
 }
 
 // ---- 6. HOME SCREEN ---------------------------------------------------------
@@ -612,6 +784,7 @@ function initHome(){
   $('btn-create-game').onclick = async () => {
     const name = myName.trim();
     if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
+    if(isReservedName(name)){ $('home-err').textContent = "Nice try — that name is reserved. Pick another."; return; }
     $('home-err').textContent = '';
     const code = genCode();
     await setDoc(doc(db, GAMES, code), {
@@ -620,7 +793,7 @@ function initHome(){
       status: 'lobby',
       createdAt: serverTimestamp(),
       settings: { numRounds:6, categories:['oddWords','obscurePeople','movies'], crowdFunny:true, ccc:false, csf:false, includeClaude:false },
-      players: { [myUid]: { name, score:0 } },
+      players: { [myUid]: { name, score:0, color:0 } },
       usedTerms: [],
       readerQueue: [],
       categoryQueue: [],
@@ -628,6 +801,12 @@ function initHome(){
     });
     joinGame(code);
   };
+
+  // Letters only — strip anything else as it's typed.
+  $('input-joincode').addEventListener('input', e => {
+    const clean = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+    if(clean !== e.target.value) e.target.value = clean;
+  });
 
   $('btn-join-code').onclick = () => {
     const code = $('input-joincode').value.trim().toUpperCase();
@@ -648,9 +827,11 @@ function listenOpenGames(){
     snap.forEach(d => {
       const g = d.data();
       const count = Object.keys(g.players||{}).length;
+      const full = count >= MAX_PLAYERS;
       const el = document.createElement('div');
       el.className = 'lobby-list-item';
-      el.innerHTML = `<div><div class="name">${escapeHtml(g.hostName)}'s Game</div><div class="meta">${count} player${count===1?'':'s'} · code ${d.id}</div></div><span>&rarr;</span>`;
+      if(full) el.style.opacity = '.5';
+      el.innerHTML = `<div><div class="name">${escapeHtml(g.hostName)}'s Game</div><div class="meta">${count}/${MAX_PLAYERS} players · code ${d.id}${full ? ' · full' : ''}</div></div><span>${full ? '' : '&rarr;'}</span>`;
       el.onclick = () => {
         const name = myName.trim();
         if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
@@ -670,20 +851,36 @@ function formatRoundLabel(r){
 }
 
 async function joinGame(code){
-  const snap = await getDoc(doc(db, GAMES, code));
-  if(!snap.exists()){ $('home-err').textContent = 'No game with that code.'; return; }
-  const name = myName.trim() || 'Player';
-  const g = snap.data();
-  const others = Object.entries(g.players||{}).filter(([uid]) => uid !== myUid);
-  const taken = others.some(([,p]) => (p.name||'').trim().toLowerCase() === name.toLowerCase());
-  if(taken){ $('home-err').textContent = 'That name is taken — try a different one.'; return; }
-  $('home-err').textContent = '';
-  if(!g.players || !g.players[myUid]){
-    await updateDoc(doc(db, GAMES, code), { [`players.${myUid}`]: { name, score:0 } });
-  } else if(g.players[myUid].name !== name){
-    // Name changed since last visit (e.g. rejoining after a reload) — keep it in sync.
-    await updateDoc(doc(db, GAMES, code), { [`players.${myUid}.name`]: name });
+  const name = myName.trim();
+  if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
+  if(isReservedName(name)){ $('home-err').textContent = "Nice try — that name is reserved. Pick another."; return; }
+  // Transaction so two people joining at the same instant can't both grab
+  // the 8th seat or the same colour.
+  try{
+    await runTransaction(db, async tx => {
+      const ref = doc(db, GAMES, code);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new JoinError('No game with that code.');
+      const players = snap.data().players || {};
+      const others = Object.entries(players).filter(([uid]) => uid !== myUid);
+      if(others.some(([,p]) => (p.name||'').trim().toLowerCase() === name.toLowerCase())){
+        throw new JoinError('That name is taken — try a different one.');
+      }
+      const me = players[myUid];
+      if(!me){
+        if(others.length >= MAX_PLAYERS) throw new JoinError(`That game is full (${MAX_PLAYERS} players max).`);
+        tx.update(ref, { [`players.${myUid}`]: { name, score:0, color: firstFreeColor(players, myUid) } });
+      } else if(me.name !== name){
+        // Name changed since last visit (e.g. rejoining after a reload) — keep it in sync.
+        tx.update(ref, { [`players.${myUid}.name`]: name });
+      }
+    });
+  } catch(err){
+    if(err instanceof JoinError){ $('home-err').textContent = err.message; }
+    else { console.error('Join failed:', err); $('home-err').textContent = 'Could not join — try again.'; }
+    return;
   }
+  $('home-err').textContent = '';
   currentGameCode = code;
   attachGameListener(code);
 }
@@ -697,6 +894,7 @@ function attachGameListener(code){
     if(!snap.exists()){ leaveToHome(); return; }
     game = snap.data();
     route();
+    checkWanderers();
   });
 }
 function leaveToHome(){
@@ -765,6 +963,8 @@ async function tryResume(){
 }
 
 function route(){
+  document.querySelectorAll('.host-gear').forEach(b => b.style.display = isHost() ? '' : 'none');
+  if(!isHost() && $('settings-sheet').classList.contains('open')) closeSettingsSheet();
   if(game.status === 'lobby'){ renderLobby(); showScreen('screen-lobby'); return; }
   if(game.status === 'ended'){ renderGameOver(); showScreen('screen-gameover'); return; }
   if(game.status === 'playing' && game.round){
@@ -789,7 +989,7 @@ function renderLobby(){
   $('lobby-code').textContent = currentGameCode;
   const players = game.players || {};
   const uids = Object.keys(players);
-  $('lobby-player-count').textContent = uids.length;
+  $('lobby-player-count').textContent = `${uids.length}/${MAX_PLAYERS}`;
 
   const list = $('lobby-player-list');
   list.innerHTML = '';
@@ -800,7 +1000,8 @@ function renderLobby(){
     let badges = '';
     if(uid === game.hostUid) badges += `<span class="badge host">HOST</span>`;
     if(uid === myUid) badges += `<span class="badge you">YOU</span>`;
-    chip.innerHTML = `<div class="who"><span>${escapeHtml(p.name)}</span>${badges}</div>`;
+    const col = playerColor(uid);
+    chip.innerHTML = `<div class="who"><span class="pdot" style="background:${col.bg}"></span><span>${escapeHtml(p.name)}</span>${badges}</div>`;
     if(isHost() && uid !== myUid){
       const btn = document.createElement('button');
       btn.className = 'btn ghost small';
@@ -811,6 +1012,7 @@ function renderLobby(){
     list.appendChild(chip);
   });
 
+  if($('settings-sheet').classList.contains('open')) closeSettingsSheet();
   const hostCard = $('host-settings-card');
   hostCard.style.display = isHost() ? 'block' : 'none';
   $('btn-start-game').style.display = isHost() ? 'block' : 'none';
@@ -823,25 +1025,85 @@ function renderLobby(){
   }
 }
 
-async function startGame(){
-  const numRounds = parseInt($('setting-rounds').value, 10);
-  const writingSeconds = parseInt($('setting-writing-seconds').value, 10);
-  const votingSeconds = parseInt($('setting-voting-seconds').value, 10);
-  const categories = ['oddWords','obscurePeople','movies'].filter(c => $(`cat-${c}`).checked);
-  if(categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
-  if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
-  const settings = {
-    numRounds, writingSeconds, votingSeconds, categories,
-    crowdFunny: $('toggle-crowdFunny').checked,
-    csf: $('toggle-csf').checked,
-    includeClaude: $('toggle-includeClaude').checked,
-    playUntilWinner: $('toggle-playUntilWinner').checked
+// ---- Settings form (shared by the lobby and the mid-game ⚙ sheet) --------
+const TOGGLES = ['crowdFunny','csf','funnyPoints','includeClaude','playUntilWinner','wanderWatch'];
+function readSettingsForm(){
+  return {
+    numRounds: parseInt($('setting-rounds').value, 10),
+    writingSeconds: parseInt($('setting-writing-seconds').value, 10),
+    votingSeconds: parseInt($('setting-voting-seconds').value, 10),
+    categories: ['oddWords','obscurePeople','movies'].filter(c => $(`cat-${c}`).checked),
+    ...Object.fromEntries(TOGGLES.map(k => [k, $(`toggle-${k}`).checked]))
   };
-  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing' });
+}
+function fillSettingsForm(st){
+  $('setting-rounds').value = String(st.numRounds);
+  $('setting-writing-seconds').value = String(st.writingSeconds || 180);
+  $('setting-voting-seconds').value = String(st.votingSeconds || 180);
+  ['oddWords','obscurePeople','movies'].forEach(c => $(`cat-${c}`).checked = (st.categories||[]).includes(c));
+  TOGGLES.forEach(k => $(`toggle-${k}`).checked = !!st[k]);
+}
+// Settings the NEXT round will use: live settings plus anything the host
+// changed mid-game (held in pendingSettings until a new round starts).
+function effectiveSettings(){
+  return { ...(game.settings||{}), ...(game.pendingSettings||{}) };
+}
+
+function openSettingsSheet(){
+  if(!isHost() || !game || game.status !== 'playing') return;
+  const card = $('host-settings-card');
+  $('settings-sheet-body').appendChild(card);
+  card.style.display = 'block';
+  $('settings-midgame-note').style.display = 'block';
+  $('settings-save-wrap').style.display = 'block';
+  $('settings-err').textContent = '';
+  fillSettingsForm(effectiveSettings());
+  // Rounds can't drop below the round you're on (or one already started).
+  const minRounds = game.round ? game.round.index + 1 : 1;
+  const sel = $('setting-rounds');
+  [...sel.options].forEach(o => { o.disabled = parseInt(o.value,10) < minRounds; });
+  if(!sel.options[sel.selectedIndex] || sel.options[sel.selectedIndex].disabled){
+    const ok = [...sel.options].find(o => !o.disabled); if(ok) sel.value = ok.value;
+  }
+  $('settings-sheet').classList.add('open');
+}
+function closeSettingsSheet(){
+  const card = $('host-settings-card');
+  $('settings-home').before(card); // back to its lobby spot
+  $('settings-midgame-note').style.display = 'none';
+  $('settings-save-wrap').style.display = 'none';
+  [...$('setting-rounds').options].forEach(o => o.disabled = false);
+  $('settings-sheet').classList.remove('open');
+}
+$('btn-close-settings').onclick = closeSettingsSheet;
+document.querySelectorAll('.host-gear').forEach(b => b.onclick = openSettingsSheet);
+$('btn-save-settings').onclick = async () => {
+  const st = readSettingsForm();
+  if(st.categories.length === 0){ $('settings-err').textContent = 'Pick at least one category.'; return; }
+  try{
+    await updateDoc(doc(db, GAMES, currentGameCode), { pendingSettings: st });
+    closeSettingsSheet();
+    showToast('self', 'Settings saved — they kick in from the next round.', '⚙');
+  } catch(err){
+    console.error(err); $('settings-err').textContent = 'Could not save — try again.';
+  }
+};
+
+async function startGame(){
+  const settings = readSettingsForm();
+  if(settings.categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
+  if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
+  const categories = settings.categories;
+  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing', claudeScore: 0, pendingSettings: deleteField() });
   await beginRound(0, categories, []);
 }
 
 async function beginRound(index, categories, usedTerms){
+  // Any mid-game changes from the host's ⚙ take effect now, at the start
+  // of a fresh round — never partway through one.
+  const settings = effectiveSettings();
+  const hadPending = !!game.pendingSettings;
+  categories = settings.categories && settings.categories.length ? settings.categories : categories;
   const { cat, remainingQueue: categoryQueue } = pickNextCategory(game.categoryQueue, categories);
 
   // Show a loading state immediately, and fetch the cross-game cooldown
@@ -850,6 +1112,7 @@ async function beginRound(index, categories, usedTerms){
   const [, recentTermsResult] = await Promise.allSettled([
     updateDoc(doc(db, GAMES, currentGameCode), {
       categoryQueue,
+      ...(hadPending ? { settings, pendingSettings: deleteField() } : {}),
       round: {
         index, category: cat, phase: 'generating', term: null, itemId: null,
         answerSource: null, answerId: null, phaseEndsAt: null,
@@ -899,7 +1162,7 @@ async function beginRound(index, categories, usedTerms){
   // run in parallel with the term fetch above; it genuinely has to wait
   // for it.
   const submissions = {};
-  if(game.settings.includeClaude){
+  if(settings.includeClaude){
     try{
       const bluffResult = await generateBluffFn({ term, category: cat, answerSource, answerId, itemId });
       if(bluffResult.data && bluffResult.data.bluff){
@@ -919,7 +1182,7 @@ async function beginRound(index, categories, usedTerms){
   // The timer starts NOW — after everything (term + Claude's bluff, if
   // any) is actually ready — not earlier, or players lose real time to
   // network/generation latency before they can even see the prompt.
-  const phaseEndsAt = Date.now() + game.settings.writingSeconds*1000;
+  const phaseEndsAt = Date.now() + settings.writingSeconds*1000;
 
   await updateDoc(doc(db, GAMES, currentGameCode), {
     usedTerms: [...usedTerms, term],
@@ -992,7 +1255,9 @@ async function maybeAdvanceFromWriting(){
     const r = game.round;
     if(r.phase !== 'writing') return;
     const ids = Object.keys(r.submissions||{});
-    const order = seededShuffle([...ids, 'REAL'], Date.now());
+    // True random order (crypto RNG) — never the order entries were
+    // submitted/stored, which would be a dead giveaway in the room.
+    const order = randomShuffle([...ids, 'REAL']);
     // Fetch the real answer right when voting begins (not before) — this
     // is the only moment this item's answer ever gets sent to a browser.
     const answerText = r.answerSource === 'generated'
@@ -1054,14 +1319,16 @@ function renderReading(isNew){
     // The Reader is blind to which one is real, same as everyone else —
     // they're purely reading the list aloud, not the "dasher" who already
     // knows the answer. No distinguishing mark on any row.
-    order.forEach((id, i) => {
+    order.forEach((id) => {
       const isReal = id === 'REAL';
       const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
       const div = document.createElement('div');
       // Full-opacity, no border/background changes — this is a plain
-      // read-aloud list, not a voting or reveal screen.
+      // read-aloud list, not a voting or reveal screen. No numbers either.
+      // (The Reader's own entry is NOT moved to the bottom here — the room
+      // would learn "last one read = the Reader's".)
       div.className = 'sub-option readonly';
-      div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
+      div.innerHTML = escapeHtml(tidy(text));
       list.appendChild(div);
     });
     $('btn-show-group').onclick = () => maybeAdvanceFromReading();
@@ -1087,7 +1354,11 @@ function renderVoting(isNew){
   $('btn-sitout-voting').onclick = toggleSitOut;
   $('btn-jointhisround-voting').onclick = toggleSitOut;
 
-  const order = r.shuffleOrder || [];
+  // Same shared random order for everyone, except your own entry is pulled
+  // out and parked at the bottom of YOUR list, so you always know where it
+  // is and can ignore it.
+  const shared = r.shuffleOrder || [];
+  const order = [...shared.filter(id => id !== myUid), ...shared.filter(id => id === myUid)];
   // The real answer text is already on the round doc — it was fetched
   // from Firestore once, right when voting began (see maybeAdvanceFromWriting).
 
@@ -1106,13 +1377,13 @@ function renderVoting(isNew){
   function buildList(){
     const container = $('voting-list');
     container.innerHTML = '';
-    order.forEach((id, i) => {
+    order.forEach((id) => {
       const isReal = id === 'REAL';
       const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
       const isMine = id === myUid;
       const div = document.createElement('div');
       div.className = 'sub-option' + (isMine ? ' disabled' : '');
-      div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
+      div.innerHTML = escapeHtml(tidy(text));
 
       // "Yours" is intentionally not labeled — hidden by default so it
       // doesn't stand out while scanning the list.
@@ -1150,7 +1421,9 @@ function renderVoting(isNew){
     $('voting-waiting').style.display = 'none';
   } else {
     $('voting-instructions').textContent = game.settings.crowdFunny
-      ? "Vote for the real answer and the funniest answer — one item can get both!"
+      ? (game.settings.funnyPoints
+          ? "Vote for the real answer and the funniest answer — one item can get both! Funniest votes are worth a point this game."
+          : "Vote for the real answer and the funniest answer — one item can get both!")
       : "Vote for the real answer.";
     buildList();
     updateSubmitEnabled();
@@ -1189,6 +1462,7 @@ async function maybeAdvanceFromVoting(){
     // silently updated mid-calculation is how a round's points got
     // applied twice.
     const playersBaseline = game.players;
+    const claudeBaseline = game.claudeScore || 0;
 
     // CSF: Claude casts one funniest vote of its own, HUMAN bluffs only
     // (Claude's own entry, if Include Claude is on, is excluded — this is
@@ -1219,7 +1493,7 @@ async function maybeAdvanceFromVoting(){
       }
     }
 
-    const scored = computeScores(r, playersBaseline, csfWinnerId);
+    const scored = computeScores(r, playersBaseline, csfWinnerId, claudeBaseline);
 
     // Another client may have already finished this exact transition while
     // we were awaiting the judge calls above — if so, back out instead of
@@ -1230,19 +1504,30 @@ async function maybeAdvanceFromVoting(){
       'round.phase':'reveal',
       'round.scored': true,
       players: scored.players,
+      claudeScore: scored.claudeScore,
       [`round.scoreDeltas`]: scored.deltas,
       [`round.funnyTally`]: scored.funnyTally,
-      [`round.cccCloseIds`]: cccCloseIds
+      [`round.cccCloseIds`]: cccCloseIds,
+      'round.revealedAt': Date.now() // lets clients show the splash only on a live reveal, not a reload
     });
   } finally { advancing = false; }
 }
 
-function computeScores(r, players, csfWinnerId){
+function computeScores(r, players, csfWinnerId, claudeScore = 0){
   const updated = JSON.parse(JSON.stringify(players));
+  // Claude plays as a bluffer (Include Claude): it scores for fooling people
+  // and, with Points for funniest, for laughs — but never guesses the real
+  // answer (its bluff call has already seen it). Its score lives outside
+  // game.players so it never counts as someone the room is waiting on.
+  const claudeIn = !!(r.submissions && r.submissions.CLAUDE);
+  if(claudeIn) updated.CLAUDE = { name: 'Claude', score: claudeScore };
   const deltas = {};
   Object.keys(updated).forEach(uid => deltas[uid] = 0);
 
   Object.entries(r.votes||{}).forEach(([voterUid, v]) => {
+    // Ignore votes for your own bluff (only possible by tampering, but
+    // it would otherwise hand you a free point).
+    if(v.real && r.submissions[v.real] && r.submissions[v.real].author === voterUid) return;
     if(v.real === 'REAL' && updated[voterUid]){
       updated[voterUid].score += 2;
       deltas[voterUid] = (deltas[voterUid]||0) + 2;
@@ -1259,10 +1544,27 @@ function computeScores(r, players, csfWinnerId){
   // CSF pick) shows as one 😂 against that response on reveal, rather than
   // singling out a "winner." No scoring impact either way.
   const funnyTally = {};
-  Object.values(r.votes||{}).forEach(v => { if(v.funny){ funnyTally[v.funny] = (funnyTally[v.funny]||0)+1; } });
+  Object.entries(r.votes||{}).forEach(([voterUid, v]) => {
+    if(v.funny && v.funny !== voterUid){ funnyTally[v.funny] = (funnyTally[v.funny]||0)+1; }
+  });
   if(csfWinnerId){ funnyTally[csfWinnerId] = (funnyTally[csfWinnerId]||0)+1; }
 
-  return { players: updated, deltas, funnyTally };
+  // Points for funniest (host setting): +1 to a bluff's author for every
+  // funniest vote it got — players' and Claude's (CSF) alike. Claude's own
+  // bluff counts too — Claude's a contender.
+  if(game.settings && game.settings.funnyPoints){
+    Object.entries(funnyTally).forEach(([subId, n]) => {
+      const authorUid = r.submissions[subId] && r.submissions[subId].author;
+      if(authorUid && updated[authorUid]){
+        updated[authorUid].score += n;
+        deltas[authorUid] = (deltas[authorUid]||0) + n;
+      }
+    });
+  }
+
+  let newClaude = claudeScore;
+  if(claudeIn){ newClaude = updated.CLAUDE.score; delete updated.CLAUDE; }
+  return { players: updated, deltas, funnyTally, claudeScore: newClaude };
 }
 
 // ---- 11. REVEAL ---------------------------------------------------------
@@ -1282,7 +1584,7 @@ function renderReveal(isNew){
 
   const list = $('reveal-list');
   list.innerHTML = '';
-  order.forEach((id, i) => {
+  order.forEach((id) => {
     const isReal = id === 'REAL';
     const isClaude = id === 'CLAUDE';
     const text = isReal ? r.answerText : (r.submissions[id] ? r.submissions[id].text : '');
@@ -1293,77 +1595,298 @@ function renderReveal(isNew){
     // doesn't need to look dimmed too.
     div.className = 'sub-option readonly';
     if(isReal) div.style.border = '2px solid var(--moss)';
-    div.innerHTML = `<span class="idx">${i+1}.</span>${escapeHtml(text)}`;
+    div.innerHTML = escapeHtml(tidy(text));
     const flags = document.createElement('div'); flags.className='flags';
     if(isReal) flags.innerHTML += `<span class="flag real">REAL ANSWER</span>`;
-    else flags.innerHTML += `<span class="flag votes">by ${escapeHtml(authorName)}</span>`;
+    else {
+      const authorUid = isClaude ? 'CLAUDE' : r.submissions[id]?.author;
+      const col = playerColor(authorUid);
+      flags.innerHTML += `<span class="flag author" style="background:${col.bg};color:${col.fg};">${escapeHtml(authorName)}</span>`;
+    }
     const votes = voteTally[id] || 0;
     if(votes>0) flags.innerHTML += `<span class="flag votes">${votes} vote${votes===1?'':'s'}</span>`;
     if(r.cccCloseIds && r.cccCloseIds.includes(id)) flags.innerHTML += `<span class="flag ccc">🎯 close call</span>`;
-    div.appendChild(flags);
+    // Laughs sit on the same line as author + votes; each emoji is its own
+    // flex item so a big pile just wraps onto the next line.
     const funnyCount = (r.funnyTally && r.funnyTally[id]) || 0;
-    if((game.settings.crowdFunny || game.settings.csf) && funnyCount > 0){
-      const emojis = document.createElement('div');
-      emojis.style.cssText = 'font-size:20px;margin-top:6px;letter-spacing:2px;';
-      emojis.textContent = '😂'.repeat(funnyCount);
-      div.appendChild(emojis);
+    if(funnyCount > 0){
+      for(let k=0;k<funnyCount;k++) flags.innerHTML += `<span class="laugh">😂</span>`;
     }
+    div.appendChild(flags);
     list.appendChild(div);
   });
 
   const standings = $('reveal-standings');
   standings.innerHTML = '';
-  const sorted = Object.entries(game.players).sort((a,b) => b[1].score - a[1].score);
+  const sorted = scoreboard();
+  const topNow = sorted.length ? sorted[0][1].score : 0;
   sorted.forEach(([uid,p], i) => {
     const row = document.createElement('div');
-    row.className = 'leader-row' + (i===0 ? ' first':'');
+    row.className = 'leader-row colored' + (p.score === topNow ? ' first':'');
+    const col = playerColor(uid);
+    row.style.background = col.bg; row.style.color = col.fg;
     const delta = (r.scoreDeltas && r.scoreDeltas[uid]) || 0;
-    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;">${escapeHtml(p.name)}</span><span class="score">${p.score}${delta>0?` <span style="color:var(--moss);font-size:12px;">+${delta}</span>`:''}</span>`;
+    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;font-weight:600;">${escapeHtml(p.name)}</span><span class="score">${p.score}${delta>0?`<span class="delta">+${delta}</span>`:''}</span>`;
     standings.appendChild(row);
   });
+
+  renderWanderSummary(r);
+
+  // Mic drop — only for a reveal that just happened, not on a reload.
+  if(isNew && r.revealedAt && Date.now() - r.revealedAt < 8000){
+    showRoundLeaderSplash(r);
+  }
 
   $('btn-next-round').style.display = isHost() ? 'block' : 'none';
   $('reveal-wait-note').style.display = isHost() ? 'none' : 'block';
   $('btn-next-round').onclick = async () => {
     const nextIndex = r.index + 1;
-    if(nextIndex >= game.settings.numRounds){
-      const scoresNow = Object.values(game.players).map(p => p.score);
-      const top = Math.max(...scoresNow);
-      const tied = scoresNow.filter(s => s === top).length > 1;
-      if(tied && game.settings.playUntilWinner){
+    const st = effectiveSettings();
+    if(nextIndex >= st.numRounds){
+      // Tiebreakers are only for humans tied at the very top. A tie that
+      // involves Claude (e.g. Claude & Pat level on top) just ends the game
+      // as a shared win; if Claude's alone on top, there's nothing to break.
+      const board = scoreboard();
+      const top = Math.max(...board.map(([,p]) => p.score));
+      const tied = board.filter(([uid,p]) => p.score === top && uid !== 'CLAUDE').length > 1
+        && !board.some(([uid,p]) => uid === 'CLAUDE' && p.score === top);
+      if(tied && st.playUntilWinner){
         // Tiebreaker round — round count keeps climbing past the original
         // numRounds until someone actually pulls ahead.
-        await beginRound(nextIndex, game.settings.categories, game.usedTerms||[]);
+        await beginRound(nextIndex, st.categories, game.usedTerms||[]);
         return;
       }
       await updateDoc(doc(db, GAMES, currentGameCode), { status:'ended' });
     } else {
-      await beginRound(nextIndex, game.settings.categories, game.usedTerms||[]);
+      await beginRound(nextIndex, st.categories, game.usedTerms||[]);
     }
   };
+}
+
+// ---- 11b. ROUND-LEADER SPLASH ("mic drop") ---------------------------------
+// Borrowed from the Darts Baseball Mic Drop: the block peeks in from the top
+// of the screen (bottom ~45% showing) and fades in over 1s while creeping
+// down slowly, then drops fast (220ms, same ease-in) to the middle, shakes
+// the whole screen, and clears 3s later so everyone can read what's behind.
+const MIC_DROP_FADE_MS = 1000;
+const MIC_DROP_FALL_MS = 220;
+const MIC_DROP_PEEK_HIDDEN_FRACTION = 0.55;
+const MIC_DROP_CREEP_PX = 40;
+const SPLASH_HOLD_MS = 3000;
+let splashTimers = [], splashAnims = [];
+function showRoundLeaderSplash(r){
+  const deltas = r.scoreDeltas || {};
+  const players = Object.fromEntries(scoreboard());
+  const entries = Object.entries(deltas).filter(([uid]) => players[uid]);
+  const top = entries.reduce((m, [,d]) => Math.max(m, d), 0);
+  if(top <= 0) return; // nobody scored — nothing to shout about
+  const leaders = entries.filter(([,d]) => d === top).map(([uid]) => uid);
+  const names = leaders.map(uid => players[uid].name);
+  const nameText = names.length <= 2 ? names.join(' & ') : names.slice(0,-1).join(', ') + ' & ' + names[names.length-1];
+
+  const splash = $('splash'), block = $('splash-block'), app = $('app'), shaker = $('splash-shaker');
+  const col = leaders.length === 1 ? playerColor(leaders[0]) : { bg:'#D4A017', fg:'#3a2c00' };
+  block.style.background = col.bg; block.style.color = col.fg;
+  $('splash-name').textContent = nameText;
+  $('splash-leads').textContent = leaders.length === 1 ? 'Leads Round' : 'Lead Round';
+  $('splash-pts').textContent = `+${top} point${top===1?'':'s'}!`;
+
+  splashTimers.forEach(clearTimeout); splashTimers = [];
+  splashAnims.forEach(a => { try{ a.cancel(); }catch(e){} }); splashAnims = [];
+  app.classList.remove('shake'); shaker.classList.remove('shake');
+  block.style.transform = 'none'; block.style.opacity = '0';
+  splash.classList.add('show');
+
+  function shakeAll(){
+    [app, shaker].forEach(el => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); });
+    try{ navigator.vibrate && navigator.vibrate(180); }catch(e){}
+    splashTimers.push(setTimeout(() => { app.classList.remove('shake'); shaker.classList.remove('shake'); }, 500));
+    splashTimers.push(setTimeout(() => {
+      splash.classList.remove('show');
+      splashTimers.push(setTimeout(() => { block.style.opacity = '0'; block.style.transform = 'none'; }, 400));
+    }, SPLASH_HOLD_MS));
+  }
+
+  const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!block.animate || reduced){ block.style.opacity = '1'; shakeAll(); return; }
+
+  // Measure the resting (centred) spot, then work out the "peek" offset so
+  // only the bottom ~45% of the block shows at the very top of the screen.
+  const rect = block.getBoundingClientRect();
+  const peekY = -(rect.top + rect.height * MIC_DROP_PEEK_HIDDEN_FRACTION);
+  const creepY = peekY + MIC_DROP_CREEP_PX;
+
+  const fade = block.animate(
+    [{ opacity:0, transform:`translateY(${peekY}px)` }, { opacity:1, transform:`translateY(${creepY}px)` }],
+    { duration:MIC_DROP_FADE_MS, easing:'linear', fill:'forwards' }
+  );
+  splashAnims.push(fade);
+  fade.onfinish = () => {
+    const fall = block.animate(
+      [{ opacity:1, transform:`translateY(${creepY}px)` }, { opacity:1, transform:'translateY(0)' }],
+      { duration:MIC_DROP_FALL_MS, easing:'cubic-bezier(0.55,0,1,0.45)', fill:'forwards' }
+    );
+    splashAnims.push(fall);
+    fall.onfinish = () => { block.style.opacity = '1'; block.style.transform = 'none'; shakeAll(); };
+  };
+}
+
+// ---- 11c. WANDER WATCH -----------------------------------------------------
+// Shame-only, no points. If an active player's Balderlaugh tab is hidden
+// (switched apps/tabs, home screen) for 3s+ during writing, reading or
+// voting, everyone else gets a live 👀 alert, and the round's reveal lists
+// how long each wanderer was away.
+//
+// Stored on the round: round.away.{uid} = { leftAt, totalMs, lastTrip:{at,ms} }
+//  - leftAt is written the moment the tab hides (so the alert can go out
+//    while they're still gone), cleared when they come back.
+//  - Some phones (iPhone especially) freeze the page before that first write
+//    gets out — lastTrip, written on return, covers that case.
+// Other clients time the 3s grace from when THEY see leftAt, not from the
+// wanderer's clock, so phones with slightly different clocks can't misfire.
+const WANDER_GRACE_MS = 3000;
+const WANDER_PHASES = ['writing','reading','voting'];
+let myAway = null;                 // { at, roundIndex } while my tab is hidden
+const wanderSeen = new Set();      // alert keys already handled on this device
+const wanderTimers = {};           // key -> pending grace timer
+const wanderToasts = {};           // key -> toast element (to add "back after Xs")
+let wanderPrimedFor = null;        // game+round we've primed wanderSeen for
+
+function wanderActiveForMe(){
+  return !!(game && game.status === 'playing' && game.settings && game.settings.wanderWatch &&
+    game.round && WANDER_PHASES.includes(game.round.phase) &&
+    game.players && game.players[myUid] && !amISittingOut());
+}
+function whoPill(uid){
+  const p = game && game.players && game.players[uid];
+  const col = playerColor(uid);
+  return `<span class="who" style="background:${col.bg};color:${col.fg};">${escapeHtml(p ? p.name : 'Someone')}</span>`;
+}
+function fmtSecs(ms){ const s = Math.max(1, Math.round(ms/1000)); return `${s} second${s===1?'':'s'}`; }
+
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){
+    if(!wanderActiveForMe()) return;
+    myAway = { at: Date.now(), roundIndex: game.round.index };
+    updateDoc(doc(db, GAMES, currentGameCode), { [`round.away.${myUid}.leftAt`]: myAway.at })
+      .catch(err => console.error('wander write failed', err));
+  } else if(myAway){
+    const trip = myAway; myAway = null;
+    const ms = Date.now() - trip.at;
+    if(!game || !game.round || game.round.index !== trip.roundIndex || !currentGameCode) return; // round moved on
+    const upd = { [`round.away.${myUid}.leftAt`]: null };
+    if(ms >= WANDER_GRACE_MS){
+      upd[`round.away.${myUid}.totalMs`] = increment(ms);
+      upd[`round.away.${myUid}.lastTrip`] = { at: trip.at, ms };
+      showToast('self', `You left the game screen for ${fmtSecs(ms)}. Everyone got the 👀`);
+    }
+    updateDoc(doc(db, GAMES, currentGameCode), upd).catch(err => console.error('wander write failed', err));
+  }
+});
+
+function wanderAlert(uid, key, ms){
+  if(wanderSeen.has(key)) return;
+  wanderSeen.add(key);
+  const name = whoPill(uid);
+  const plain = escapeHtml((game.players[uid] || {}).name || 'they');
+  const extra = ms ? ` <em>(gone ${fmtSecs(ms)})</em>` : '';
+  const t = showToast('wander', `${name} left the game screen 👀. Now why would ${plain} do that 🤔?${extra}`);
+  if(ms) t.dataset.back = '1'; // already says how long — don't tack "back after" on too
+  wanderToasts[key] = t;
+}
+
+function checkWanderers(){
+  if(!game || game.status !== 'playing' || !game.round || !game.settings || !game.settings.wanderWatch) return;
+  const r = game.round;
+  const away = r.away || {};
+  const primeKey = `${currentGameCode}-${r.index}`;
+  // First time this device sees this round (e.g. after a reload): mark
+  // everything already there as seen, so old trips don't re-alert.
+  const priming = wanderPrimedFor !== primeKey;
+  wanderPrimedFor = primeKey;
+
+  Object.entries(away).forEach(([uid, a]) => {
+    if(uid === myUid || !a) return;
+    // Live: they're gone right now — alert once the grace runs out.
+    if(a.leftAt){
+      const key = `${primeKey}-${uid}-${a.leftAt}`;
+      if(priming){ wanderSeen.add(key); }
+      else if(!wanderSeen.has(key) && !wanderTimers[key]){
+        wanderTimers[key] = setTimeout(() => {
+          delete wanderTimers[key];
+          const now = game && game.round && game.round.away && game.round.away[uid];
+          if(now && now.leftAt === a.leftAt) wanderAlert(uid, key);
+        }, WANDER_GRACE_MS);
+      }
+    }
+    // On return: either tack the time onto the live alert, or (if their
+    // phone froze before the leave got out) send the alert now.
+    if(a.lastTrip && a.lastTrip.at){
+      const key = `${primeKey}-${uid}-${a.lastTrip.at}`;
+      if(priming){ wanderSeen.add(key); return; }
+      if(wanderTimers[key]){ clearTimeout(wanderTimers[key]); delete wanderTimers[key]; }
+      const t = wanderToasts[key];
+      if(t && t.isConnected && !t.dataset.back){
+        t.dataset.back = '1';
+        t.querySelector('.msg').insertAdjacentHTML('beforeend', ` <em>(back after ${fmtSecs(a.lastTrip.ms)})</em>`);
+      } else if(!wanderSeen.has(key)){
+        wanderAlert(uid, key, a.lastTrip.ms);
+      }
+    }
+  });
+}
+
+function showToast(kind, html, icon = '👀'){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<div class="eyes">${icon}</div><div class="msg">${html}</div><button class="x" type="button" aria-label="Close">✕</button>`;
+  const close = () => { if(!el.isConnected) return; el.classList.add('leaving'); setTimeout(() => el.remove(), 250); };
+  el.querySelector('.x').onclick = close;
+  setTimeout(close, 15000);
+  const box = $('toasts');
+  box.appendChild(el);
+  while(box.children.length > 3) box.firstElementChild.remove(); // never bury the game
+  return el;
+}
+
+function renderWanderSummary(r){
+  const wrap = $('reveal-wander-wrap');
+  const list = $('reveal-wander');
+  if(!game.settings || !game.settings.wanderWatch){ wrap.style.display = 'none'; return; }
+  const rows = Object.entries(r.away || {})
+    .filter(([uid, a]) => game.players[uid] && a && ((a.totalMs || 0) >= WANDER_GRACE_MS || a.leftAt))
+    .sort((a,b) => (b[1].totalMs||0) - (a[1].totalMs||0));
+  wrap.style.display = rows.length ? 'block' : 'none';
+  list.innerHTML = rows.map(([uid, a]) => {
+    const still = a.leftAt ? ' <span style="color:var(--muted);">(and still gone)</span>' : '';
+    const time = (a.totalMs||0) >= WANDER_GRACE_MS ? `was away for ${fmtSecs(a.totalMs)} this round 👀` : 'wandered off 👀';
+    return `<div class="wander-line">${whoPill(uid)} ${time}${still}</div>`;
+  }).join('');
 }
 
 // ---- 12. GAME OVER ---------------------------------------------------------
 function renderGameOver(){
   const standings = $('gameover-standings');
   standings.innerHTML = '';
-  const sorted = Object.entries(game.players).sort((a,b) => b[1].score - a[1].score);
+  const sorted = scoreboard();
   const topScore = sorted.length ? sorted[0][1].score : 0;
   const winnerCount = sorted.filter(([,p]) => p.score === topScore).length;
   $('gameover-tie-note').style.display = winnerCount > 1 ? 'block' : 'none';
   sorted.forEach(([uid,p], i) => {
     const isWinner = p.score === topScore; // ties all get the crown, not just whoever sorted first
     const row = document.createElement('div');
-    row.className = 'leader-row' + (isWinner ? ' first':'');
-    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="score">${p.score}</span>`;
+    row.className = 'leader-row colored' + (isWinner ? ' first':'');
+    const col = playerColor(uid);
+    row.style.background = col.bg; row.style.color = col.fg;
+    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;font-weight:600;">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="score">${p.score}</span>`;
     standings.appendChild(row);
   });
   $('btn-play-again').style.display = isHost() ? 'block' : 'none';
   $('btn-play-again-note').style.display = isHost() ? 'none' : 'block';
   $('btn-play-again').onclick = async () => {
     const resetPlayers = {};
-    Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0 }; });
-    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [] });
+    Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0, color: Number.isInteger(p.color) ? p.color : firstFreeColor(resetPlayers, uid) }; });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], claudeScore: 0, settings: effectiveSettings(), pendingSettings: deleteField() });
   };
   $('btn-gameover-home').onclick = leaveToHome;
 }
@@ -1386,6 +1909,47 @@ function runTimer(elId, endsAt, onExpire){
 }
 
 // ---- 14. BOOT ---------------------------------------------------------------
+// Anti-cheat: block copy / cut / right-click / long-press menus / drag /
+// select-all everywhere except the boxes players type into. Screenshots
+// can still beat this — the point is just not to make it one tap.
+const isEditable = t => !!(t && t.closest && t.closest('input, textarea, select'));
+['copy','cut','contextmenu','selectstart','dragstart'].forEach(ev =>
+  document.addEventListener(ev, e => { if(!isEditable(e.target)) e.preventDefault(); })
+);
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && ['c','x','a','u','s','p'].includes((e.key||'').toLowerCase()) && !isEditable(e.target)){
+    e.preventDefault();
+  }
+});
+
+// No pasting (or dropping text) into the bluff box — stops "look it up on
+// the laptop, paste on the phone" via shared clipboards. Typing, phone
+// keyboard suggestions and voice typing all still work.
+(() => {
+  const ta = $('writing-textarea');
+  let noteTimer = null;
+  const nope = e => {
+    e.preventDefault();
+    $('paste-note').textContent = 'Nice try — type it yourself 😏';
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { $('paste-note').textContent = ''; }, 3000);
+  };
+  ta.addEventListener('paste', nope);
+  ta.addEventListener('drop', nope);
+  ta.addEventListener('beforeinput', e => {
+    if(e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop' || e.inputType === 'insertFromPasteAsQuotation') nope(e);
+  });
+})();
+
+// Favicon = the brand icon
+try{
+  const svg = document.querySelector('.brand-icon svg');
+  const link = document.createElement('link');
+  link.rel = 'icon'; link.type = 'image/svg+xml';
+  link.href = 'data:image/svg+xml,' + encodeURIComponent(svg.outerHTML);
+  document.head.appendChild(link);
+}catch(e){}
+
 $('btn-leave-writing').onclick = leaveGame;
 $('btn-leave-reading').onclick = leaveGame;
 $('btn-leave-voting').onclick = leaveGame;

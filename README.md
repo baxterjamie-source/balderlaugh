@@ -202,3 +202,40 @@ told it. Length is also now hard-capped (30 words, at most one specific
 number/date total) rather than softly suggested, after a test round
 produced a real answer with five stacked statistics in one sentence
 despite an earlier, softer instruction against exactly that.
+
+## Sept 24 batch
+- No item numbers anywhere players see them.
+- Voting list: one shared, truly random order (crypto RNG); each player's own
+  entry is parked at the bottom of *their* list only. The Reader's list is the
+  shared order unchanged (moving theirs last would tip off the room).
+- "Claude" / "Claud" are reserved names. Max 8 players (join runs in a
+  transaction so the 8th seat and colours can't be double-claimed).
+- Each player gets a stored colour (`players.{uid}.color`, 0-7) used for the
+  author pill on reveal, standings rows and final scores. Fox / moss / gold /
+  purple stay reserved for game meaning; Claude is slate.
+- Round-leader splash ("mic drop") on reveal — same peek, fade, fast-drop and
+  shake as Darts Baseball; only fires on a live reveal (`round.revealedAt`).
+- Game codes are letters only.
+- Anti-cheat: text selection, copy, right-click/long-press and drag blocked
+  outside input boxes; all entries shown with tidied capitalisation and end
+  punctuation so the real answer doesn't stand out by formatting; votes for
+  your own entry (only possible by tampering) are ignored in scoring.
+
+## Wander watch (host toggle, on by default)
+Shame-only, no points. If an active player's tab is hidden for 3s+ during
+writing/reading/voting, everyone else gets a live 👀 alert (✕ to dismiss,
+auto-clears after 15s), and the reveal lists each wanderer's time away.
+Stored at `round.away.{uid}` = { leftAt, totalMs, lastTrip }. Other clients
+time the 3s grace from when they see leftAt, so clock drift between phones
+can't misfire; lastTrip covers phones that freeze before the leave is sent.
+
+## Mid-game settings, paste block, funniest points, Claude as a contender
+- Host sees a gear on every in-game screen. Changes are saved to
+  `pendingSettings` and folded into `settings` when the next round starts
+  (or on Play again), never mid-round. Rounds can't drop below the current one.
+- No paste / drop into the bluff box (stops cross-device clipboard lookups).
+- Points for funniest (toggle): +1 to a bluff's author per funniest vote,
+  crowd and CSF alike.
+- Include Claude makes Claude a scoring contender: +1 per player fooled and
+  funniest points, never guesses the real answer. Score lives in
+  `game.claudeScore` (outside `players`, so it never holds up the room).
