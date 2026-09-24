@@ -129,10 +129,11 @@ can't query either collection to see everything in it at once.
 games (not just the current one), each stamped with when it was last used.
 Both live generation and the seeded fallback check this before picking —
 anything used in the last 60 days (`COOLDOWN_DAYS` in `index.html`) is
-avoided where possible. It's a soft preference, not a hard block: if
-honoring it would leave nothing left to pick from (a small seed bank plus
-heavy testing, say), the game quietly falls back to ignoring it rather than
-stalling a round.
+never picked. It's a HARD block (the generator's suggestion is
+rejected if it's recent, and the seeded fallback only offers fresh items).
+If nothing fresh turns up, or it takes 30s+, the host gets "Try again"
+(twice; each attempt uses its own answer slot, e.g. `GAME_3-2`, so a late
+earlier attempt can't clobber it), then the option to end the game.
 
 **To reset it** (e.g. once testing wraps, for a clean slate before a real
 game night): Firestore Database → Data tab → open `balderlaugh_used_terms`
@@ -167,10 +168,10 @@ Reasonably trustworthy, not guaranteed.
 - Same device, multiple browser tabs share the same local player identity
   (by design) — for a real multi-device test, use separate phones or
   separate browsers/incognito windows.
-- "Play until there's a clear winner" (lobby toggle) adds tiebreaker
-  rounds past the configured round count if the last round ends tied for
-  first — the round pill shows "Bonus round N (tiebreaker)" once past the
-  original count.
+- Tiebreaker: no lobby setting anymore. If two or more players are tied at
+  the top at game end (and Claude isn't in the tie), the host gets a
+  "Tiebreaker" button on the final scores screen; bonus rounds then continue
+  (`game.tiebreak`) until the top tie breaks.
 
 ## The Reader role
 A new phase sits between writing and voting: one player each round is
@@ -239,3 +240,22 @@ can't misfire; lastTrip covers phones that freeze before the leave is sent.
 - Include Claude makes Claude a scoring contender: +1 per player fooled and
   funniest points, never guesses the real answer. Score lives in
   `game.claudeScore` (outside `players`, so it never holds up the room).
+
+## Open-games housekeeping
+- Host-only delete: the 🗑 shows only on games whose `hostUid` matches this
+  browser's saved player id (no logins, so same browser = owner). Two taps.
+- Open (lobby) games older than 12h are hidden from the list and deleted by
+  whichever device next opens the home screen. "Play again" resets
+  `createdAt`, so a long game night is never swept.
+- The sweep query (status == lobby, createdAt < cutoff) may need a Firestore
+  composite index the first time; if so, the browser console shows a
+  one-click link to create it. Hiding works regardless.
+
+## Golden oldies
+When fresh items run out (both Try agains used), the host can replay an old
+item instead of ending: never from the last 24h or this game, and "old"
+scales with history (min age = max(24h, half the age of the oldest record)).
+Picked at random so the host doesn't see the list. `balderlaugh_used_terms`
+now also stores where each answer lives (answerSource / answerId / itemId);
+older generated records lack this and can't be replayed. If nothing
+qualifies, the host only gets "End the game".

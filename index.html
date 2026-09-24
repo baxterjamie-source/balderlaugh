@@ -81,6 +81,10 @@
   .lobby-list-item:active{background:var(--ink-3);}
   .lobby-list-item .name{font-weight:600;}
   .lobby-list-item .meta{color:var(--muted);font-size:12px;margin-top:2px;}
+  .lobby-list-item .del{flex:0 0 auto;margin-left:10px;min-width:40px;height:36px;padding:0 10px;border-radius:9px;
+    border:1px solid var(--ink-3);background:transparent;color:var(--muted);font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .lobby-list-item .del.confirm{background:var(--danger);border-color:var(--danger);color:#fff;font-size:13px;}
+  .lobby-list-item .go{flex:0 0 auto;margin-left:6px;}
   .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:18px 0;}
 
   .player-chip{
@@ -237,6 +241,12 @@
     <div class="center">
       <div class="cat" style="color:var(--muted);font-weight:700;font-size:12px;letter-spacing:.08em;">BALDERLAUGH</div>
       <div class="timer" id="loading-message" style="font-size:16px;margin-top:8px;">Reconnecting&hellip;</div>
+      <div id="gen-controls" style="display:none;margin-top:18px;">
+        <div class="note" id="gen-note" style="margin-bottom:12px;"></div>
+        <button class="btn" id="btn-gen-retry" style="display:none;">Try again</button>
+        <button class="btn" id="btn-gen-oldie" style="display:none;background:var(--gold);color:#3a2c00;">🕰 Replay a golden oldie</button>
+        <button class="btn ghost" id="btn-gen-end" style="display:none;margin-top:10px;">End the game here</button>
+      </div>
     </div>
     <div class="spacer"></div>
   </section>
@@ -340,10 +350,6 @@
       <div class="toggle-row">
         <div><div class="lbl">Include Claude</div><div class="sub">Claude plays too — writes a bluff each round and scores for everyone it fools (never judges its own for CSF)</div></div>
         <label class="switch"><input type="checkbox" id="toggle-includeClaude"><span class="track"></span><span class="thumb"></span></label>
-      </div>
-      <div class="toggle-row">
-        <div><div class="lbl">Play until there's a clear winner</div><div class="sub">If the last round ends in a tie for first, keep adding rounds until it breaks</div></div>
-        <label class="switch"><input type="checkbox" id="toggle-playUntilWinner"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
         <div><div class="lbl">Wander watch 👀</div><div class="sub">Leave the game screen mid-round and the whole table finds out</div></div>
@@ -500,6 +506,8 @@
     </div>
     <div id="gameover-standings"></div>
     <div class="footer-actions">
+      <button class="btn" id="btn-tiebreak" style="display:none;background:var(--gold);color:#3a2c00;margin-bottom:10px;">⚔️ Tiebreaker — play until someone pulls ahead</button>
+      <div class="note center" id="tiebreak-note" style="display:none;margin:0 0 10px;">Tied at the top — the host can call a tiebreaker.</div>
       <button class="btn" id="btn-play-again">Play again — same group</button>
       <div class="note center" id="btn-play-again-note" style="display:none;margin:8px 0;">Waiting for the host to start a new game, or leave below.</div>
       <button class="btn ghost" id="btn-gameover-home" style="margin-top:10px;">Leave this game</button>
@@ -556,7 +564,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
   getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot,
-  collection, query, where, orderBy, limit, serverTimestamp, deleteField, Timestamp, runTransaction, increment
+  collection, query, where, orderBy, limit, serverTimestamp, deleteField, Timestamp, runTransaction, increment, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
@@ -630,9 +638,12 @@ async function getRecentlyUsedTerms(){
   snap.forEach(d => { if(d.data().term) terms.push(d.data().term); });
   return terms;
 }
-async function markTermUsed(term, category){
+// Also records WHERE the real answer lives (never the answer itself), so a
+// long-ago item can be replayed as a "golden oldie" when nothing fresh is left.
+async function markTermUsed(term, category, ref = {}){
   await setDoc(doc(db, 'balderlaugh_used_terms', normalizeTermId(term)), {
-    term, category, lastUsedAt: serverTimestamp()
+    term, category, lastUsedAt: serverTimestamp(),
+    answerSource: ref.answerSource || null, answerId: ref.answerId || null, itemId: ref.itemId || null
   });
 }
 
@@ -724,6 +735,7 @@ function tidy(s){
 
 // ---- Players: cap, reserved names, colours --------------------------------
 const MAX_PLAYERS = 8;
+const STALE_LOBBY_MS = 12*60*60*1000; // open games older than this drop off the list
 const RESERVED_NAMES = ['claude','claud'];
 function isReservedName(n){
   return RESERVED_NAMES.includes((n||'').toLowerCase().replace(/[^a-z]/g,''));
@@ -816,27 +828,76 @@ function initHome(){
 
   listenOpenGames();
 }
+// Open games untouched for 12h+ are deleted outright (not just hidden), by
+// whichever device next opens the home screen — once per page load.
+let staleSweepDone = false;
+async function sweepStaleLobbies(){
+  if(staleSweepDone) return;
+  staleSweepDone = true;
+  try{
+    const cutoff = Timestamp.fromMillis(Date.now() - STALE_LOBBY_MS);
+    const q = query(collection(db, GAMES), where('status','==','lobby'), where('createdAt','<', cutoff), limit(25));
+    const snap = await getDocs(q);
+    const dels = [];
+    snap.forEach(d => dels.push(deleteDoc(doc(db, GAMES, d.id)).catch(err => console.error('Stale delete failed:', d.id, err))));
+    await Promise.all(dels);
+  } catch(err){ console.error('Stale lobby sweep failed:', err); }
+}
+
 function listenOpenGames(){
   if(unsubOpenGames) unsubOpenGames();
+  sweepStaleLobbies();
   const q = query(collection(db, GAMES), where('status','==','lobby'), orderBy('createdAt','desc'), limit(15));
   unsubOpenGames = onSnapshot(q, snap => {
     const list = $('open-games-list');
     list.innerHTML = '';
-    $('open-games-count').textContent = snap.size;
-    $('no-games-note').style.display = snap.size ? 'none' : 'block';
+    // Hide lobbies nobody's touched in 12h+ — forgotten test games,
+    // or ones started on a device whose owner can't delete them here.
+    const cutoff = Date.now() - STALE_LOBBY_MS;
+    const docs = [];
     snap.forEach(d => {
+      const c = d.data().createdAt;
+      const ms = c && typeof c.toMillis === 'function' ? c.toMillis() : (typeof c === 'number' ? c : Date.now());
+      if(ms >= cutoff) docs.push(d);
+    });
+    $('open-games-count').textContent = docs.length;
+    $('no-games-note').style.display = docs.length ? 'none' : 'block';
+    docs.forEach(d => {
       const g = d.data();
       const count = Object.keys(g.players||{}).length;
       const full = count >= MAX_PLAYERS;
       const el = document.createElement('div');
       el.className = 'lobby-list-item';
       if(full) el.style.opacity = '.5';
-      el.innerHTML = `<div><div class="name">${escapeHtml(g.hostName)}'s Game</div><div class="meta">${count}/${MAX_PLAYERS} players · code ${d.id}${full ? ' · full' : ''}</div></div><span>${full ? '' : '&rarr;'}</span>`;
+      el.innerHTML = `<div style="flex:1;min-width:0;"><div class="name">${escapeHtml(g.hostName)}'s Game</div><div class="meta">${count}/${MAX_PLAYERS} players · code ${d.id}${full ? ' · full' : ''}</div></div><span class="go">${full ? '' : '&rarr;'}</span>`;
       el.onclick = () => {
         const name = myName.trim();
         if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
         joinGame(d.id);
       };
+      // Delete — only on this device's own games (no logins, so "same
+      // browser that's hosting it" is the best proof of ownership we have).
+      // Two taps: 🗑 → "Delete?" → gone. Anyone sitting in that lobby is
+      // sent back home automatically (their listener sees the doc vanish).
+      if(g.hostUid === myUid){
+        const del = document.createElement('button');
+        del.type = 'button'; del.className = 'del'; del.textContent = '🗑';
+        del.setAttribute('aria-label', 'Delete this game');
+        let armTimer = null;
+        del.onclick = async (e) => {
+          e.stopPropagation();
+          if(!del.classList.contains('confirm')){
+            del.classList.add('confirm'); del.textContent = 'Delete?';
+            armTimer = setTimeout(() => { del.classList.remove('confirm'); del.textContent = '🗑'; }, 3000);
+            return;
+          }
+          clearTimeout(armTimer);
+          del.disabled = true;
+          try{ await deleteDoc(doc(db, GAMES, d.id)); }
+          catch(err){ console.error('Delete failed:', err); $('home-err').textContent = 'Could not delete that game — try again.'; del.disabled = false; }
+        };
+        el.insertBefore(del, el.querySelector('.go'));
+      }
       list.appendChild(el);
     });
   }, err => { console.error(err); });
@@ -972,11 +1033,8 @@ function route(){
     const phaseKey = `${game.round.index}-${phase}`;
     const isNewPhase = phaseKey !== lastPhaseKey;
     lastPhaseKey = phaseKey;
-    if(phase === 'generating'){
-      $('loading-message').textContent = 'Generating an item (this can take a few seconds)';
-      showScreen('screen-loading');
-    }
-    else if(phase === 'writing'){ renderWriting(isNewPhase); showScreen('screen-writing'); }
+    if(phase === 'generating'){ renderGenerating(); showScreen('screen-loading'); }
+    else if(phase === 'writing'){ $('gen-controls').style.display = 'none'; renderWriting(isNewPhase); showScreen('screen-writing'); }
     else if(phase === 'reading'){ renderReading(isNewPhase); showScreen('screen-reading'); }
     else if(phase === 'voting'){ renderVoting(isNewPhase); showScreen('screen-voting'); }
     else if(phase === 'reveal'){ renderReveal(isNewPhase); showScreen('screen-reveal'); }
@@ -1026,7 +1084,7 @@ function renderLobby(){
 }
 
 // ---- Settings form (shared by the lobby and the mid-game ⚙ sheet) --------
-const TOGGLES = ['crowdFunny','csf','funnyPoints','includeClaude','playUntilWinner','wanderWatch'];
+const TOGGLES = ['crowdFunny','csf','funnyPoints','includeClaude','wanderWatch'];
 function readSettingsForm(){
   return {
     numRounds: parseInt($('setting-rounds').value, 10),
@@ -1094,11 +1152,30 @@ async function startGame(){
   if(settings.categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
   if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
   const categories = settings.categories;
-  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing', claudeScore: 0, pendingSettings: deleteField() });
+  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing', claudeScore: 0, tiebreak: false, pendingSettings: deleteField() });
   await beginRound(0, categories, []);
 }
 
-async function beginRound(index, categories, usedTerms){
+// ---- Fresh items only (hard block) ------------------------------------------
+// A term used earlier this game or anywhere in the last COOLDOWN_DAYS is never
+// picked — no quiet repeats. If nothing fresh turns up (or it's slow), the
+// host gets "Try again" (twice), then the option to end the game.
+const GEN_TRY_AGAIN_MS = 30000;
+const GEN_MAX_ATTEMPTS = 3; // first try + 2 "Try again"s
+function normTerm(t){
+  return (t||'').toLowerCase().replace(/[\u2018\u2019']/g, "'").replace(/\s+/g,' ').trim().replace(/^(the|a|an) /, '');
+}
+// Only the attempt the room is currently waiting on may finish the round —
+// a slow earlier attempt that lands after a "Try again" is ignored.
+function isCurrentAttempt(index, attempt){
+  return !!(game && game.round && game.round.index === index && game.round.phase === 'generating' && (game.round.genAttempt||1) === attempt);
+}
+async function markGenFailed(index, attempt){
+  if(!isCurrentAttempt(index, attempt)) return;
+  try{ await updateDoc(doc(db, GAMES, currentGameCode), { 'round.genFailed': true }); }catch(e){ console.error(e); }
+}
+
+async function beginRound(index, categories, usedTerms, extra = {}, attempt = 1){
   // Any mid-game changes from the host's ⚙ take effect now, at the start
   // of a fresh round — never partway through one.
   const settings = effectiveSettings();
@@ -1112,51 +1189,64 @@ async function beginRound(index, categories, usedTerms){
   const [, recentTermsResult] = await Promise.allSettled([
     updateDoc(doc(db, GAMES, currentGameCode), {
       categoryQueue,
+      ...extra,
       ...(hadPending ? { settings, pendingSettings: deleteField() } : {}),
       round: {
         index, category: cat, phase: 'generating', term: null, itemId: null,
         answerSource: null, answerId: null, phaseEndsAt: null,
-        submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false
+        submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false,
+        genAttempt: attempt, genStartedAt: Date.now(), genFailed: false
       }
     }),
     getRecentlyUsedTerms()
   ]);
-  // Soft preference, not a hard block: if the cooldown fetch itself
-  // failed, just proceed without cross-game dedupe this round.
-  const recentTerms = recentTermsResult.status === 'fulfilled' ? recentTermsResult.value : [];
+  // Hard block: without the recently-used list we can't guarantee no
+  // repeats, so a failed fetch counts as a failed attempt (host can retry).
   if(recentTermsResult.status === 'rejected'){
-    console.error('Could not fetch recently-used terms, continuing without cross-game dedupe this round:', recentTermsResult.reason);
+    console.error('Could not fetch recently-used terms:', recentTermsResult.reason);
+    await markGenFailed(index, attempt);
+    return;
   }
+  const recentTerms = recentTermsResult.value;
   const excludeTerms = [...new Set([...usedTerms, ...recentTerms])];
+  const blocked = new Set(excludeTerms.map(normTerm));
 
   let term, itemId = null, answerSource, answerId = null;
   try{
-    const result = await generateItemFn({ category: cat, excludeTerms, gameId: currentGameCode, roundIndex: index });
+    // Each attempt gets its own answer slot (…_3, …_3-2, …_3-3) so a slow
+    // earlier attempt can never overwrite a retry's stored answer.
+    const result = await generateItemFn({ category: cat, excludeTerms, gameId: currentGameCode, roundIndex: attempt > 1 ? `${index}-${attempt}` : index });
+    if(!result.data || !result.data.term) throw new Error('No term returned');
+    if(blocked.has(normTerm(result.data.term))) throw new Error(`Generator suggested a recent repeat ("${result.data.term}") — rejected`);
     term = result.data.term;
     answerId = result.data.answerId;
     answerSource = 'generated';
   } catch(err){
-    // Function not deployed yet, network hiccup, or the model couldn't
-    // produce a verifiable answer — fall back to the pre-seeded bank
-    // rather than stalling the round.
+    // Function not deployed yet, network hiccup, the model couldn't
+    // produce a verifiable answer, or it suggested a repeat — fall back to
+    // the pre-seeded bank, still fresh items only.
     console.error('Live generation failed, falling back to the seeded bank:', err);
-    const idx = await getItemIndex();
-    const fullList = idx[cat] || [];
-    // Try honoring the full cooldown first; if that empties the pool
-    // (small seed bank, long cooldown, heavy testing), fall back to just
-    // this-game dedupe, then finally to the whole list if even that's
-    // exhausted — always keep the round playable.
-    const strict = fullList.filter(it => !excludeTerms.includes(it.term));
-    const gameOnly = fullList.filter(it => !usedTerms.includes(it.term));
-    const bank = strict.length ? strict : (gameOnly.length ? gameOnly : fullList);
+    if(!isCurrentAttempt(index, attempt)) return; // host already moved on
+    let bank = [];
+    try{
+      const idx = await getItemIndex();
+      bank = (idx[cat] || []).filter(it => !blocked.has(normTerm(it.term)));
+    }catch(e){ console.error('Could not read the seeded bank:', e); }
     if(bank.length === 0){
-      console.error('No fallback items available either for category', cat, '— did the seed script run?');
+      console.error('No fresh fallback items for category', cat);
+      await markGenFailed(index, attempt);
       return;
     }
     const item = bank[Math.floor(Math.random()*bank.length)];
     term = item.term; itemId = item.id; answerSource = 'seed';
   }
 
+  await startWritingPhase({ index, attempt, cat, term, itemId, answerSource, answerId, settings, usedTerms });
+}
+
+// Shared by a normal round start and a golden-oldie replay: Claude's bluff
+// (if on), cooldown bookkeeping, then open the round for writing.
+async function startWritingPhase({ index, attempt, cat, term, itemId, answerSource, answerId, settings, usedTerms }){
   // Include Claude: get its bluff now, alongside the term — it needs the
   // real answer for overlap-avoidance (see generateBluff), so this can't
   // run in parallel with the term fetch above; it genuinely has to wait
@@ -1175,9 +1265,13 @@ async function beginRound(index, categories, usedTerms){
     }
   }
 
+  // A "Try again" (or a game ending) may have happened while we waited —
+  // only the attempt the room's still waiting on gets to start the round.
+  if(!isCurrentAttempt(index, attempt)) return;
+
   // Record this term for the cross-game cooldown, regardless of source.
   // Bookkeeping only — don't make players wait on this write.
-  markTermUsed(term, cat).catch(err => console.error('Could not record term as used:', err));
+  markTermUsed(term, cat, { answerSource, answerId, itemId }).catch(err => console.error('Could not record term as used:', err));
 
   // The timer starts NOW — after everything (term + Claude's bluff, if
   // any) is actually ready — not earlier, or players lose real time to
@@ -1192,6 +1286,111 @@ async function beginRound(index, categories, usedTerms){
       submissions, votes: {}, shuffleOrder: null, answerText: null, scored: false
     }
   });
+}
+
+// ---- Golden oldies ------------------------------------------------------------
+// When fresh items run out, replay something from a while back. "A while"
+// grows with the game's history, like memory: at least 24h ago, or half the
+// age of the oldest item on record, whichever is further back. Never
+// anything already played in THIS game, only enabled categories, and only
+// items whose real answer we can still find.
+const OLDIE_MIN_AGE_MS = 24*60*60*1000;
+async function findGoldenOldie(categories, usedTerms){
+  const snap = await getDocs(query(collection(db, 'balderlaugh_used_terms'), orderBy('lastUsedAt','asc'), limit(300)));
+  const rows = [];
+  snap.forEach(d => {
+    const x = d.data();
+    const t = x.lastUsedAt && typeof x.lastUsedAt.toMillis === 'function' ? x.lastUsedAt.toMillis() : x.lastUsedAt;
+    if(x.term && typeof t === 'number') rows.push({ ...x, t });
+  });
+  if(!rows.length) return null;
+  const now = Date.now();
+  const oldest = Math.min(...rows.map(r => r.t));
+  const minAge = Math.max(OLDIE_MIN_AGE_MS, (now - oldest) * 0.5);
+  const inThisGame = new Set((usedTerms||[]).map(normTerm));
+  let idx = null;
+  const picks = [];
+  for(const r of rows){
+    if(now - r.t < minAge) continue;
+    if(!categories.includes(r.category)) continue;
+    if(inThisGame.has(normTerm(r.term))) continue;
+    let ref = null;
+    if(r.answerSource === 'generated' && r.answerId) ref = { answerSource:'generated', answerId:r.answerId, itemId:null };
+    else if(r.answerSource === 'seed' && r.itemId) ref = { answerSource:'seed', itemId:r.itemId, answerId:null };
+    else {
+      // Older records didn't note where the answer lives — seeded items can
+      // still be found by name; generated ones can't, so they're skipped.
+      try{ idx = idx || await getItemIndex(); }catch(e){ idx = {}; }
+      const hit = (idx[r.category]||[]).find(it => normTerm(it.term) === normTerm(r.term));
+      if(hit) ref = { answerSource:'seed', itemId:hit.id, answerId:null };
+    }
+    if(ref) picks.push({ term:r.term, category:r.category, ...ref });
+  }
+  return picks.length ? picks[Math.floor(Math.random()*picks.length)] : null;
+}
+async function replayOldie(oldie, index, attempt){
+  if(!isCurrentAttempt(index, attempt)) return;
+  const settings = effectiveSettings();
+  await startWritingPhase({ index, attempt, cat: oldie.category, term: oldie.term, itemId: oldie.itemId,
+    answerSource: oldie.answerSource, answerId: oldie.answerId, settings, usedTerms: game.usedTerms||[] });
+}
+
+// ---- 8b. GENERATING (waiting for a fresh item) -----------------------------
+let oldieState = null; // { key, loading, pick } for the current out-of-retries screen
+function renderGenerating(){
+  const r = game.round;
+  const attempt = r.genAttempt || 1;
+  const left = GEN_MAX_ATTEMPTS - attempt;
+  $('gen-controls').style.display = 'block';
+  const retryBtn = $('btn-gen-retry'), endBtn = $('btn-gen-end'), oldieBtn = $('btn-gen-oldie');
+  retryBtn.disabled = false; endBtn.disabled = false; oldieBtn.disabled = false;
+  oldieBtn.onclick = async () => {
+    if(!oldieState || !oldieState.pick) return;
+    oldieBtn.disabled = true;
+    await replayOldie(oldieState.pick, r.index, attempt);
+  };
+  retryBtn.onclick = async () => {
+    retryBtn.disabled = true;
+    await beginRound(r.index, effectiveSettings().categories, game.usedTerms||[], {}, attempt + 1);
+  };
+  endBtn.onclick = async () => {
+    endBtn.disabled = true;
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'ended' });
+  };
+  clearInterval(timerInterval);
+  const tick = () => {
+    if(!game || !game.round || game.round.phase !== 'generating'){ clearInterval(timerInterval); return; }
+    const waited = Date.now() - (r.genStartedAt || Date.now());
+    const stuck = !!r.genFailed || waited > GEN_TRY_AGAIN_MS;
+    $('loading-message').textContent = r.genFailed
+      ? "Couldn't find a fresh item that hasn't been played recently."
+      : stuck ? 'Still hunting for a fresh one\u2026'
+      : 'Generating an item (this can take a few seconds)';
+    const host = isHost();
+    const outOfTries = host && stuck && left <= 0;
+    // Out of retries: look (once) for a golden oldie to offer the host.
+    const oKey = `${currentGameCode}-${r.index}-${attempt}`;
+    if(outOfTries && (!oldieState || oldieState.key !== oKey)){
+      oldieState = { key: oKey, loading: true, pick: null };
+      findGoldenOldie(effectiveSettings().categories, game.usedTerms||[])
+        .then(p => { if(oldieState && oldieState.key === oKey){ oldieState.pick = p; oldieState.loading = false; tick(); } })
+        .catch(err => { console.error('Oldie search failed:', err); if(oldieState && oldieState.key === oKey){ oldieState.loading = false; tick(); } });
+    }
+    const hasOldie = outOfTries && oldieState && oldieState.key === oKey && !!oldieState.pick;
+    const noOldie = outOfTries && oldieState && oldieState.key === oKey && !oldieState.loading && !oldieState.pick;
+    retryBtn.style.display = host && stuck && left > 0 ? 'block' : 'none';
+    retryBtn.textContent = `Try again (${left} left)`;
+    oldieBtn.style.display = hasOldie ? 'block' : 'none';
+    endBtn.style.display = hasOldie || noOldie ? 'block' : 'none';
+    $('gen-note').textContent = !stuck ? ''
+      : !host ? 'Hang tight — the host can give it another go.'
+      : left > 0 ? ''
+      : hasOldie ? 'Nothing fresh left. Replay something from a while back?'
+      : noOldie ? "Nothing fresh left, and nothing old enough to replay yet — that's the game!"
+      : 'Looking for something from a while back\u2026';
+  };
+  tick();
+  timerInterval = setInterval(tick, 1000);
 }
 
 // ---- 9. WRITING ---------------------------------------------------------
@@ -1643,16 +1842,9 @@ function renderReveal(isNew){
     const nextIndex = r.index + 1;
     const st = effectiveSettings();
     if(nextIndex >= st.numRounds){
-      // Tiebreakers are only for humans tied at the very top. A tie that
-      // involves Claude (e.g. Claude & Pat level on top) just ends the game
-      // as a shared win; if Claude's alone on top, there's nothing to break.
-      const board = scoreboard();
-      const top = Math.max(...board.map(([,p]) => p.score));
-      const tied = board.filter(([uid,p]) => p.score === top && uid !== 'CLAUDE').length > 1
-        && !board.some(([uid,p]) => uid === 'CLAUDE' && p.score === top);
-      if(tied && st.playUntilWinner){
-        // Tiebreaker round — round count keeps climbing past the original
-        // numRounds until someone actually pulls ahead.
+      // Already in tiebreaker mode (host pressed the button on the final
+      // scores screen) and still tied at the top? Keep going.
+      if(game.tiebreak && breakableTieAtTop()){
         await beginRound(nextIndex, st.categories, game.usedTerms||[]);
         return;
       }
@@ -1864,6 +2056,17 @@ function renderWanderSummary(r){
   }).join('');
 }
 
+// A tiebreaker is only on offer when two or more PLAYERS share first place
+// and Claude isn't up there with them (a tie involving Claude is a shared win).
+function breakableTieAtTop(){
+  const board = scoreboard();
+  if(!board.length) return false;
+  const top = Math.max(...board.map(([,p]) => p.score));
+  const humansAtTop = board.filter(([uid,p]) => p.score === top && uid !== 'CLAUDE').length;
+  const claudeAtTop = board.some(([uid,p]) => uid === 'CLAUDE' && p.score === top);
+  return humansAtTop > 1 && !claudeAtTop;
+}
+
 // ---- 12. GAME OVER ---------------------------------------------------------
 function renderGameOver(){
   const standings = $('gameover-standings');
@@ -1881,12 +2084,20 @@ function renderGameOver(){
     row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;font-weight:600;">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="score">${p.score}</span>`;
     standings.appendChild(row);
   });
+  const canBreak = breakableTieAtTop();
+  $('btn-tiebreak').style.display = canBreak && isHost() ? 'block' : 'none';
+  $('tiebreak-note').style.display = canBreak && !isHost() ? 'block' : 'none';
+  $('btn-tiebreak').onclick = async () => {
+    // Straight back into play: bonus rounds continue until the tie breaks.
+    const nextIndex = game.round ? game.round.index + 1 : game.settings.numRounds;
+    await beginRound(nextIndex, effectiveSettings().categories, game.usedTerms||[], { status:'playing', tiebreak:true });
+  };
   $('btn-play-again').style.display = isHost() ? 'block' : 'none';
   $('btn-play-again-note').style.display = isHost() ? 'none' : 'block';
   $('btn-play-again').onclick = async () => {
     const resetPlayers = {};
     Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0, color: Number.isInteger(p.color) ? p.color : firstFreeColor(resetPlayers, uid) }; });
-    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], claudeScore: 0, settings: effectiveSettings(), pendingSettings: deleteField() });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], claudeScore: 0, tiebreak: false, createdAt: serverTimestamp(), settings: effectiveSettings(), pendingSettings: deleteField() });
   };
   $('btn-gameover-home').onclick = leaveToHome;
 }
