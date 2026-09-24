@@ -993,6 +993,7 @@ function attachGameListener(code){
 }
 function leaveToHome(){
   if(unsubGame) unsubGame();
+  if(wakeLock){ const l = wakeLock; wakeLock = null; l.release().catch(()=>{}); }
   clearInterval(timerInterval);
   localStorage.removeItem('balderlaugh_current_game');
   currentGameCode = null; game = null; lastPhaseKey = null;
@@ -1057,6 +1058,7 @@ async function tryResume(){
 }
 
 function route(){
+  syncWakeLock();
   document.querySelectorAll('.host-gear').forEach(b => b.style.display = isHost() ? '' : 'none');
   if(!isHost() && $('settings-sheet').classList.contains('open')) closeSettingsSheet();
   if(game.status === 'lobby'){ renderLobby(); showScreen('screen-lobby'); return; }
@@ -1985,6 +1987,40 @@ function showRoundLeaderSplash(r){
 // Other clients time the 3s grace from when THEY see leftAt, not from the
 // wanderer's clock, so phones with slightly different clocks can't misfire.
 const WANDER_GRACE_MS = 3000;
+const WANDER_GRACE_NO_WAKE_MS = 5000; // phones that can't be kept awake get a little longer
+
+// ---- Keep the screen awake during play --------------------------------------
+// Stops a short auto-lock (e.g. 30s) from firing mid-round and tripping
+// Wander watch. Held during generating/writing/reading/voting; released on
+// the results screen, lobby and home so the phone goes back to normal.
+// The browser drops it whenever the page is hidden, so it's re-requested
+// on return. Chrome/Android and Safari iOS 16.4+ support it.
+let wakeLock = null;
+let wakeOk = false; // did the last keep-awake request actually work on this device?
+let wakePending = false;
+const WAKE_PHASES = ['generating','writing','reading','voting'];
+function wantWake(){
+  return !!(game && game.status === 'playing' && game.round && WAKE_PHASES.includes(game.round.phase) && currentGameCode);
+}
+async function syncWakeLock(){
+  try{
+    if(wantWake()){
+      if(wakeLock || wakePending || document.visibilityState !== 'visible') return;
+      if(!('wakeLock' in navigator)){ wakeOk = false; return; }
+      wakePending = true;
+      try{ wakeLock = await navigator.wakeLock.request('screen'); } finally { wakePending = false; }
+      wakeOk = true;
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+      if(!wantWake()){ const l = wakeLock; wakeLock = null; l.release().catch(()=>{}); } // phase moved on while we waited
+    } else if(wakeLock){
+      const l = wakeLock; wakeLock = null; await l.release();
+    }
+  }catch(err){
+    wakeLock = null; wakeOk = false; // denied (battery saver, etc.) — fall back to the longer grace
+    console.warn('Keep-awake unavailable:', err && err.message);
+  }
+}
+function myWanderGrace(){ return wakeOk ? WANDER_GRACE_MS : WANDER_GRACE_NO_WAKE_MS; }
 const WANDER_PHASES = ['writing','reading','voting'];
 let myAway = null;                 // { at, roundIndex } while my tab is hidden
 const wanderSeen = new Set();      // alert keys already handled on this device
@@ -2005,17 +2041,21 @@ function whoPill(uid){
 function fmtSecs(ms){ const s = Math.max(1, Math.round(ms/1000)); return `${s} second${s===1?'':'s'}`; }
 
 document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) syncWakeLock();
   if(document.hidden){
     if(!wanderActiveForMe()) return;
-    myAway = { at: Date.now(), roundIndex: game.round.index };
-    updateDoc(doc(db, GAMES, currentGameCode), { [`round.away.${myUid}.leftAt`]: myAway.at })
+    myAway = { at: Date.now(), roundIndex: game.round.index, grace: myWanderGrace() };
+    updateDoc(doc(db, GAMES, currentGameCode), {
+      [`round.away.${myUid}.leftAt`]: myAway.at,
+      [`round.away.${myUid}.graceMs`]: myAway.grace
+    })
       .catch(err => console.error('wander write failed', err));
   } else if(myAway){
     const trip = myAway; myAway = null;
     const ms = Date.now() - trip.at;
     if(!game || !game.round || game.round.index !== trip.roundIndex || !currentGameCode) return; // round moved on
     const upd = { [`round.away.${myUid}.leftAt`]: null };
-    if(ms >= WANDER_GRACE_MS){
+    if(ms >= trip.grace){
       upd[`round.away.${myUid}.totalMs`] = increment(ms);
       upd[`round.away.${myUid}.lastTrip`] = { at: trip.at, ms };
       showToast('self', `You left the game screen for ${fmtSecs(ms)}. Everyone got the 👀`);
@@ -2056,7 +2096,7 @@ function checkWanderers(){
           delete wanderTimers[key];
           const now = game && game.round && game.round.away && game.round.away[uid];
           if(now && now.leftAt === a.leftAt) wanderAlert(uid, key);
-        }, WANDER_GRACE_MS);
+        }, a.graceMs || WANDER_GRACE_MS);
       }
     }
     // On return: either tack the time onto the live alert, or (if their

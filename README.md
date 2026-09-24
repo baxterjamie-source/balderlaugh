@@ -259,3 +259,9 @@ Picked at random so the host doesn't see the list. `balderlaugh_used_terms`
 now also stores where each answer lives (answerSource / answerId / itemId);
 older generated records lack this and can't be replayed. If nothing
 qualifies, the host only gets "End the game".
+
+## Keep-awake
+During generating/writing/reading/voting the page holds a Screen Wake Lock
+so short auto-lock timers don't trip Wander watch; released on results,
+lobby and home, re-acquired on return. Devices without it (or where it's
+denied) get a 5s Wander grace instead of 3s (`round.away.{uid}.graceMs`).
