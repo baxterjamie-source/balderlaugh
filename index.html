@@ -795,6 +795,7 @@ const PLAYER_COLORS = [
   { bg:'#8B5CF6', fg:'#FFFFFF' }, // violet (grey is Claude's)
 ];
 const CLAUDE_COLOR = { bg:'#64748B', fg:'#FFFFFF' };
+const CLAUDE_LAUGH = '#AEB8C6'; // lighter grey for Claude's 😂 (the slate reads too dark on a face)
 function firstFreeColor(players, exceptUid){
   const used = new Set(Object.entries(players||{})
     .filter(([u]) => u !== exceptUid).map(([,p]) => p.color).filter(Number.isInteger));
@@ -848,6 +849,8 @@ function initHome(){
     await setDoc(doc(db, GAMES, code), {
       hostUid: myUid,
       hostName: name,
+      creatorUid: myUid,   // the game keeps its creator's name even if hosting passes on
+      creatorName: name,
       status: 'lobby',
       createdAt: serverTimestamp(),
       settings: { numRounds:6, categories:['oddWords','obscurePeople','movies'], crowdFunny:true, ccc:false, csf:false, includeClaude:false },
@@ -906,7 +909,7 @@ function gameListItem(id, g, meta, goLabel, disabled){
   const el = document.createElement('div');
   el.className = 'lobby-list-item';
   if(disabled) el.style.opacity = '.5';
-  el.innerHTML = `<div style="flex:1;min-width:0;"><div class="name">${escapeHtml(g.hostName)}'s Game</div><div class="meta">${meta}</div></div><span class="go">${disabled ? '' : goLabel}</span>`;
+  el.innerHTML = `<div style="flex:1;min-width:0;"><div class="name">${escapeHtml(gameTitle(g))}</div><div class="meta">${meta}</div></div><span class="go">${disabled ? '' : goLabel}</span>`;
   el.onclick = () => {
     if(disabled) return;
     const name = myName.trim();
@@ -933,6 +936,11 @@ function gameListItem(id, g, meta, goLabel, disabled){
     el.insertBefore(del, el.querySelector('.go'));
   }
   return el;
+}
+function gameTitle(g){
+  const base = `${g.creatorName || g.hostName || 'Someone'}'s Game`;
+  // "Fitz's Game (now hosted by JJ)" once hosting has passed to someone else
+  return g.creatorUid && g.hostUid && g.hostUid !== g.creatorUid && g.hostName ? `${base} (now hosted by ${g.hostName})` : base;
 }
 function seatedPlayers(g){ return Object.values(g.players||{}).filter(p => !p.left); }
 
@@ -965,7 +973,13 @@ function listenOpenGames(){
   const u2 = onSnapshot(qPlay, snap => {
     const list = $('inprog-list');
     list.innerHTML = '';
-    const docs = []; snap.forEach(d => { if(fresh(d) && seatedPlayers(d.data()).length) docs.push(d); });
+    // Show games with someone still playing — or ones you were in, so you
+    // can always get back in (even if everyone stepped away).
+    const docs = []; snap.forEach(d => {
+      const g = d.data();
+      const mine = !!(g.players && (g.players[myUid] || Object.values(g.players).some(p => p.left && (p.name||'').trim().toLowerCase() === myName.trim().toLowerCase())));
+      if(fresh(d) && (seatedPlayers(g).length || mine)) docs.push(d);
+    });
     $('inprog-count').textContent = docs.length;
     $('inprog-wrap').style.display = docs.length ? 'block' : 'none';
     docs.forEach(d => {
@@ -992,6 +1006,33 @@ function formatRoundLabel(r){
   return `Bonus round ${r.index+1 - n} (tiebreaker)`; // "play until clear winner" overtime
 }
 
+// Someone returning to a game in progress takes the host role back if they
+// created the game, or if the current host has left (so the room is never
+// stuck without anyone who can press "Next round").
+function hostOnReturn(data, returningUid, name){
+  const host = (data.players||{})[data.hostUid];
+  const hostGone = !host || host.left || data.hostUid === returningUid;
+  if(data.creatorUid === returningUid && host && data.hostUid !== returningUid){
+    // The creator takes the reins back from a stand-in host — tell the room.
+    return { hostUid: myUid, hostName: name, hostReturn: { at: Date.now(), name, prevName: host.name || data.hostName || '' } };
+  }
+  if(data.creatorUid === returningUid || hostGone) return { hostUid: myUid, hostName: name };
+  return {};
+}
+
+// "Fitz is once again host / (Your service is appreciated JJ)" — shown to
+// everyone for 10s (✕ to close sooner), once per handback, and only if it
+// just happened (not when someone reloads later).
+let hostReturnSeen = null;
+function checkHostReturn(){
+  const h = game && game.hostReturn;
+  if(!h || !h.at || h.at === hostReturnSeen) return;
+  hostReturnSeen = h.at;
+  if(Date.now() - h.at > 20000) return;
+  const thanks = h.prevName ? `<br><span style="font-size:14px;">(Your service is appreciated ${escapeHtml(h.prevName)})</span>` : '';
+  showToast('host', `<strong>${escapeHtml(h.name)} is once again host</strong>${thanks}`, '', 10000);
+}
+
 async function joinGame(code){
   const name = myName.trim();
   if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
@@ -1013,10 +1054,13 @@ async function joinGame(code){
         // Someone who left mid-game coming back on a different phone/browser:
         // hand them their old seat (score + colour) under this device.
         if(old.left && !me && data.status === 'playing'){
-          tx.update(ref, {
+          const upd = {
             [`players.${oldUid}`]: deleteField(),
-            [`players.${myUid}`]: { ...old, name, left:false, sittingOut:false }
-          });
+            [`players.${myUid}`]: { ...old, name, left:false, sittingOut:false },
+            ...hostOnReturn(data, oldUid, name)
+          };
+          if(data.creatorUid === oldUid) upd.creatorUid = myUid; // creator switched devices
+          tx.update(ref, upd);
           return;
         }
         throw new JoinError('That name is taken — try a different one.');
@@ -1027,7 +1071,10 @@ async function joinGame(code){
       } else {
         const upd = {};
         // Back after leaving mid-game: take your seat again, score intact.
-        if(me.left){ upd[`players.${myUid}.left`] = false; upd[`players.${myUid}.sittingOut`] = false; }
+        if(me.left){
+          upd[`players.${myUid}.left`] = false; upd[`players.${myUid}.sittingOut`] = false;
+          Object.assign(upd, hostOnReturn(data, myUid, name));
+        }
         // Name changed since last visit (e.g. rejoining after a reload) — keep it in sync.
         if(me.name !== name) upd[`players.${myUid}.name`] = name;
         if(Object.keys(upd).length) tx.update(ref, upd);
@@ -1053,6 +1100,7 @@ function attachGameListener(code){
     game = snap.data();
     route();
     checkWanderers();
+    checkHostReturn();
   });
 }
 function leaveToHome(){
@@ -1148,7 +1196,7 @@ function route(){
 
 // ---- 8. LOBBY ---------------------------------------------------------------
 function renderLobby(){
-  $('lobby-title').textContent = `${game.hostName}'s Game`;
+  $('lobby-title').textContent = gameTitle(game);
   $('lobby-code').textContent = currentGameCode;
   const players = game.players || {};
   const uids = Object.keys(players);
@@ -1961,7 +2009,7 @@ function renderReveal(isNew){
   const anyLaughs = r.funnyTally && Object.values(r.funnyTally).some(n => n > 0);
   $('csf-key').style.display = anyLaughs ? 'block' : 'none';
   $('csf-key').innerHTML = `<div>Funniest votes are coloured by who voted.</div>`
-    + (r.csfPick ? `<div class="row-key">${laughHtml(CLAUDE_COLOR.bg, 'Claude')}<span>Claude's funniest vote</span></div>` : '');
+    + (r.csfPick ? `<div class="row-key">${laughHtml(CLAUDE_LAUGH, 'Claude')}<span>Claude's funniest vote</span></div>` : '');
   order.forEach((id) => {
     const isReal = id === 'REAL';
     const isClaude = id === 'CLAUDE';
@@ -1995,7 +2043,7 @@ function renderReveal(isNew){
     laughers.sort((a,b) => (a==='CLAUDE'?-1:order.indexOf(a)) - (b==='CLAUDE'?-1:order.indexOf(b)));
     laughers.forEach(uid => {
       const who = uid === 'CLAUDE' ? 'Claude' : (game.players[uid] ? game.players[uid].name : '');
-      flags.innerHTML += laughHtml(playerColor(uid).bg, who);
+      flags.innerHTML += laughHtml(uid === 'CLAUDE' ? CLAUDE_LAUGH : playerColor(uid).bg, who);
     });
     div.appendChild(flags);
     list.appendChild(div);
@@ -2252,13 +2300,13 @@ function checkWanderers(){
   });
 }
 
-function showToast(kind, html, icon = '👀'){
+function showToast(kind, html, icon = '👀', ms = 15000){
   const el = document.createElement('div');
   el.className = 'toast';
-  el.innerHTML = `<div class="eyes">${icon}</div><div class="msg">${html}</div><button class="x" type="button" aria-label="Close">✕</button>`;
+  el.innerHTML = `${icon ? `<div class="eyes">${icon}</div>` : ''}<div class="msg">${html}</div><button class="x" type="button" aria-label="Close">✕</button>`;
   const close = () => { if(!el.isConnected) return; el.classList.add('leaving'); setTimeout(() => el.remove(), 250); };
   el.querySelector('.x').onclick = close;
-  setTimeout(close, 15000);
+  setTimeout(close, ms);
   const box = $('toasts');
   box.appendChild(el);
   while(box.children.length > 3) box.firstElementChild.remove(); // never bury the game
