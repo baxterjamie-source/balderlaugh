@@ -298,6 +298,14 @@
     <div id="open-games-list"></div>
     <div class="empty-note" id="no-games-note">No games open right now — start one below.</div>
 
+    <div id="inprog-wrap" style="display:none;margin-top:8px;">
+      <div class="row" style="margin-bottom:10px;">
+        <h3 style="margin:0;">In progress</h3>
+        <span class="roundpill" id="inprog-count">0</span>
+      </div>
+      <div id="inprog-list"></div>
+    </div>
+
     <div class="footer-actions stack">
       <button class="btn" id="btn-create-game">Start a new game</button>
       <div class="row" style="gap:8px;">
@@ -819,7 +827,12 @@ function scoreboard(){
 }
 
 // ---- 6. HOME SCREEN ---------------------------------------------------------
+let homeReady = false;
 function initHome(){
+  // Runs once per page load — including when the page first resumed straight
+  // into a game and the player only reaches home later by leaving it.
+  if(homeReady){ listenOpenGames(); return; }
+  homeReady = true;
   $('input-name').value = myName;
   $('input-name').addEventListener('input', e => {
     myName = e.target.value;
@@ -873,67 +886,102 @@ async function sweepStaleLobbies(){
     const snap = await getDocs(q);
     const dels = [];
     snap.forEach(d => dels.push(deleteDoc(doc(db, GAMES, d.id)).catch(err => console.error('Stale delete failed:', d.id, err))));
+    // Abandoned in-progress games: gone after a day.
+    const cutoffPlay = Timestamp.fromMillis(Date.now() - 2*STALE_LOBBY_MS);
+    const snap2 = await getDocs(query(collection(db, GAMES), where('status','==','playing'), where('createdAt','<', cutoffPlay), limit(25)));
+    snap2.forEach(d => dels.push(deleteDoc(doc(db, GAMES, d.id)).catch(err => console.error('Stale delete failed:', d.id, err))));
     await Promise.all(dels);
   } catch(err){ console.error('Stale lobby sweep failed:', err); }
 }
 
+function gameCreatedMs(g){
+  const c = g.createdAt;
+  return c && typeof c.toMillis === 'function' ? c.toMillis() : (typeof c === 'number' ? c : Date.now());
+}
+// One row in either home-screen list. The 🗑 shows only on this device's own
+// games (no logins, so "same browser that's hosting it" is the best proof of
+// ownership we have). Two taps: 🗑 → "Delete?" → gone; anyone inside is
+// sent home automatically (their listener sees the doc vanish).
+function gameListItem(id, g, meta, goLabel, disabled){
+  const el = document.createElement('div');
+  el.className = 'lobby-list-item';
+  if(disabled) el.style.opacity = '.5';
+  el.innerHTML = `<div style="flex:1;min-width:0;"><div class="name">${escapeHtml(g.hostName)}'s Game</div><div class="meta">${meta}</div></div><span class="go">${disabled ? '' : goLabel}</span>`;
+  el.onclick = () => {
+    if(disabled) return;
+    const name = myName.trim();
+    if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
+    joinGame(id);
+  };
+  if(g.hostUid === myUid){
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'del'; del.textContent = '🗑';
+    del.setAttribute('aria-label', 'Delete this game');
+    let armTimer = null;
+    del.onclick = async (e) => {
+      e.stopPropagation();
+      if(!del.classList.contains('confirm')){
+        del.classList.add('confirm'); del.textContent = 'Delete?';
+        armTimer = setTimeout(() => { del.classList.remove('confirm'); del.textContent = '🗑'; }, 3000);
+        return;
+      }
+      clearTimeout(armTimer);
+      del.disabled = true;
+      try{ await deleteDoc(doc(db, GAMES, id)); }
+      catch(err){ console.error('Delete failed:', err); $('home-err').textContent = 'Could not delete that game — try again.'; del.disabled = false; }
+    };
+    el.insertBefore(del, el.querySelector('.go'));
+  }
+  return el;
+}
+function seatedPlayers(g){ return Object.values(g.players||{}).filter(p => !p.left); }
+
+let unsubInProgress = null;
 function listenOpenGames(){
   if(unsubOpenGames) unsubOpenGames();
   sweepStaleLobbies();
-  const q = query(collection(db, GAMES), where('status','==','lobby'), orderBy('createdAt','desc'), limit(15));
-  unsubOpenGames = onSnapshot(q, snap => {
+  // Hide games nobody's touched in 12h+ — forgotten test games, or ones
+  // started on a device whose owner can't delete them here.
+  const fresh = d => gameCreatedMs(d.data()) >= Date.now() - STALE_LOBBY_MS;
+
+  const qOpen = query(collection(db, GAMES), where('status','==','lobby'), orderBy('createdAt','desc'), limit(15));
+  const u1 = onSnapshot(qOpen, snap => {
     const list = $('open-games-list');
     list.innerHTML = '';
-    // Hide lobbies nobody's touched in 12h+ — forgotten test games,
-    // or ones started on a device whose owner can't delete them here.
-    const cutoff = Date.now() - STALE_LOBBY_MS;
-    const docs = [];
-    snap.forEach(d => {
-      const c = d.data().createdAt;
-      const ms = c && typeof c.toMillis === 'function' ? c.toMillis() : (typeof c === 'number' ? c : Date.now());
-      if(ms >= cutoff) docs.push(d);
-    });
+    const docs = []; snap.forEach(d => { if(fresh(d)) docs.push(d); });
     $('open-games-count').textContent = docs.length;
     $('no-games-note').style.display = docs.length ? 'none' : 'block';
     docs.forEach(d => {
       const g = d.data();
-      const count = Object.keys(g.players||{}).length;
+      const count = seatedPlayers(g).length;
       const full = count >= MAX_PLAYERS;
-      const el = document.createElement('div');
-      el.className = 'lobby-list-item';
-      if(full) el.style.opacity = '.5';
-      el.innerHTML = `<div style="flex:1;min-width:0;"><div class="name">${escapeHtml(g.hostName)}'s Game</div><div class="meta">${count}/${MAX_PLAYERS} players · code ${d.id}${full ? ' · full' : ''}</div></div><span class="go">${full ? '' : '&rarr;'}</span>`;
-      el.onclick = () => {
-        const name = myName.trim();
-        if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
-        joinGame(d.id);
-      };
-      // Delete — only on this device's own games (no logins, so "same
-      // browser that's hosting it" is the best proof of ownership we have).
-      // Two taps: 🗑 → "Delete?" → gone. Anyone sitting in that lobby is
-      // sent back home automatically (their listener sees the doc vanish).
-      if(g.hostUid === myUid){
-        const del = document.createElement('button');
-        del.type = 'button'; del.className = 'del'; del.textContent = '🗑';
-        del.setAttribute('aria-label', 'Delete this game');
-        let armTimer = null;
-        del.onclick = async (e) => {
-          e.stopPropagation();
-          if(!del.classList.contains('confirm')){
-            del.classList.add('confirm'); del.textContent = 'Delete?';
-            armTimer = setTimeout(() => { del.classList.remove('confirm'); del.textContent = '🗑'; }, 3000);
-            return;
-          }
-          clearTimeout(armTimer);
-          del.disabled = true;
-          try{ await deleteDoc(doc(db, GAMES, d.id)); }
-          catch(err){ console.error('Delete failed:', err); $('home-err').textContent = 'Could not delete that game — try again.'; del.disabled = false; }
-        };
-        el.insertBefore(del, el.querySelector('.go'));
-      }
-      list.appendChild(el);
+      list.appendChild(gameListItem(d.id, g, `${count}/${MAX_PLAYERS} players · code ${d.id}${full ? ' · full' : ''}`, '&rarr;', full));
     });
   }, err => { console.error(err); });
+
+  // Games already under way — so anyone who left (or dropped off) can
+  // get back in without needing the code. Rejoining keeps your score.
+  const qPlay = query(collection(db, GAMES), where('status','==','playing'), orderBy('createdAt','desc'), limit(15));
+  const u2 = onSnapshot(qPlay, snap => {
+    const list = $('inprog-list');
+    list.innerHTML = '';
+    const docs = []; snap.forEach(d => { if(fresh(d) && seatedPlayers(d.data()).length) docs.push(d); });
+    $('inprog-count').textContent = docs.length;
+    $('inprog-wrap').style.display = docs.length ? 'block' : 'none';
+    docs.forEach(d => {
+      const g = d.data();
+      const n = (g.settings && g.settings.numRounds) || 0;
+      const idx = g.round ? g.round.index + 1 : 1;
+      const roundTxt = n && idx > n ? `Bonus round ${idx - n}` : `Round ${idx} of ${n}`;
+      const mine = !!(g.players && g.players[myUid]);
+      const count = seatedPlayers(g).length;
+      const full = !mine && count >= MAX_PLAYERS;
+      list.appendChild(gameListItem(d.id, g, `${roundTxt} · ${count} playing · code ${d.id}${full ? ' · full' : ''}`,
+        mine ? 'Rejoin &rarr;' : 'Join &rarr;', full));
+    });
+  }, err => { console.error(err); });
+
+  unsubOpenGames = () => { u1(); u2(); };
 }
 function escapeHtml(s){
   const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
@@ -955,18 +1003,34 @@ async function joinGame(code){
       const ref = doc(db, GAMES, code);
       const snap = await tx.get(ref);
       if(!snap.exists()) throw new JoinError('No game with that code.');
-      const players = snap.data().players || {};
+      const data = snap.data();
+      const players = data.players || {};
       const others = Object.entries(players).filter(([uid]) => uid !== myUid);
-      if(others.some(([,p]) => (p.name||'').trim().toLowerCase() === name.toLowerCase())){
+      const me = players[myUid];
+      const sameName = others.find(([,p]) => (p.name||'').trim().toLowerCase() === name.toLowerCase());
+      if(sameName){
+        const [oldUid, old] = sameName;
+        // Someone who left mid-game coming back on a different phone/browser:
+        // hand them their old seat (score + colour) under this device.
+        if(old.left && !me && data.status === 'playing'){
+          tx.update(ref, {
+            [`players.${oldUid}`]: deleteField(),
+            [`players.${myUid}`]: { ...old, name, left:false, sittingOut:false }
+          });
+          return;
+        }
         throw new JoinError('That name is taken — try a different one.');
       }
-      const me = players[myUid];
       if(!me){
-        if(others.length >= MAX_PLAYERS) throw new JoinError(`That game is full (${MAX_PLAYERS} players max).`);
+        if(others.filter(([,p]) => !p.left).length >= MAX_PLAYERS) throw new JoinError(`That game is full (${MAX_PLAYERS} players max).`);
         tx.update(ref, { [`players.${myUid}`]: { name, score:0, color: firstFreeColor(players, myUid) } });
-      } else if(me.name !== name){
+      } else {
+        const upd = {};
+        // Back after leaving mid-game: take your seat again, score intact.
+        if(me.left){ upd[`players.${myUid}.left`] = false; upd[`players.${myUid}.sittingOut`] = false; }
         // Name changed since last visit (e.g. rejoining after a reload) — keep it in sync.
-        tx.update(ref, { [`players.${myUid}.name`]: name });
+        if(me.name !== name) upd[`players.${myUid}.name`] = name;
+        if(Object.keys(upd).length) tx.update(ref, upd);
       }
     });
   } catch(err){
@@ -998,7 +1062,8 @@ function leaveToHome(){
   localStorage.removeItem('balderlaugh_current_game');
   currentGameCode = null; game = null; lastPhaseKey = null;
   showScreen('screen-home');
-  listenOpenGames();
+  $('input-name').value = myName;
+  initHome(); // sets up the home screen if this load resumed straight into a game
 }
 
 // Leaving mid-game (not just from the lobby) needs the same cleanup —
@@ -1006,9 +1071,14 @@ function leaveToHome(){
 async function leaveGame(){
   if(!currentGameCode || !game){ leaveToHome(); return; }
   const wasHost = isHost();
-  const remaining = Object.keys(game.players||{}).filter(uid => uid !== myUid);
+  const midGame = game.status === 'playing';
+  const remaining = Object.keys(game.players||{}).filter(uid => uid !== myUid && !game.players[uid].left);
   try{
-    const updates = { [`players.${myUid}`]: deleteField() };
+    // Mid-game you're parked as "left" (score + colour kept, nobody waits on
+    // you) so you can rejoin from "In progress"; from the lobby you're removed.
+    const updates = midGame
+      ? { [`players.${myUid}.left`]: true, [`players.${myUid}.sittingOut`]: true }
+      : { [`players.${myUid}`]: deleteField() };
     if(wasHost && remaining.length){
       updates.hostUid = remaining[0];
       updates.hostName = game.players[remaining[0]].name;
@@ -2250,7 +2320,7 @@ function renderGameOver(){
   $('btn-play-again-note').style.display = isHost() ? 'none' : 'block';
   $('btn-play-again').onclick = async () => {
     const resetPlayers = {};
-    Object.entries(game.players).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0, color: Number.isInteger(p.color) ? p.color : firstFreeColor(resetPlayers, uid) }; });
+    Object.entries(game.players).filter(([,p]) => !p.left).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0, color: Number.isInteger(p.color) ? p.color : firstFreeColor(resetPlayers, uid) }; });
     await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], claudeScore: 0, tiebreak: false, createdAt: serverTimestamp(), settings: effectiveSettings(), pendingSettings: deleteField() });
   };
   $('btn-gameover-home').onclick = leaveToHome;

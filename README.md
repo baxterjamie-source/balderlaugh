@@ -271,3 +271,11 @@ Each funniest vote (😂) on the results is recoloured (canvas) to the colour of
 the player who cast it; Claude's funniest vote is grey and shown first. Player colour slot 8
 changed from silver to violet so grey stays Claude's. Falls back to the plain
 emoji where a device can't draw colour emoji to a canvas.
+
+## In progress list & rejoin
+Home shows "In progress" games under Open games (hidden after 12h; abandoned
+ones deleted after 24h). Leaving mid-game now parks you as `left: true`
+(+ sittingOut) instead of deleting you, so rejoining restores your score and
+colour; joining with the same name from another device reclaims a left seat.
+Play again drops left players. Fixed: home screen wasn't set up when the page
+resumed straight into a game and the player later left.
