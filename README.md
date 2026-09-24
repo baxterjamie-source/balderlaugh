@@ -265,3 +265,9 @@ During generating/writing/reading/voting the page holds a Screen Wake Lock
 so short auto-lock timers don't trip Wander watch; released on results,
 lobby and home, re-acquired on return. Devices without it (or where it's
 denied) get a 5s Wander grace instead of 3s (`round.away.{uid}.graceMs`).
+
+## Coloured funniest votes
+Each funniest vote (😂) on the results is recoloured (canvas) to the colour of
+the player who cast it; Claude's funniest vote is grey and shown first. Player colour slot 8
+changed from silver to violet so grey stays Claude's. Falls back to the plain
+emoji where a device can't draw colour emoji to a canvas.

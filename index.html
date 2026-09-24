@@ -181,7 +181,10 @@
   /* Claude's funniest pick: the same 😂, tinted blue */
   .laugh.claude{display:inline-flex;}
   .laugh.claude .e{filter:hue-rotate(185deg) saturate(1.6);}
-  .csf-key{font-size:13px;color:var(--muted);margin:2px 0 4px;display:flex;align-items:center;gap:6px;}
+  .laugh-img{width:20px;height:20px;display:block;}
+  .csf-key .laugh-img{width:18px;height:18px;}
+  .csf-key{font-size:13px;color:var(--muted);margin:2px 0 4px;line-height:1.5;}
+  .csf-key .row-key{display:flex;align-items:center;gap:6px;margin-top:4px;}
   .leader-row.colored .rank{color:inherit;opacity:.7;}
   .leader-row.colored .score{color:inherit;}
   .leader-row.colored.first{border:2px solid var(--gold);box-shadow:0 0 0 2px rgba(212,160,23,.35);}
@@ -215,9 +218,7 @@
   @keyframes bob{0%,60%,100%{transform:translateY(0);opacity:.35;}30%{transform:translateY(-6px);opacity:1;}}
   .stopwatch{width:92px;height:92px;margin:22px auto 4px;display:block;}
   .stopwatch .hand{transform-origin:50px 56px;animation:sweep 2.4s linear infinite;}
-  .stopwatch .arc{transform-origin:50px 56px;animation:spin 1.2s linear infinite;}
   @keyframes sweep{to{transform:rotate(360deg);}}
-  @keyframes spin{to{transform:rotate(360deg);}}
   .gen-elapsed{font-family:'Fraunces',serif;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted);}
 
   /* ---- Host settings gear + sheet ---- */
@@ -264,7 +265,6 @@
         <rect x="47" y="13" width="6" height="6" fill="#8891A6"/>
         <path d="M76 24l6-6" stroke="#8891A6" stroke-width="5" stroke-linecap="round"/>
         <circle cx="50" cy="56" r="36" fill="#242A3A" stroke="#F2E9D8" stroke-width="5"/>
-        <circle class="arc" cx="50" cy="56" r="29" fill="none" stroke="#C1521C" stroke-width="5" stroke-linecap="round" stroke-dasharray="48 134"/>
         <line class="hand" x1="50" y1="56" x2="50" y2="31" stroke="#D4A017" stroke-width="4" stroke-linecap="round"/>
         <circle cx="50" cy="56" r="4.5" fill="#D4A017"/>
       </svg>
@@ -513,7 +513,7 @@
     </div>
     <h3 style="font-size:16px;margin-bottom:8px;">Voting Results</h3>
     <div id="reveal-list"></div>
-    <div class="csf-key" id="csf-key" style="display:none;"><span class="laugh claude"><span class="e">😂</span></span> Claude's funniest vote</div>
+    <div class="csf-key" id="csf-key" style="display:none;"></div>
 
     <div class="divider"></div>
     <h3 style="font-size:16px;">Standings</h3>
@@ -784,7 +784,7 @@ const PLAYER_COLORS = [
   { bg:'#DC2626', fg:'#FFFFFF' }, // crimson
   { bg:'#7DD3FC', fg:'#0C2A3A' }, // sky
   { bg:'#8D6E63', fg:'#FFFFFF' }, // cocoa
-  { bg:'#E5E7EB', fg:'#1B1F2A' }, // silver
+  { bg:'#8B5CF6', fg:'#FFFFFF' }, // violet (grey is Claude's)
 ];
 const CLAUDE_COLOR = { bg:'#64748B', fg:'#FFFFFF' };
 function firstFreeColor(players, exceptUid){
@@ -1813,6 +1813,64 @@ function computeScores(r, players, csfWinnerId, claudeScore = 0){
   return { players: updated, deltas, funnyTally, claudeScore: newClaude };
 }
 
+// ---- Coloured laughs ---------------------------------------------------------
+// Each 😂 on the results is painted in the colour of whoever laughed (Claude's
+// in grey). Emojis can't be recoloured with CSS, so the device's own emoji is
+// drawn to a canvas and recoloured there — keeping its shading, teeth and
+// tears — then cached per colour. Falls back to the plain emoji if the
+// device can't draw a colour emoji onto a canvas.
+const laughCache = {};
+function hexToHsl(hex){
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n>>16&255)/255, g = (n>>8&255)/255, b = (n&255)/255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), l = (mx+mn)/2;
+  let h = 0, s = 0;
+  if(mx !== mn){
+    const d = mx - mn;
+    s = l > .5 ? d/(2-mx-mn) : d/(mx+mn);
+    h = mx === r ? (g-b)/d + (g<b?6:0) : mx === g ? (b-r)/d + 2 : (r-g)/d + 4;
+    h /= 6;
+  }
+  return [h, s, l];
+}
+function hslToRgb(h, s, l){
+  if(s === 0) return [l*255, l*255, l*255];
+  const q = l < .5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
+  const f = t => { t = (t+1)%1; return t<1/6 ? p+(q-p)*6*t : t<1/2 ? q : t<2/3 ? p+(q-p)*(2/3-t)*6 : p; };
+  return [f(h+1/3)*255, f(h)*255, f(h-1/3)*255];
+}
+function laughSrc(hex){
+  if(laughCache[hex] !== undefined) return laughCache[hex];
+  try{
+    const S = 64, c = document.createElement('canvas'); c.width = c.height = S;
+    const x = c.getContext('2d', { willReadFrequently:true });
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = `${Math.round(S*0.82)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    x.fillText('😂', S/2, S/2 + S*0.05);
+    const img = x.getImageData(0, 0, S, S), p = img.data;
+    const [th, ts, tl] = hexToHsl(hex);
+    let coloured = 0;
+    for(let i=0; i<p.length; i+=4){
+      if(!p[i+3]) continue;
+      const r = p[i]/255, g = p[i+1]/255, b = p[i+2]/255;
+      if(Math.max(r,g,b) - Math.min(r,g,b) > .15) coloured++;
+      const lum = .2126*r + .7152*g + .0722*b;
+      if(lum > .9) continue;                          // keep teeth / eye whites
+      const L = Math.min(.92, lum * (Math.max(tl, .3) / .78)); // face (~.78) lands on the player colour
+      const [R, G, B] = hslToRgb(th, Math.min(1, ts*1.05), L);
+      p[i] = R; p[i+1] = G; p[i+2] = B;
+    }
+    if(coloured < 50) return (laughCache[hex] = null); // no colour emoji on canvas — use plain 😂
+    x.putImageData(img, 0, 0);
+    return (laughCache[hex] = c.toDataURL());
+  }catch(e){ return (laughCache[hex] = null); }
+}
+function laughHtml(hex, who){
+  const src = laughSrc(hex);
+  const t = escapeHtml(who || '');
+  return src ? `<span class="laugh" title="${t}"><img class="laugh-img" src="${src}" alt="😂"></span>` : `<span class="laugh" title="${t}">😂</span>`;
+}
+
 // ---- 11. REVEAL ---------------------------------------------------------
 function renderReveal(isNew){
   const r = game.round;
@@ -1830,7 +1888,10 @@ function renderReveal(isNew){
 
   const list = $('reveal-list');
   list.innerHTML = '';
-  $('csf-key').style.display = r.csfPick && r.funnyTally && r.funnyTally[r.csfPick] ? 'flex' : 'none';
+  const anyLaughs = r.funnyTally && Object.values(r.funnyTally).some(n => n > 0);
+  $('csf-key').style.display = anyLaughs ? 'block' : 'none';
+  $('csf-key').innerHTML = `<div>Funniest votes are coloured by who voted.</div>`
+    + (r.csfPick ? `<div class="row-key">${laughHtml(CLAUDE_COLOR.bg, 'Claude')}<span>Claude's funniest vote</span></div>` : '');
   order.forEach((id) => {
     const isReal = id === 'REAL';
     const isClaude = id === 'CLAUDE';
@@ -1855,12 +1916,17 @@ function renderReveal(isNew){
     if(r.cccCloseIds && r.cccCloseIds.includes(id)) flags.innerHTML += `<span class="flag ccc">🎯 close call</span>`;
     // Laughs sit on the same line as author + votes; each emoji is its own
     // flex item so a big pile just wraps onto the next line.
-    const funnyCount = (r.funnyTally && r.funnyTally[id]) || 0;
-    if(funnyCount > 0){
-      const claudes = r.csfPick === id ? 1 : 0; // Claude's laugh goes first, in blue
-      if(claudes) flags.innerHTML += `<span class="laugh claude" title="Claude's funniest pick"><span class="e">😂</span></span>`;
-      for(let k=0;k<funnyCount-claudes;k++) flags.innerHTML += `<span class="laugh">😂</span>`;
-    }
+    // Each laugh in the colour of who laughed — Claude's (grey) first, then
+    // players in standings order.
+    const laughers = [];
+    if(r.csfPick === id) laughers.push('CLAUDE');
+    Object.entries(r.votes||{}).forEach(([voter, v]) => { if(v.funny === id && voter !== id) laughers.push(voter); });
+    const order = Object.keys(game.players||{});
+    laughers.sort((a,b) => (a==='CLAUDE'?-1:order.indexOf(a)) - (b==='CLAUDE'?-1:order.indexOf(b)));
+    laughers.forEach(uid => {
+      const who = uid === 'CLAUDE' ? 'Claude' : (game.players[uid] ? game.players[uid].name : '');
+      flags.innerHTML += laughHtml(playerColor(uid).bg, who);
+    });
     div.appendChild(flags);
     list.appendChild(div);
   });
