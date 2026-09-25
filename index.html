@@ -842,13 +842,12 @@ const GAMES = "balderlaugh_games";
 // which asks Claude — with web search enabled — for a genuinely real item
 // and verifies it before responding. Only the term comes back to the
 // client; the real answer is written straight to Firestore server-side
-// (balderlaugh_round_answers/{gameId}_{roundIndex}, get-only, can't be
-// listed/browsed) and fetched at voting time, same trust model as below.
+// (balderlaugh_round_answers/{gameId}_{roundIndex}, fully locked to
+// browsers) and attached to the round by the startReading function.
 //
 // FALLBACK: if generation fails (function not deployed yet, network
 // hiccup, model couldn't produce a verifiable answer), falls back to the
-// pre-seeded bank in Firestore (see seed/seed.js) — same get-only,
-// can't-be-listed protection:
+// pre-seeded bank in Firestore (see seed/seed.js) — answers equally locked:
 //   balderlaugh_meta/itemIndex   — {category: [{id, term}, ...]}  (no answers)
 //   balderlaugh_items/{itemId}   — {category, term, real}
 const generateItemFn = httpsCallable(functionsClient, 'generateItem');
@@ -863,14 +862,23 @@ async function getItemIndex(){
   itemIndexCache = snap.exists() ? snap.data() : { oddWords:[], obscurePeople:[], movies:[] };
   return itemIndexCache;
 }
-async function getSeedAnswer(itemId){
-  const snap = await getDoc(doc(db, 'balderlaugh_items', itemId));
-  return snap.exists() ? snap.data().real : '(answer unavailable)';
+// The answer collections (balderlaugh_items, balderlaugh_round_answers) are
+// fully locked to browsers. Two server functions stand in for reading them:
+//   checkAnswers  — yes/no "does this item's answer exist?", never the text
+//   startReading  — moves the round to reading with the answer attached
+const checkAnswersFn = httpsCallable(functionsClient, 'checkAnswers');
+const startReadingFn = httpsCallable(functionsClient, 'startReading');
+// Returns the first ref (in the order given) whose answer exists, or null.
+async function firstWithAnswer(refs){
+  if(!refs.length) return null;
+  try{
+    const res = await checkAnswersFn({ refs: refs.map(r => ({ answerSource: r.answerSource, answerId: r.answerId || null, itemId: r.itemId || null })) });
+    const ok = (res.data && res.data.exists) || [];
+    refs.forEach((r, i) => { if(!ok[i]) console.error('No answer record, skipping:', r.term || r.itemId || r.answerId); });
+    return refs.find((r, i) => ok[i]) || null;
+  }catch(e){ console.error('Answer check failed:', e); return null; }
 }
-async function getGeneratedAnswer(answerId){
-  const snap = await getDoc(doc(db, 'balderlaugh_round_answers', answerId));
-  return snap.exists() ? snap.data().real : '(answer unavailable)';
-}
+const ANSWER_CHECK_MAX = 6; // candidates to try before giving up on this attempt
 const CAT_LABEL = { oddWords:"Odd Words", obscurePeople:"Obscure People", movies:"That's Really a Movie?" };
 const CAT_WRITE_LABEL = { oddWords:"Write a believable definition", obscurePeople:"Write a believable mini-bio", movies:"Write a believable plot summary" };
 
@@ -1575,6 +1583,17 @@ async function beginRound(index, categories, usedTerms, extra = {}, attempt = 1)
   categories = settings.categories && settings.categories.length ? settings.categories : categories;
   const { cat, remainingQueue: categoryQueue } = pickNextCategory(game.categoryQueue, categories);
 
+  // Reading the room: log how long the humans' bluffs were in the round
+  // that just finished (never Claude's). The server's length decks for the
+  // real answer and Claude's bluff are re-dealt from this every 3 rounds.
+  // Word counts only — nothing secret — and only the most recent 40 kept.
+  const prev = game.round;
+  const newLengths = (prev && prev.index !== index && prev.phase !== 'generating' && prev.phase !== 'writing')
+    ? Object.entries(prev.submissions||{}).filter(([uid]) => uid !== 'CLAUDE')
+        .map(([, s]) => (s.text||'').trim().split(/\s+/).filter(Boolean).length).filter(n => n > 0)
+    : [];
+  if(newLengths.length) extra = { ...extra, bluffLengths: [...(game.bluffLengths||[]), ...newLengths].slice(-40) };
+
   // Show a loading state immediately, and fetch the cross-game cooldown
   // list in parallel with it (they're independent — no reason to wait on
   // one before starting the other).
@@ -1629,7 +1648,15 @@ async function beginRound(index, categories, usedTerms, extra = {}, attempt = 1)
       await markGenFailed(index, attempt);
       return;
     }
-    const item = bank[Math.floor(Math.random()*bank.length)];
+    const cands = randomShuffle(bank).slice(0, ANSWER_CHECK_MAX)
+      .map(c => ({ answerSource:'seed', itemId: c.id, term: c.term }));
+    const hit = await firstWithAnswer(cands);
+    if(!isCurrentAttempt(index, attempt)) return;
+    const item = hit ? { id: hit.itemId, term: hit.term } : null;
+    if(!item){
+      await markGenFailed(index, attempt);
+      return;
+    }
     term = item.term; itemId = item.id; answerSource = 'seed';
   }
 
@@ -1646,7 +1673,7 @@ async function startWritingPhase({ index, attempt, cat, term, itemId, answerSour
   const submissions = {};
   if(settings.includeClaude){
     try{
-      const bluffResult = await generateBluffFn({ term, category: cat, answerSource, answerId, itemId });
+      const bluffResult = await generateBluffFn({ term, category: cat, answerSource, answerId, itemId, gameId: currentGameCode, roundIndex: index });
       if(bluffResult.data && bluffResult.data.bluff){
         submissions['CLAUDE'] = { text: bluffResult.data.bluff, author: 'CLAUDE' };
       }
@@ -1718,7 +1745,7 @@ async function findGoldenOldie(categories, usedTerms){
     }
     if(ref) picks.push({ term:r.term, category:r.category, ...ref });
   }
-  return picks.length ? picks[Math.floor(Math.random()*picks.length)] : null;
+  return firstWithAnswer(randomShuffle(picks).slice(0, ANSWER_CHECK_MAX));
 }
 async function replayOldie(oldie, index, attempt){
   if(!isCurrentAttempt(index, attempt)) return;
@@ -1861,31 +1888,32 @@ async function maybeAdvanceFromWriting(){
     // True random order (crypto RNG) — never the order entries were
     // submitted/stored, which would be a dead giveaway in the room.
     const order = randomShuffle([...ids, 'REAL']);
-    // Fetch the real answer right when voting begins (not before) — this
-    // is the only moment this item's answer ever gets sent to a browser.
-    const answerText = r.answerSource === 'generated'
-      ? await getGeneratedAnswer(r.answerId)
-      : await getSeedAnswer(r.itemId);
 
     // Reader: pick who gets the table's spotlight this round, drawing
     // from a no-repeat-until-exhausted queue of active players.
     const { readerUid, remainingQueue } = pickNextReader(game.readerQueue, activePlayerUids());
 
-    // Any client can trigger this transition, and the work above involves
-    // real network calls — another client may have already completed the
-    // same transition while we were waiting. Re-check right before
-    // writing, not just at the top, or a slow second caller can stomp a
-    // faster first one's work.
-    if(game.round.phase !== 'writing') return;
-    await updateDoc(doc(db, GAMES, currentGameCode), {
-      readerQueue: remainingQueue,
-      'round.phase':'reading',
-      'round.phaseEndsAt': Date.now() + READING_SECONDS*1000,
-      'round.shuffleOrder': order,
-      'round.answerText': answerText,
-      'round.readerUid': readerUid
-    });
+    // The server makes the move to reading AND attaches the real answer in
+    // one step — the answer never reaches any browser before that. It also
+    // double-checks the round is really ready (everyone in, or time's up),
+    // and ignores the call if another phone already moved the round on.
+    let res = null;
+    try{
+      res = await startReadingFn({ gameId: currentGameCode, roundIndex: r.index, order,
+        readerUid, readerQueue: remainingQueue, readingSeconds: READING_SECONDS });
+    }catch(err){ console.error('startReading failed, will retry:', err); }
+    const ok = res && res.data && (res.data.ok || res.data.reason === 'already-moved' || res.data.reason === 'no-game');
+    if(!ok) scheduleWritingRetry(r.index);
   } finally { advancing = false; }
+}
+// Clocks on phones and the server can disagree by a second or two, and a
+// network blip can drop a call — keep nudging until the round moves.
+let writingRetryTimer = null;
+function scheduleWritingRetry(index){
+  clearTimeout(writingRetryTimer);
+  writingRetryTimer = setTimeout(() => {
+    if(game && game.round && game.round.index === index && game.round.phase === 'writing') maybeAdvanceFromWriting();
+  }, 2500);
 }
 
 // The Reader releases the list to the table (or the 8-min cap does it for

@@ -97,8 +97,9 @@ generation would be *without* the web-search grounding step — treat it as
 safety net for when generation fails, not as the primary content source.
 
 ## Firestore rules
-Add rules for the new collections alongside whatever already covers
-`cottage/lowStock` and `balderlaugh_games`:
+The answer key is now fully locked: browsers can't read `balderlaugh_items`
+or `balderlaugh_round_answers` at all. Answers only reach players through
+the `startReading` Cloud Function, at the moment the round moves to reading.
 
 ```
 match /balderlaugh_meta/{docId} {
@@ -106,23 +107,22 @@ match /balderlaugh_meta/{docId} {
   allow write: if false;   // only the seed script (Admin SDK) writes this
 }
 match /balderlaugh_items/{itemId} {
-  allow get: if true;      // can read ONE item if you already know its id
-  allow list: if false;    // can't browse/enumerate the whole answer key
-  allow write: if false;   // only the seed script (Admin SDK) writes this
+  allow read, write: if false;   // server functions only
 }
 match /balderlaugh_round_answers/{answerId} {
-  allow get: if true;      // can read ONE round's answer if you know its id (gameId_roundIndex)
-  allow list: if false;    // can't browse other games'/rounds' answers
-  allow write: if false;   // only generateItem (Admin SDK, server-side) writes this
+  allow read, write: if false;   // server functions only
+}
+match /balderlaugh_length_state/{gameId} {
+  allow read, write: if false;   // server functions only (length decks)
 }
 match /balderlaugh_used_terms/{termId} {
-  allow read, write: if true;   // no secrets here — the term itself is shown to every player anyway
+  allow read, write: if true;    // no secrets here
 }
 ```
 
-The `get`/`list` split is doing the real work here: a client can still ask
-Firestore for the one specific item or round-answer it currently needs, but
-can't query either collection to see everything in it at once.
+**Important:** Firestore rules add up. If there's ANY broader rule such as
+`match /{document=**} { allow read, write: if ... }` (the "test mode"
+default), it overrides every lock above. Check for one before relying on this.
 
 ## Cross-game term cooldown
 `balderlaugh_used_terms` tracks every word/person/movie used across ALL
@@ -290,3 +290,37 @@ resumed straight into a game and the player later left.
 - Tagline is now "bluff, vote, laugh" (Vote, not Guess, everywhere).
 - The writing box label now matches the category: definition / mini-bio /
   plot summary (it said "definition" for all three before).
+
+## Missing-answer guard
+Before a round opens for writing, the game checks that the real answer's
+record still exists (the `checkAnswers` function: yes/no only, never the text). A generated item with no record falls
+back to the seeded bank; seeded items and golden oldies with no record are
+skipped, trying up to 6 candidates (`ANSWER_CHECK_MAX`). If none work, the
+host gets the usual "Try again". So a deleted `balderlaugh_items` or
+`balderlaugh_round_answers` doc can no longer turn into "(answer unavailable)"
+at voting. (A live-generated item skips the check: the server wrote it a
+moment earlier.)
+
+## Answers hidden from dev tools (startReading)
+When writing ends, the phone that notices works out the shuffle order and
+the next Reader as before, then calls `startReading`. The server checks the
+round is really ready (every active player has submitted, or the clock has
+run out, with 3s of grace for clock differences), then moves the round to
+reading and writes the real answer in one transaction. If the call fails or
+comes too early, the phone retries every 2.5s. The only way left to see an
+answer early is to force the round forward, which the whole table sees.
+
+## Reading the room (length decks)
+The real answer and Claude's bluff each get a word-count target from their
+own shuffled 3-card deck (one short, one middle, one long). Decks are
+re-dealt every 3 rounds. Until the room has 6+ human bluffs on record, the
+default spread is used (4-9, 10-18, 19-30 words); after that, the recent
+human bluff lengths (`game.bluffLengths`, last 40, word counts only) are
+split into thirds and blended with the default, trusting the room more as
+data grows. Clamped to 4-30 words (movies 8-30). If Claude misses its range
+badly, one quick rewrite is tried. Decks live in `balderlaugh_length_state`
+(server only). Backup-bank items keep their original lengths.
+
+## Server runtime
+Functions run on Node 22 (`functions/package.json`); Google retires Node 20
+on 2026-10-30.

@@ -1,1 +1,4 @@
 Claude outputs/
+node_modules/
+firebase-debug*.log
+.firebase/

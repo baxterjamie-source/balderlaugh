@@ -1,35 +1,28 @@
 /**
- * NOT YET DEPLOYED — write and deploy these before the game's "live
- * generation" and CCC/CSF/Include Claude toggles will do anything.
+ * Balderlaugh Cloud Functions (deployed to the cottagerestocklist project).
  *
- * Four functions:
- *   - generateItem: the PRIMARY way Balderlaugh now gets round content.
- *     Given a category, asks Claude — with web search enabled — for a
- *     genuinely real, obscure item and its real answer, grounded in an
- *     actual source rather than generated from memory alone. Returns only
- *     the term to the client; the real answer is written straight to
- *     Firestore server-side and never travels back through the response,
- *     so nobody (host included) sees it before voting opens.
- *   - judgeGuess (CCC): score a player's free-text guess against the real
- *     answer, for a bonus point.
- *   - judgeFunniest (CSF): given the round's human-written bluffs, pick
- *     the funniest, excluding anything Claude declines to rate.
- *   - (Include Claude, the toggle where Claude submits its own bluff, can
- *     reuse judgeFunniest's basic single-call pattern below — not written
- *     yet, flagged here so it's not forgotten.)
+ *   - generateItem:   live round content (web-search grounded). The real
+ *                     answer is written to balderlaugh_round_answers and only
+ *                     the term goes back to the browser.
+ *   - generateBluff:  Include Claude's own bluff.
+ *   - checkAnswers:   "does this item's real answer still exist?" — yes/no
+ *                     only, so a round never opens on a missing answer.
+ *   - startReading:   moves a round from writing to reading AND attaches the
+ *                     real answer in the same step. This is the only way an
+ *                     answer ever reaches a browser, so the answer
+ *                     collections can be fully locked (no client reads).
+ *   - judgeCloseCalls (CCC) / judgeFunniest (CSF).
  *
- * Deploy with the Firebase CLI once you're ready:
- *   firebase deploy --only functions
+ * Answer lengths (real answer and Claude's bluff) come from a shuffled
+ * 3-card "deck" per game, rebuilt every 3 rounds from how long the table's
+ * own bluffs have been (see LENGTH DECKS below). Decks live in
+ * balderlaugh_length_state, which clients can't read.
  *
- * Store your Anthropic API key as a Firebase secret, NOT in this file:
- *   firebase functions:secrets:set ANTHROPIC_API_KEY
- *
- * generateItem also needs Admin SDK Firestore access (already available
- * inside a deployed Cloud Function without any extra credential file —
- * that's only needed for the local seed.js script, not here).
+ * Deploy:  firebase deploy --only functions
+ * API key: stored as the ANTHROPIC_API_KEY secret (already set).
  */
 
-const { onCall } = require("firebase-functions/v2/https");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -45,30 +38,136 @@ const CATEGORY_BRIEF = {
   movies: `a real, obscure (but actually released) movie — title plus year — along with an accurate plot summary`
 };
 
-// Picking a random length/style target BEFORE writing the prompt, rather
-// than just asking the model for "1-2 sentences" and hoping — left alone,
-// it defaults to maximum density every time (precise dates, named
-// mechanisms, stacked specifics), which becomes an obvious tell once
-// there's a mix of human bluffs on the list that don't read that way.
-// Used for BOTH the real answer and Claude's bluff, each drawn
-// independently per round, so length itself carries no signal about
-// which entry is real. A soft per-tier cap on stacked specifics wasn't
-// enough — a real response still landed 5 numbers deep in one sentence —
-// so every tier now carries the same hard, absolute ceiling.
-const HARD_CAP = "HARD LIMIT, no exceptions: never exceed 30 words total, and never state more than ONE specific number, date, or quantity in the whole thing — not one per clause, ONE total, or zero.";
-const LENGTH_STYLES = [
-  { instruction: `One short phrase, well under 12 words. No specific numbers or dates at all — describe it in general terms only. ${HARD_CAP}`, weight: 4 },
-  { instruction: `One plain sentence, 12-20 words. ${HARD_CAP}`, weight: 4 },
-  { instruction: `One or two short sentences, up to 30 words total — this is the most detail you're allowed to give. ${HARD_CAP}`, weight: 2 }
-];
-function pickLengthStyle(){
-  const total = LENGTH_STYLES.reduce((s, x) => s + x.weight, 0);
-  let r = Math.random() * total;
-  for (const s of LENGTH_STYLES) {
-    if (r < s.weight) return s.instruction;
-    r -= s.weight;
+// ---- LENGTH DECKS -------------------------------------------------------------
+// Left alone, Claude writes everything at about the same length, which
+// players learn to spot. Instead each game deals a 3-card deck of word-count
+// targets — one short, one middle, one long, shuffled — separately for the
+// real answer and for Claude's bluff. When a deck runs out (every 3 rounds)
+// it's re-dealt from the room: the last few rounds of HUMAN bluff lengths
+// (the client records these in the game doc as `bluffLengths`) are split
+// into short/middle/long thirds and one target is drawn from each, so the
+// real answer ends up looking like just another player's entry.
+// Before there's enough room data (<6 bluffs), the default spread is used;
+// small samples are blended with it. Everything is clamped to 4-30 words
+// (movies min 8, so a plot still makes sense).
+const DEFAULT_BANDS = [[4, 9], [10, 18], [19, 30]];
+const MIN_ROOM_SAMPLES = 6;
+const ROOM_WINDOW = 24;      // most recent human bluffs considered
+const MAX_WORDS = 30;
+
+function randInt(lo, hi){ return lo + Math.floor(Math.random() * (hi - lo + 1)); }
+function shuffle(arr){
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function wordCount(t){ return String(t || "").trim().split(/\s+/).filter(Boolean).length; }
+function minWords(category){ return category === "movies" ? 8 : 4; }
+
+function buildDeck(roomLengths, category){
+  const floor = minWords(category);
+  // Oddballs out: one-word jokes and runaway essays don't steer the deck.
+  let L = (Array.isArray(roomLengths) ? roomLengths : [])
+    .filter(n => Number.isFinite(n) && n >= 3 && n <= 60)
+    .slice(-ROOM_WINDOW)
+    .sort((x, y) => x - y);
+  if (L.length >= 8) L = L.slice(1, -1); // drop the single shortest and longest
+  const useRoom = L.length >= MIN_ROOM_SAMPLES;
+  const w = useRoom ? L.length / (L.length + 4) : 0; // more data, more trust
+  const cards = DEFAULT_BANDS.map(([lo, hi], i) => {
+    const def = randInt(lo, hi);
+    if (!useRoom) return def;
+    const third = L.slice(Math.floor(i * L.length / 3), Math.max(Math.floor((i + 1) * L.length / 3), Math.floor(i * L.length / 3) + 1));
+    const room = third[Math.floor(Math.random() * third.length)];
+    return Math.round(w * room + (1 - w) * def);
+  }).map(n => Math.min(MAX_WORDS, Math.max(floor, n)));
+  return shuffle(cards);
+}
+
+// kind: "real" | "bluff". Same round (e.g. a "Try again") reuses its target.
+async function drawTarget(gameId, roundIndex, kind, category){
+  const fallback = () => buildDeck([], category)[0];
+  if (!gameId || roundIndex == null) return fallback();
+  const roundKey = String(roundIndex).split("-")[0];
+  try {
+    const stateRef = db.collection("balderlaugh_length_state").doc(String(gameId));
+    // Read the game outside the transaction so players' own writes to it
+    // are never held up waiting on this.
+    const g = await db.collection("balderlaugh_games").doc(String(gameId)).get();
+    return await db.runTransaction(async tx => {
+      const st = await tx.get(stateRef);
+      const state = (st.exists && st.data()[kind]) || {};
+      if (state.roundKey === roundKey && Number.isFinite(state.target)) return state.target;
+      let deck = Array.isArray(state.deck) ? [...state.deck] : [];
+      if (!deck.length) deck = buildDeck(g.exists ? g.data().bluffLengths : [], category);
+      const floor = minWords(category);
+      const target = Math.min(MAX_WORDS, Math.max(floor, deck.shift()));
+      tx.set(stateRef, { [kind]: { deck, roundKey, target }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return target;
+    });
+  } catch (err) {
+    console.error("drawTarget failed, using a default length:", err);
+    return fallback();
   }
-  return LENGTH_STYLES[0].instruction;
+}
+
+function lengthBand(target){
+  const tol = Math.max(2, Math.round(target * 0.2));
+  return { lo: Math.max(3, target - tol), hi: Math.min(MAX_WORDS, target + tol) };
+}
+function lengthInstruction(target){
+  const { lo, hi } = lengthBand(target);
+  const numbers = target < 12
+    ? "No specific numbers or dates at all."
+    : "Never state more than ONE specific number, date, or quantity in the whole thing (zero is fine).";
+  return `LENGTH: between ${lo} and ${hi} words (aim for about ${target}). Count them. ${numbers} Never exceed ${MAX_WORDS} words.`;
+}
+
+async function callClaude(body){
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY.value(),
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  return { res, data };
+}
+
+// If the text missed its band badly, one cheap rewrite (no web search).
+// `isReal` keeps the rewrite from inventing facts in the real answer.
+async function fitLength(text, target, isReal){
+  const { lo, hi } = lengthBand(target);
+  const n = wordCount(text);
+  if (n >= lo - 2 && n <= hi + 2) return text;
+  const rule = isReal
+    ? "Keep it TRUE: do not add any new facts, names, numbers or dates. To lengthen, only add general description of what is already there; to shorten, drop detail."
+    : "Keep it the same joke and the same (false) content — don't make it more accurate.";
+  try {
+    const { res, data } = await callClaude({
+      model: "claude-sonnet-5",
+      max_tokens: 200,
+      messages: [{ role: "user", content: `Rewrite this so it is between ${lo} and ${hi} words (about ${target}). ${rule} Keep the same casual tone.
+
+"${text}"
+
+Reply with ONLY a JSON object: {"text": "the rewritten version"}` }]
+    });
+    if (!res.ok) return text;
+    const raw = (data.content || []).map(b => b.text || "").join("");
+    const m = raw.match(/\{[\s\S]*\}/);
+    const out = m ? JSON.parse(m[0]).text : null;
+    if (!out) return text;
+    // Only keep the rewrite if it actually landed closer.
+    const dist = x => Math.abs(wordCount(x) - target);
+    return dist(out) < dist(text) ? out : text;
+  } catch (err) {
+    console.error("fitLength rewrite failed, keeping original:", err);
+    return text;
+  }
 }
 
 // ---- Live item generation, grounded with web search ------------------------
@@ -80,7 +179,7 @@ exports.generateItem = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) 
   const avoid = Array.isArray(excludeTerms) && excludeTerms.length
     ? `\n\nAlready used this game, so pick something different: ${excludeTerms.join(", ")}.`
     : "";
-  const lengthStyle = pickLengthStyle();
+  const target = await drawTarget(gameId, roundIndex, "real", category);
 
   const prompt = `You're generating content for a party game called Balderlaugh, a
 Balderdash-style bluffing game. I need ${CATEGORY_BRIEF[category]}.
@@ -91,7 +190,7 @@ the "real" answer being genuinely true, not something you recall
 unverified from memory. Pick something obscure enough to not be
 immediately obvious, but confirmable.${avoid}
 
-For the "real" field's length and level of detail: ${lengthStyle}
+For the "real" field: ${lengthInstruction(target)}
 
 Once verified, respond with ONLY a JSON object (no other text):
 {"term": "the word/person name/movie title", "real": "the real definition/bio/plot summary", "source": "brief note on where you verified this"}`;
@@ -147,17 +246,18 @@ Once verified, respond with ONLY a JSON object (no other text):
   if (!parsed.term || !parsed.real) {
     throw new Error("Generated item was missing a term or real answer.");
   }
+  parsed.real = await fitLength(parsed.real, target, true);
 
   // Store the real answer server-side, keyed to this exact game+round.
-  // Rules only allow `get` on this collection (not `list`), so a client
-  // can fetch this one document once it's playing this exact round, but
-  // can't browse other games' or rounds' answers.
+  // Clients can't read this collection at all — the answer only reaches a
+  // browser through startReading.
   const answerId = `${gameId}_${roundIndex}`;
   await db.collection("balderlaugh_round_answers").doc(answerId).set({
     term: parsed.term,
     real: parsed.real,
     source: parsed.source || null,
     category,
+    targetWords: target,
     createdAt: FieldValue.serverTimestamp()
   });
 
@@ -174,7 +274,7 @@ Once verified, respond with ONLY a JSON object (no other text):
 // definition of a word about yesterday) since Claude's own general
 // knowledge of well-documented terms naturally converges with the truth.
 exports.generateBluff = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
-  const { term, category, answerSource, answerId, itemId } = request.data;
+  const { term, category, answerSource, answerId, itemId, gameId, roundIndex } = request.data;
   if (!term || !category) {
     throw new Error("term and category are required.");
   }
@@ -192,7 +292,7 @@ exports.generateBluff = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request)
     console.error('generateBluff: could not fetch real answer for overlap-avoidance, continuing blind:', err);
   }
 
-  const lengthStyle = pickLengthStyle();
+  const target = await drawTarget(gameId, roundIndex, "bluff", category);
   const overlapRule = realAnswer
     ? `The REAL answer (for your reference only — never reveal or paraphrase it) is:
 "${realAnswer}"
@@ -223,7 +323,7 @@ tell that this was AI-generated, not a real human bluff.
 
 ${overlapRule}
 
-For the length and level of detail: ${lengthStyle}
+${lengthInstruction(target)}
 
 Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
 
@@ -255,7 +355,80 @@ Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
     console.error("generateBluff parse failure — raw text:", text.slice(0, 500));
     throw new Error("Could not parse a bluff from the model response.");
   }
-  return { bluff: parsed.bluff };
+  return { bluff: await fitLength(parsed.bluff, target, false) };
+});
+
+// ---- Answer lookup helpers (server-side only) -------------------------------
+function answerRefFor(ref){
+  if (!ref) return null;
+  if (ref.answerSource === "generated" && ref.answerId) return db.collection("balderlaugh_round_answers").doc(String(ref.answerId));
+  if (ref.answerSource === "seed" && ref.itemId) return db.collection("balderlaugh_items").doc(String(ref.itemId));
+  return null;
+}
+
+// ---- checkAnswers: yes/no per item, never the text -------------------------
+exports.checkAnswers = onCall(async (request) => {
+  const refs = Array.isArray(request.data && request.data.refs) ? request.data.refs.slice(0, 10) : [];
+  const exists = await Promise.all(refs.map(async r => {
+    try {
+      const ref = answerRefFor(r);
+      if (!ref) return false;
+      const snap = await ref.get();
+      return snap.exists && !!snap.data().real;
+    } catch { return false; }
+  }));
+  return { exists };
+});
+
+// ---- startReading: writing -> reading, with the answer attached -------------
+// The client works out the shuffle order and next Reader as before and
+// passes them in; the server checks the round really is ready to move on
+// (everyone active has submitted, or the writing clock has run out), then
+// writes the phase change and the real answer together in one transaction.
+// Anyone with dev tools therefore never sees the answer before the whole
+// table does — the only way to get it early is to force the round forward
+// for everyone, which the table would notice.
+const READING_MIN_S = 60, READING_MAX_S = 900, CLOCK_GRACE_MS = 3000;
+exports.startReading = onCall(async (request) => {
+  const { gameId, roundIndex, order, readerUid, readerQueue, readingSeconds } = request.data || {};
+  if (!gameId || roundIndex == null || !Array.isArray(order)) {
+    throw new HttpsError("invalid-argument", "gameId, roundIndex and order are required.");
+  }
+  const gameRef = db.collection("balderlaugh_games").doc(String(gameId));
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(gameRef);
+    if (!snap.exists) return { ok: false, reason: "no-game" };
+    const g = snap.data();
+    const r = g.round || {};
+    if (r.index !== roundIndex || r.phase !== "writing") return { ok: false, reason: "already-moved" };
+
+    const players = g.players || {};
+    const subs = r.submissions || {};
+    const active = Object.keys(players).filter(u => !players[u].sittingOut);
+    const humanIn = Object.keys(subs).filter(u => active.includes(u)).length;
+    const timeUp = typeof r.phaseEndsAt === "number" && Date.now() >= r.phaseEndsAt - CLOCK_GRACE_MS;
+    if (!timeUp && !(active.length > 0 && humanIn >= active.length)) return { ok: false, reason: "not-ready" };
+
+    const expected = [...Object.keys(subs), "REAL"];
+    const valid = order.length === expected.length && new Set(order).size === order.length && order.every(id => expected.includes(id));
+    const finalOrder = valid ? order : shuffle(expected);
+
+    const aRef = answerRefFor(r);
+    const aSnap = aRef ? await tx.get(aRef) : null;
+    const answerText = aSnap && aSnap.exists && aSnap.data().real ? aSnap.data().real : "(answer unavailable)";
+
+    const secs = Math.min(READING_MAX_S, Math.max(READING_MIN_S, Number(readingSeconds) || 480));
+    const update = {
+      "round.phase": "reading",
+      "round.phaseEndsAt": Date.now() + secs * 1000,
+      "round.shuffleOrder": finalOrder,
+      "round.answerText": answerText,
+      "round.readerUid": players[readerUid] ? readerUid : (active[0] || null)
+    };
+    if (Array.isArray(readerQueue) && readerQueue.every(u => typeof u === "string")) update.readerQueue = readerQueue;
+    tx.update(gameRef, update);
+    return { ok: true };
+  });
 });
 
 // ---- CCC: mark any human bluff that's surprisingly close to the truth -----
