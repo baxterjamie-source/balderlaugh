@@ -312,15 +312,31 @@ answer early is to force the round forward, which the whole table sees.
 
 ## Reading the room (length decks)
 The real answer and Claude's bluff each get a word-count target from their
-own shuffled 3-card deck (one short, one middle, one long). Decks are
-re-dealt every 3 rounds. Until the room has 6+ human bluffs on record, the
-default spread is used (4-9, 10-18, 19-30 words; movies 8-11, 12-19, 20-30); after that, the recent
-human bluff lengths (`game.bluffLengths`, last 40, word counts only) are
-split into thirds and blended with the default, trusting the room more as
-data grows. Clamped to 4-30 words (movies 8-30); a target that would fall below the
-minimum lands a few words above it instead of piling up on the minimum. If Claude misses its range
-badly, one quick rewrite is tried. Decks live in `balderlaugh_length_state`
-(server only). Backup-bank items keep their original lengths.
+own shuffled 3-card deck. Round 1 uses a gentle default (about 4-18 words;
+movies 6-18). From round 2 the recent human bluff lengths
+(`game.bluffLengths`, last 40, word counts only) set the cards: a short, a
+typical and a long version of what THIS table writes, the long one capped at
+1.5x their longest. A 5-word table gets roughly 4-8 word answers. Decks are
+re-dealt every 3 rounds (and once, early, when room data first appears).
+Minimum 4 words (movies 6), max 30. Short targets (<10) get no slack on the
+long side; if Claude misses badly, one quick rewrite is tried. Decks live in
+`balderlaugh_length_state` (server only). Backup-bank items keep their
+original lengths.
+
+## Human-looking style
+- Every entry is shown with plain phone punctuation (no em dashes,
+  semicolons, curly quotes or the single-character ellipsis), plus the
+  existing capital-letter-and-period tidy.
+- Slips: in `startReading` the server checks each human bluff for a slip
+  (a word not in an English word list, a contraction without its
+  apostrophe, lowercase "i", txt-speak), keeping a rolling record of the last
+  40 (`balderlaugh_length_state/{game}.style`). Claude's real answer and its
+  bluff then get the same chance of one small slip (common misspelling,
+  dropped apostrophe, swapped/missing/fat-thumb letter). A sloppy table's
+  longer entries sometimes get two. Never touched: the prompt's own words,
+  capitalized words (names), numbers, and the answer's two longest words. A
+  typo that would form another real word is skipped.
+- Word list: `an-array-of-english-words` (MIT), loaded server-side only.
 
 ## Server runtime
 Functions run on Node 22 (`functions/package.json`); Google retires Node 20

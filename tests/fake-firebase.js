@@ -37,5 +37,6 @@ global.fetch = async (url, opts) => {
     : JSON.stringify({ term: 'The Moose Who Knew Too Much', real: words(n), source: 'test' });
   return { ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text }], stop_reason: 'end_turn' }) };
 };
+process.env.BALDERLAUGH_TEST = '1';
 const fns = require(process.argv[2]);
 module.exports = { fns, store, claude, db, mkRef };

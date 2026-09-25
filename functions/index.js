@@ -43,62 +43,69 @@ const CATEGORY_BRIEF = {
 // players learn to spot. Instead each game deals a 3-card deck of word-count
 // targets — one short, one middle, one long, shuffled — separately for the
 // real answer and for Claude's bluff. When a deck runs out (every 3 rounds)
-// it's re-dealt from the room: the last few rounds of HUMAN bluff lengths
-// (the client records these in the game doc as `bluffLengths`) are split
-// into short/middle/long thirds and one target is drawn from each, so the
-// real answer ends up looking like just another player's entry.
-// Before there's enough room data (<6 bluffs), the default spread is used;
-// small samples are blended with it. Everything is clamped to 4-30 words
-// (movies min 8, so a plot still makes sense).
-const DEFAULT_BANDS = [[4, 9], [10, 18], [19, 30]];
-const MIN_ROOM_SAMPLES = 6;
+// it's re-dealt from the room: the recent HUMAN bluff lengths (the client
+// records these in the game doc as `bluffLengths`) give a short, a typical
+// and a long card sized to this table, so the real answer looks like just
+// another player's entry. Round 1 uses a default spread; from round 2 the
+// room steers. Clamped to 4-30 words (movies min 6).
+// Round 1 only (nothing to read yet): a middle-of-the-road spread, since a
+// 25-word answer in round 1 would stand out at most tables.
+const DEFAULT_BANDS = [[4, 9], [8, 14], [10, 18]];
+const MIN_ROOM_SAMPLES = 2;  // one round with 2+ players is enough to start
 const ROOM_WINDOW = 24;      // most recent human bluffs considered
 const MAX_WORDS = 30;
 
-// Movies need a longer minimum, so their short/middle bands shift up to
-// stay distinct: 8-11 / 12-19 / 20-30.
+function minWords(category){ return category === "movies" ? 6 : 4; }
 function bandsFor(category){
-  const floor = category === "movies" ? 8 : 4;
-  return floor === 4 ? DEFAULT_BANDS : [[floor, floor + 3], [floor + 4, 19], [20, MAX_WORDS]];
+  return category === "movies" ? [[6, 10], [9, 14], [12, 18]] : DEFAULT_BANDS;
 }
-function randInt(lo, hi){ return lo + Math.floor(Math.random() * (hi - lo + 1)); }
+function randInt(lo, hi){ return lo + Math.floor(Math.random() * (Math.max(lo, hi) - lo + 1)); }
 function shuffle(arr){
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
 function wordCount(t){ return String(t || "").trim().split(/\s+/).filter(Boolean).length; }
-function minWords(category){ return category === "movies" ? 8 : 4; }
-// Below the minimum: land somewhere just above it (floor..floor+3) instead
-// of piling every short card onto exactly the minimum, which would itself
-// become a recognizable length.
+// Below the minimum: land just above it (floor..floor+2) rather than piling
+// every short card onto exactly the minimum.
 function clampTarget(n, category){
   const floor = minWords(category);
-  if (!Number.isFinite(n) || n < floor) return randInt(floor, floor + 3);
+  if (!Number.isFinite(n) || n < floor) return randInt(floor, floor + 2);
   return Math.min(MAX_WORDS, n);
 }
-
-function buildDeck(roomLengths, category){
-  const floor = minWords(category);
-  // Oddballs out: one-word jokes and runaway essays don't steer the deck.
+// The room's recent human bluff lengths, oddballs out (one-word jokes and
+// runaway essays don't steer the deck), sorted short to long.
+function roomSample(roomLengths){
   let L = (Array.isArray(roomLengths) ? roomLengths : [])
-    .filter(n => Number.isFinite(n) && n >= 3 && n <= 60)
+    .filter(n => Number.isFinite(n) && n >= 2 && n <= 60)
     .slice(-ROOM_WINDOW)
     .sort((x, y) => x - y);
   if (L.length >= 8) L = L.slice(1, -1); // drop the single shortest and longest
-  const useRoom = L.length >= MIN_ROOM_SAMPLES;
-  const w = useRoom ? L.length / (L.length + 4) : 0; // more data, more trust
-  const cards = bandsFor(category).map(([lo, hi], i) => {
-    const def = randInt(lo, hi);
-    if (!useRoom) return def;
-    const third = L.slice(Math.floor(i * L.length / 3), Math.max(Math.floor((i + 1) * L.length / 3), Math.floor(i * L.length / 3) + 1));
-    const room = third[Math.floor(Math.random() * third.length)];
-    return Math.round(w * room + (1 - w) * def);
-  }).map(n => clampTarget(n, category));
-  return shuffle(cards);
+  return L;
+}
+function pct(L, p){ return L[Math.min(L.length - 1, Math.max(0, Math.round(p * (L.length - 1))))]; }
+
+// Three cards: a short, a typical and a long version of what THIS table
+// writes. No default blended in once the room has spoken — a table of
+// 5-word writers gets answers of roughly 4-8 words.
+function buildDeck(roomLengths, category){
+  const L = roomSample(roomLengths);
+  if (L.length < MIN_ROOM_SAMPLES) {
+    return shuffle(bandsFor(category).map(([lo, hi]) => clampTarget(randInt(lo, hi), category)));
+  }
+  const s = pct(L, 0.15), m = pct(L, 0.5), l = pct(L, 0.85);
+  const cap = Math.round(L[L.length - 1] * 1.5); // never much longer than their longest
+  const cards = [
+    randInt(Math.round(s * 0.8), s),
+    randInt(Math.round(m * 0.9), Math.round(m * 1.1)),
+    Math.min(cap, randInt(l, Math.round(l * 1.25)))
+  ];
+  return shuffle(cards.map(n => clampTarget(n, category)));
 }
 
 // kind: "real" | "bluff". Same round (e.g. a "Try again") reuses its target.
+// A deck dealt before the room had written anything is thrown out as soon
+// as room data exists, so the room steers from round 2, not round 4.
 async function drawTarget(gameId, roundIndex, kind, category){
   const fallback = () => buildDeck([], category)[0];
   if (!gameId || roundIndex == null) return fallback();
@@ -108,14 +115,17 @@ async function drawTarget(gameId, roundIndex, kind, category){
     // Read the game outside the transaction so players' own writes to it
     // are never held up waiting on this.
     const g = await db.collection("balderlaugh_games").doc(String(gameId)).get();
+    const lengths = g.exists ? g.data().bluffLengths : [];
+    const roomReady = roomSample(lengths).length >= MIN_ROOM_SAMPLES;
     return await db.runTransaction(async tx => {
       const st = await tx.get(stateRef);
       const state = (st.exists && st.data()[kind]) || {};
       if (state.roundKey === roundKey && Number.isFinite(state.target)) return state.target;
       let deck = Array.isArray(state.deck) ? [...state.deck] : [];
-      if (!deck.length) deck = buildDeck(g.exists ? g.data().bluffLengths : [], category);
+      let fromRoom = !!state.fromRoom;
+      if (!deck.length || (roomReady && !fromRoom)) { deck = buildDeck(lengths, category); fromRoom = roomReady; }
       const target = clampTarget(deck.shift(), category);
-      tx.set(stateRef, { [kind]: { deck, roundKey, target }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      tx.set(stateRef, { [kind]: { deck, roundKey, target, fromRoom }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       return target;
     });
   } catch (err) {
@@ -124,9 +134,15 @@ async function drawTarget(gameId, roundIndex, kind, category){
   }
 }
 
+// Short targets get no slack on the long side (a long answer on a terse
+// table is exactly the tell we're hiding); longer ones get about 20%.
 function lengthBand(target, category){
   const tol = Math.max(2, Math.round(target * 0.2));
-  return { lo: Math.max(minWords(category), target - tol), hi: Math.min(MAX_WORDS, target + tol) };
+  return {
+    lo: Math.max(minWords(category), target - tol),
+    hi: target < 10 ? target + 1 : Math.min(MAX_WORDS, target + tol),
+    slackHi: target < 10 ? 0 : 2
+  };
 }
 function lengthInstruction(target, category){
   const { lo, hi } = lengthBand(target, category);
@@ -134,6 +150,128 @@ function lengthInstruction(target, category){
     ? "No specific numbers or dates at all."
     : "Never state more than ONE specific number, date, or quantity in the whole thing (zero is fine).";
   return `LENGTH: between ${lo} and ${hi} words (aim for about ${target}). Count them. ${numbers} Never exceed ${MAX_WORDS} words.`;
+}
+
+// ---- HUMAN-LOOKING STYLE ------------------------------------------------------
+// People typing on phones make slips; Claude doesn't. So a spotless entry is
+// a tell, and some players misspell on purpose to look "human". Answer: give
+// Claude's entries (the real answer and Claude's bluff) the same chance of a
+// small slip as this table's own bluffs have. The table's slip rate is
+// measured each round in startReading from the humans' entries, using an
+// English word list plus a few phone habits (dropped apostrophes, lowercase
+// "i", txt-speak). Slips never touch the prompt's own words, names, numbers
+// or the answer's two longest words, so the real answer stays true and
+// readable.
+const STYLE_WINDOW = 40, STYLE_PRIOR = 0.1, STYLE_PRIOR_WEIGHT = 4;
+const EXTRA_OK = ["ok","okay","lol","selfie","emoji","wifi","covid","app","apps","online","email","emails","vs","etc","tv","dvd","internet","website","smartphone","hashtag","blog","podcast"];
+const TXT_SPEAK = new Set(["u","ur","b4","bc","thx","pls","plz","idk","tho","cuz","ppl","tbh","srsly","w/",
+  // contractions typed without the apostrophe (some are also dictionary words, e.g. "cant")
+  "dont","cant","wont","isnt","didnt","doesnt","wasnt","arent","werent","hasnt","havent","couldnt","wouldnt",
+  "shouldnt","im","ive","youre","theyre","thats","whats","hes","shes"]);
+let DICT = null;
+function dict(){
+  if (!DICT) { DICT = new Set(require("an-array-of-english-words")); EXTRA_OK.forEach(w => DICT.add(w)); }
+  return DICT;
+}
+function termWordSet(term){ return new Set((String(term || "").toLowerCase().match(/[a-z]+/g)) || []); }
+
+// Does this human entry contain at least one slip?
+function entryHasSlip(text, term){
+  const raw = String(text || "").replace(/[‘’]/g, "'");
+  if (/(^|[^A-Za-z'])i([^A-Za-z']|$)/.test(raw)) return true; // lowercase "i"
+  const skip = termWordSet(term);
+  for (let w of raw.split(/\s+/)) {
+    const lw0 = w.toLowerCase();
+    if (TXT_SPEAK.has(lw0.replace(/[.,!?;:]+$/, ""))) return true;
+    w = w.replace(/^[^A-Za-z']+|[^A-Za-z']+$/g, "");
+    if (w.length < 2) continue;
+    if (/[^A-Za-z']/.test(w)) continue;   // digits, hyphens: leave alone
+    if (w.includes("'")) continue;        // bothered with an apostrophe
+    if (/[A-Z]/.test(w)) continue;        // capitalized: probably a name
+    const lw = w.toLowerCase();
+    if (skip.has(lw)) continue;
+    if (!dict().has(lw)) return true;     // "werds", "dont", "thay", "jst"
+  }
+  return false;
+}
+function slipRate(recent){
+  const r = Array.isArray(recent) ? recent : [];
+  const sum = r.reduce((a, b) => a + (b ? 1 : 0), 0);
+  return (sum + STYLE_PRIOR * STYLE_PRIOR_WEIGHT) / (r.length + STYLE_PRIOR_WEIGHT);
+}
+
+// Plain phone punctuation (the page also does this for every entry).
+function plainPunct(t){
+  return String(t || "")
+    .replace(/[‘’‛′]/g, "'").replace(/[“”„″]/g, '"')
+    .replace(/…/g, "...")
+    .replace(/\s*[—–]\s*/g, ", ").replace(/\s*;\s*/g, ", ")
+    .replace(/,\s*([,.!?])/g, "$1").replace(/\s+/g, " ").trim().replace(/^,\s*/, "").replace(/[,\s]+$/, "");
+}
+
+const MISSPELL = { definitely:"definately", receive:"recieve", separate:"seperate", weird:"wierd", until:"untill",
+  because:"becuase", believe:"beleive", their:"thier", friend:"freind", friends:"freinds", tomorrow:"tommorow",
+  occurred:"occured", government:"goverment", really:"realy", finally:"finaly", beautiful:"beautifull", truly:"truely",
+  embarrassed:"embarassed", pursue:"persue", guard:"gaurd", relevant:"relevent", success:"sucess", surprise:"suprise",
+  basically:"basicly", restaurant:"restaraunt", cemetery:"cemetary", existence:"existance", independent:"independant",
+  noticeable:"noticable", occasion:"occassion", recommend:"reccomend", necessary:"neccessary", achieve:"acheive",
+  argument:"arguement", calendar:"calender", beginning:"begining", which:"wich", probably:"probly", actually:"actualy",
+  immediately:"immediatly", accidentally:"accidently", environment:"enviroment", library:"libary", especially:"especialy",
+  disappear:"dissapear", address:"adress", across:"accross", tongue:"tounge" };
+const QWERTY = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+function neighbor(ch){
+  for (let r = 0; r < 3; r++) {
+    const i = QWERTY[r].indexOf(ch);
+    if (i < 0) continue;
+    const opts = [QWERTY[r][i - 1], QWERTY[r][i + 1]].filter(Boolean);
+    return opts[Math.floor(Math.random() * opts.length)];
+  }
+  return ch;
+}
+function typo(w){
+  const n = w.length, i = randInt(1, n - 2);
+  const pick = Math.random();
+  const dbl = w.search(/([a-z])\1/);
+  if (pick < 0.3 && dbl > 0) return w.slice(0, dbl) + w.slice(dbl + 1);   // "follows" -> "folows"
+  if (pick < 0.55 && w[i] !== w[i + 1] && i < n - 2) return w.slice(0, i) + w[i + 1] + w[i] + w.slice(i + 2); // swap
+  if (pick < 0.8) return w.slice(0, i) + neighbor(w[i]) + w.slice(i + 1);  // fat thumb
+  return w.slice(0, i) + w.slice(i + 1);                                    // dropped letter
+}
+function oneSlip(text, protect){
+  const toks = text.split(/(\s+)/);
+  const cands = [];
+  toks.forEach((tok, idx) => {
+    const m = tok.match(/^([^A-Za-z']*)([A-Za-z']+)([^A-Za-z']*)$/);
+    if (!m) return;
+    const core = m[2], lc = core.toLowerCase();
+    if (/[A-Z]/.test(core) || protect.has(lc.replace(/'.*$/, ""))) return;
+    if (MISSPELL[lc]) cands.push({ idx, m, kind: "misspell", w: 5 });
+    else if (/^[a-z]+'(t|re|ve|ll|m|s|d)$/.test(core)) cands.push({ idx, m, kind: "apos", w: 4 });
+    else if (/^[a-z]{4,}$/.test(core)) cands.push({ idx, m, kind: "typo", w: 1 });
+  });
+  if (!cands.length) return text;
+  let r = Math.random() * cands.reduce((a, c) => a + c.w, 0), c = cands[0];
+  for (const x of cands) { if (r < x.w) { c = x; break; } r -= x.w; }
+  const [, pre, core, post] = c.m;
+  let out = c.kind === "misspell" ? MISSPELL[core] : c.kind === "apos" ? core.replace("'", "") : typo(core);
+  // A typo that happens to make another real word ("plain" -> "pain") could
+  // change the meaning of the real answer — try again, then give up.
+  for (let k = 0; c.kind === "typo" && k < 4 && dict().has(out); k++) out = typo(core);
+  if (c.kind === "typo" && dict().has(out)) return text;
+  toks[c.idx] = pre + out + post;
+  return toks.join("");
+}
+// Same chance of a slip as a human entry at this table; a sloppy table's
+// longer entries sometimes get two.
+function addSlips(text, rate, protectWords){
+  if (!text || text === "(answer unavailable)") return text;
+  const protect = new Set(protectWords);
+  const words = (text.match(/[A-Za-z']+/g) || []).map(w => w.toLowerCase());
+  [...words].sort((a, b) => b.length - a.length).slice(0, 2).forEach(w => protect.add(w)); // key words stay right
+  if (Math.random() >= Math.min(0.75, rate)) return text;
+  let out = oneSlip(text, protect);
+  if (rate > 0.5 && words.length >= 10 && Math.random() < 0.3) out = oneSlip(out, protect);
+  return out;
 }
 
 async function callClaude(body){
@@ -153,10 +291,11 @@ async function callClaude(body){
 // If the text missed its band badly, one cheap rewrite (no web search).
 // `isReal` keeps the rewrite from inventing facts in the real answer.
 async function fitLength(text, target, isReal, category){
-  const { lo, hi } = lengthBand(target, category);
+  const { lo, hi, slackHi } = lengthBand(target, category);
   const n = wordCount(text);
-  // A little slack either side, but never below the category minimum.
-  if (n >= Math.max(minWords(category), lo - 2) && n <= hi + 2) return text;
+  // A little slack, but never below the category minimum, and none on the
+  // long side for short targets.
+  if (n >= Math.max(minWords(category), lo - 2) && n <= hi + slackHi) return text;
   const rule = isReal
     ? "Keep it TRUE: do not add any new facts, names, numbers or dates. To lengthen, only add general description of what is already there; to shorten, drop detail."
     : "Keep it the same joke and the same (false) content — don't make it more accurate.";
@@ -369,7 +508,13 @@ Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
     console.error("generateBluff parse failure — raw text:", text.slice(0, 500));
     throw new Error("Could not parse a bluff from the model response.");
   }
-  return { bluff: await fitLength(parsed.bluff, target, false, category) };
+  let bluff = plainPunct(await fitLength(parsed.bluff, target, false, category));
+  try {
+    const st = gameId ? await db.collection("balderlaugh_length_state").doc(String(gameId)).get() : null;
+    const recent = st && st.exists && st.data().style ? st.data().style.recent : [];
+    bluff = addSlips(bluff, slipRate(recent), termWordSet(term));
+  } catch (err) { console.error("generateBluff: style step skipped:", err); }
+  return { bluff };
 });
 
 // ---- Answer lookup helpers (server-side only) -------------------------------
@@ -409,6 +554,7 @@ exports.startReading = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "gameId, roundIndex and order are required.");
   }
   const gameRef = db.collection("balderlaugh_games").doc(String(gameId));
+  try { dict(); } catch (err) { console.error("word list failed to load:", err); } // load before locking the game doc
   return db.runTransaction(async tx => {
     const snap = await tx.get(gameRef);
     if (!snap.exists) return { ok: false, reason: "no-game" };
@@ -429,7 +575,21 @@ exports.startReading = onCall(async (request) => {
 
     const aRef = answerRefFor(r);
     const aSnap = aRef ? await tx.get(aRef) : null;
-    const answerText = aSnap && aSnap.exists && aSnap.data().real ? aSnap.data().real : "(answer unavailable)";
+    const stateRef = db.collection("balderlaugh_length_state").doc(String(gameId));
+    const stSnap = await tx.get(stateRef);
+
+    // Style: how often do THIS table's bluffs have a slip? (humans only)
+    let recent = (stSnap.exists && stSnap.data().style && stSnap.data().style.recent) || [];
+    let styleOk = true;
+    try {
+      const flags = Object.entries(subs).filter(([u, x]) => u !== "CLAUDE" && x && x.text)
+        .map(([, x]) => entryHasSlip(x.text, r.term) ? 1 : 0);
+      recent = [...recent, ...flags].slice(-STYLE_WINDOW);
+    } catch (err) { styleOk = false; console.error("startReading: style check skipped:", err); }
+    const realText = aSnap && aSnap.exists && aSnap.data().real ? aSnap.data().real : null;
+    const answerText = realText
+      ? (styleOk ? addSlips(plainPunct(realText), slipRate(recent), termWordSet(r.term)) : plainPunct(realText))
+      : "(answer unavailable)";
 
     const secs = Math.min(READING_MAX_S, Math.max(READING_MIN_S, Number(readingSeconds) || 480));
     const update = {
@@ -441,6 +601,7 @@ exports.startReading = onCall(async (request) => {
     };
     if (Array.isArray(readerQueue) && readerQueue.every(u => typeof u === "string")) update.readerQueue = readerQueue;
     tx.update(gameRef, update);
+    if (styleOk) tx.set(stateRef, { style: { recent }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return { ok: true };
   });
 });
@@ -555,3 +716,7 @@ object: {"funniestIndex": <1-based number from the list above>, "reason":
     return { winnerId: null, reason: "Could not parse judge response." };
   }
 });
+
+// Internal helpers, exposed ONLY when the offline tests run
+// (tests/functions-tests.js sets BALDERLAUGH_TEST) — never in a deploy.
+if (process.env.BALDERLAUGH_TEST) exports._test = { entryHasSlip, slipRate, addSlips, plainPunct, termWordSet, buildDeck, lengthBand };

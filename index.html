@@ -988,12 +988,19 @@ function randomShuffle(arr){
 }
 
 // Evens out formatting so the real answer doesn't stand out just because
-// it's the only one with a capital letter and a period at the end.
+// it's the only one with a capital letter and a period at the end — or with
+// "writerly" punctuation people don't type on phones (em dashes, semicolons,
+// curly quotes, the single-character ellipsis). Applied to every entry.
 function tidy(s){
-  let t = (s||'').replace(/\s+/g,' ').trim();
+  let t = (s||'')
+    .replace(/[\u2018\u2019\u201B\u2032]/g, "'").replace(/[\u201C\u201D\u201E\u2033]/g, '"')
+    .replace(/\u2026/g, '...')
+    .replace(/\s*[\u2014\u2013]\s*/g, ', ').replace(/\s*;\s*/g, ', ')
+    .replace(/,\s*([,.!?])/g, '$1')
+    .replace(/\s+/g,' ').trim().replace(/^,\s*/, '').replace(/[,\s]+$/, '');
   if(!t) return t;
   t = t[0].toUpperCase() + t.slice(1);
-  if(!/[.!?…"”')\]]$/.test(t)) t += '.';
+  if(!/[.!?"')\]]$/.test(t)) t += '.';
   return t;
 }
 
