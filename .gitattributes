@@ -1,0 +1,13 @@
+# Keep every text file with LF line endings, in the repo and on disk.
+# Stops Git on Windows warning that it will convert LF to CRLF.
+* text=auto eol=lf
+
+# Never touch binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
