@@ -274,8 +274,102 @@
   .wander-line:last-child{border-bottom:none;}
   .wander-line .who{display:inline-block;font-weight:700;padding:1px 9px;border-radius:20px;}
 
+
+  /* =========================================================
+     INTRO SPLASH (every fresh open) + HOW TO PLAY sheet
+     ========================================================= */
+  .intro{position:fixed;inset:0;z-index:70;overflow-y:auto;overflow-x:hidden;
+    background:radial-gradient(120% 80% at 50% 0%, rgba(193,82,28,.22), transparent 60%), rgba(10,12,18,.86);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:opacity .3s ease;}
+  .intro.closing{opacity:0;}
+  .intro[hidden]{display:none;}
+  .intro-x{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);right:14px;z-index:2;
+    width:44px;height:44px;border-radius:50%;border:none;background:var(--parchment);color:var(--ink);
+    font-size:22px;font-weight:700;line-height:1;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45);font-family:inherit;}
+  .intro-x:active{transform:scale(.94);}
+  .intro-head{text-align:center;padding:30px 60px 0;}
+  .intro-head .mark{font-family:'Fraunces',serif;font-size:40px;font-weight:700;color:var(--fox);line-height:1;}
+  .intro-stage{position:relative;width:min(100%,440px);margin:0 auto;padding:44px 0 20px;}
+  .intro-foot{text-align:center;padding:0 16px 48px;}
+  .intro-how{display:inline-flex;align-items:center;gap:8px;background:transparent;border:2px solid var(--parchment);
+    color:var(--parchment);border-radius:24px;padding:10px 20px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .ishot{position:relative;width:212px;margin:0 auto;}
+  .ishot + .ishot{margin-top:-4px;}
+  .ishot.is1,.ishot.is3{left:-50px;}
+  .ishot.is2{left:50px;}
+  .itilt{transform:rotate(20deg);}
+  .is2 .itilt{transform:rotate(-20deg);}
+  .ipop{animation:ipopout .7s cubic-bezier(.2,1.5,.35,1) both;}
+  .is1 .ipop{animation-delay:.15s;} .is2 .ipop{animation-delay:.45s;} .is3 .ipop{animation-delay:.75s;}
+  @keyframes ipopout{0%{opacity:0;transform:scale(.35) translateY(40px);filter:blur(4px);}
+    60%{opacity:1;filter:blur(0);}100%{opacity:1;transform:scale(1) translateY(0);}}
+  .ifloat{animation:ifloat 4.5s ease-in-out infinite;}
+  .is2 .ifloat{animation-delay:-1.5s;} .is3 .ifloat{animation-delay:-3s;}
+  @keyframes ifloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+  .iphone{position:relative;background:var(--ink);border:5px solid var(--parchment);border-radius:22px;padding:12px 10px;overflow:hidden;
+    box-shadow:0 2px 0 rgba(255,255,255,.08) inset, 0 18px 30px rgba(0,0,0,.55), 0 40px 80px rgba(0,0,0,.45);}
+  .iphone::before{content:"";display:block;width:46px;height:5px;border-radius:5px;background:var(--ink-3);margin:-4px auto 9px;}
+  .istep{position:absolute;z-index:3;top:-20px;font-family:'Fraunces',serif;font-weight:700;font-size:25px;
+    padding:5px 16px 7px;border-radius:14px;border:3px solid #fff;color:#fff;box-shadow:0 8px 18px rgba(0,0,0,.5);}
+  .is1 .istep{left:-18px;background:var(--fox);transform:rotate(-8deg);}
+  .is2 .istep{right:-18px;background:var(--gold);color:#3a2c00;transform:rotate(8deg);}
+  .is3 .istep{left:-18px;background:#7A4FA0;transform:rotate(-8deg);}
+  .istep small{font-family:'Inter',sans-serif;font-size:12px;font-weight:800;opacity:.8;margin-right:6px;vertical-align:3px;}
+  .m-prompt{background:var(--parchment);color:var(--text-dark);border-radius:10px;padding:10px 8px 12px;text-align:center;}
+  .m-cat{font-size:7.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--fox);font-weight:800;margin-bottom:4px;}
+  .m-term{font-family:'Fraunces',serif;font-size:15px;font-weight:700;line-height:1.15;}
+  .m-timer{text-align:center;font-family:'Fraunces',serif;font-size:10px;color:var(--muted);margin:6px 0 4px;}
+  .m-label{font-size:8.5px;color:var(--muted);margin:2px 0 4px;}
+  .m-box{background:var(--ink-2);border:1.5px solid var(--fox);border-radius:7px;padding:7px 8px;font-size:10px;line-height:1.4;color:var(--text-light);min-height:64px;}
+  .m-caret{display:inline-block;width:1.5px;height:11px;background:var(--text-light);vertical-align:-2px;margin-left:1px;animation:mblink 1s steps(1) infinite;}
+  @keyframes mblink{50%{opacity:0;}}
+  .m-btn{margin-top:8px;background:var(--fox);color:#fff;border-radius:8px;text-align:center;font-size:10px;font-weight:700;padding:7px;}
+  .m-opt{position:relative;background:var(--parchment);color:var(--text-dark);border-radius:8px;padding:6px 7px;margin-top:5px;font-size:8.8px;line-height:1.35;border:1.5px solid transparent;}
+  .m-opt.realrow{border-color:var(--moss);}
+  .m-chips{display:flex;gap:4px;margin-top:4px;}
+  .m-chip{font-size:7px;font-weight:800;padding:2px 7px;border-radius:10px;border:1.5px solid;}
+  .m-chip.real{border-color:var(--fox);color:var(--fox);}
+  .m-chip.real.on{background:var(--fox);color:#fff;}
+  .m-chip.funny{border-color:#7A4FA0;color:#7A4FA0;}
+  .m-chip.funny.on{background:#7A4FA0;color:#fff;}
+  .m-tap{position:absolute;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 0 0 3px rgba(255,255,255,.25);
+    animation:mtap 2.4s ease-out infinite;pointer-events:none;}
+  @keyframes mtap{0%,55%{transform:scale(.4);opacity:0;}65%{opacity:1;transform:scale(1);}100%{opacity:0;transform:scale(1.6);}}
+  .m-flags{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;}
+  .m-flag{font-size:7px;font-weight:800;padding:2px 6px;border-radius:10px;}
+  .m-flag.realf{background:var(--moss);color:#fff;}
+  .m-flag.votes{background:var(--ink-3);color:var(--text-light);}
+  .m-laughs{display:inline-flex;gap:1px;font-size:10px;line-height:1;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}
+  .m-laughs span{display:inline-block;border-radius:50%;padding:1px;}
+  .m-mic{margin-top:6px;text-align:center;border-radius:8px;padding:5px;border:2px solid #fff;background:#EC4899;color:#fff;
+    font-family:'Fraunces',serif;font-weight:700;font-size:11px;}
+  .m-mic small{display:block;font-family:'Inter',sans-serif;font-size:7px;letter-spacing:.14em;font-weight:800;}
+  @media (min-width:760px){
+    .intro-stage{width:760px;display:flex;justify-content:space-between;align-items:flex-start;padding:70px 20px 40px;}
+    .ishot,.ishot.is1,.ishot.is2,.ishot.is3{left:0;margin:0;}
+    .ishot.is2{margin-top:60px !important;}
+  }
+  @media (max-width:380px){
+    .ishot{width:196px;}
+    .ishot.is1,.ishot.is3{left:-42px;} .ishot.is2{left:42px;}
+  }
+
+  /* How to play */
+  .rules-sheet{z-index:80;background:rgba(14,17,25,.97);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);}
+  .rules-sec{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:18px 0 6px;}
+  .rule{display:flex;align-items:flex-start;gap:12px;padding:9px 2px;border-bottom:1px solid var(--ink-3);font-size:15px;line-height:1.45;}
+  .rule:last-child{border-bottom:none;}
+  .rule .ic{flex:0 0 34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;
+    font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;background:var(--ink-3);}
+  .rule .ic .cards-ico{width:24px;height:22px;}
+  .rule b{color:var(--text-light);}
+  .rule .pts{display:inline-block;font-weight:800;font-variant-numeric:tabular-nums;color:var(--gold);min-width:2.2em;}
+  .how-link{display:block;text-align:center;font-size:14px;color:var(--muted);margin-top:12px;cursor:pointer;background:none;border:none;font-family:inherit;width:100%;}
+  .how-link span{color:var(--fox);text-decoration:underline;}
+
   @media (prefers-reduced-motion: reduce){
     .shake{animation:none;}
+    .ipop,.ifloat,.m-caret,.m-tap{animation:none !important;}
   }
 </style>
 </head>
@@ -310,7 +404,7 @@
 
   <!-- ============ HOME (name entry + open games) ============ -->
   <section class="screen" id="screen-home">
-    <div class="brand"><span class="mark">Balderlaugh</span><span class="brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="26" cy="30" r="21" fill="#D4A017"/><path d="M15 23.5q4.5-5.5 9 0M28 23.5q4.5-5.5 9 0" stroke="#3a2c00" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M10.5 27.5q-3.5 5.5 0 8q3.5-2.5 0-8z" fill="#7DD3FC"/><path d="M13 32h24q-1.5 13-12 13q-10.5 0-12-13z" fill="#3a2c00"/><path d="M17.5 40.5q7.5-4.5 15 0q-3 4-7.5 4q-4.5 0-7.5-4z" fill="#E86A5A"/><g transform="rotate(16 49 43)"><rect x="39" y="26" width="19" height="32" rx="4.5" fill="#1B1F2A" stroke="#F2E9D8" stroke-width="2.6"/><rect x="42.5" y="30.5" width="12" height="20" rx="1.5" fill="#F2E9D8"/><path d="M45 35h7M45 39.5h5M45 44h7" stroke="#C1521C" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="tag">bluff, guess, laugh</span></div>
+    <div class="brand"><span class="mark">Balderlaugh</span><span class="brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="26" cy="30" r="21" fill="#D4A017"/><path d="M15 23.5q4.5-5.5 9 0M28 23.5q4.5-5.5 9 0" stroke="#3a2c00" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M10.5 27.5q-3.5 5.5 0 8q3.5-2.5 0-8z" fill="#7DD3FC"/><path d="M13 32h24q-1.5 13-12 13q-10.5 0-12-13z" fill="#3a2c00"/><path d="M17.5 40.5q7.5-4.5 15 0q-3 4-7.5 4q-4.5 0-7.5-4z" fill="#E86A5A"/><g transform="rotate(16 49 43)"><rect x="39" y="26" width="19" height="32" rx="4.5" fill="#1B1F2A" stroke="#F2E9D8" stroke-width="2.6"/><rect x="42.5" y="30.5" width="12" height="20" rx="1.5" fill="#F2E9D8"/><path d="M45 35h7M45 39.5h5M45 44h7" stroke="#C1521C" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="tag">bluff, vote, laugh</span></div>
 
     <label for="input-name">Your name</label>
     <input type="text" id="input-name" placeholder="e.g. Jamie" maxlength="24" autocomplete="off">
@@ -338,6 +432,7 @@
         <input type="text" id="input-joincode" placeholder="Click a game above or enter code" maxlength="6" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" style="text-transform:uppercase;">
         <button class="btn secondary small" id="btn-join-code">Join</button>
       </div>
+      <button type="button" class="how-link" data-rules>❓ <span>How to play</span></button>
     </div>
     <div class="err" id="home-err"></div>
   </section>
@@ -430,6 +525,7 @@
       <button class="btn" id="btn-start-game">Start game</button>
       <div class="err" id="lobby-err"></div>
       <div class="note center" id="lobby-wait-note">Waiting for the host to start&hellip;</div>
+      <button type="button" class="how-link" data-rules>❓ <span>How to play</span></button>
     </div>
   </section>
 
@@ -606,6 +702,7 @@
 <div class="menu-pop" id="menu-pop" role="menu">
   <button type="button" id="menu-sitout">Sit out</button>
   <button type="button" id="menu-settings">⚙ Settings</button>
+  <button type="button" id="menu-rules">❓ How to play</button>
   <button type="button" id="menu-leave" class="danger">Leave for now</button>
 </div>
 
@@ -620,6 +717,79 @@
       <div class="splash-leads" id="splash-leads">Leads Round</div>
       <div class="splash-pts" id="splash-pts">+2 points!</div>
     </div>
+  </div>
+</div>
+
+<!-- ============ INTRO SPLASH (shown on every fresh open, not on resume) ============ -->
+<div class="intro" id="intro" role="dialog" aria-modal="true" aria-label="Welcome to Balderlaugh" hidden>
+  <button class="intro-x" id="intro-x" type="button" aria-label="Close">✕</button>
+  <div class="intro-head"><div class="mark">Balderlaugh</div></div>
+  <div class="intro-stage">
+    <div class="ishot is1"><div class="itilt"><div class="ipop"><div class="ifloat">
+      <div class="istep"><small>1</small>Bluff</div>
+      <div class="iphone">
+        <div class="m-prompt"><div class="m-cat">That's Really a Movie?</div><div class="m-term">The Moose Who Knew Too Much</div></div>
+        <div class="m-timer">2:41</div>
+        <div class="m-label">Write a believable plot summary</div>
+        <div class="m-box">A retired Mountie and a very determined moose team up to bust a maple-syrup smuggling ring on Lake Muskoka.<span class="m-caret"></span></div>
+        <div class="m-btn">Submit bluff</div>
+      </div>
+    </div></div></div></div>
+    <div class="ishot is2"><div class="itilt"><div class="ipop"><div class="ifloat">
+      <div class="istep"><small>2</small>Vote</div>
+      <div class="iphone">
+        <div class="m-prompt"><div class="m-cat">That's Really a Movie?</div><div class="m-term">The Moose Who Knew Too Much</div></div>
+        <div class="m-timer">1:12</div>
+        <div class="m-opt">A 1962 Swedish documentary following one moose's migration across Lapland.
+          <div class="m-chips"><span class="m-chip real on">Real</span><span class="m-chip funny">😂 Funniest</span></div></div>
+        <div class="m-opt">A moose inherits a failing ski resort and must win the winter carnival to save it.
+          <div class="m-chips"><span class="m-chip real">Real</span><span class="m-chip funny on">😂 Funniest</span></div>
+          <span class="m-tap" style="left:62px;bottom:-4px;"></span></div>
+        <div class="m-opt">A retired Mountie and a very determined moose bust a maple-syrup smuggling ring.
+          <div class="m-chips"><span class="m-chip real">Real</span><span class="m-chip funny">😂 Funniest</span></div></div>
+      </div>
+    </div></div></div></div>
+    <div class="ishot is3"><div class="itilt"><div class="ipop"><div class="ifloat">
+      <div class="istep"><small>3</small>Laugh</div>
+      <div class="iphone">
+        <div class="m-prompt"><div class="m-cat">That's Really a Movie?</div><div class="m-term">The Moose Who Knew Too Much</div></div>
+        <div class="m-opt realrow">A 1962 Swedish documentary following one moose's migration across Lapland.
+          <div class="m-flags"><span class="m-flag realf">REAL</span><span class="m-flag votes">1 vote</span></div></div>
+        <div class="m-opt">A moose inherits a failing ski resort and must win the winter carnival to save it.
+          <div class="m-flags"><span class="m-flag" style="background:#EC4899;color:#fff;">Pat</span><span class="m-flag votes">fooled 2</span>
+            <span class="m-laughs"><span style="background:#2563EB">😂</span><span style="background:#0D9488">😂</span><span style="background:#DC2626">😂</span></span></div></div>
+        <div class="m-opt">A retired Mountie and a very determined moose bust a maple-syrup smuggling ring.
+          <div class="m-flags"><span class="m-flag" style="background:#2563EB;color:#fff;">Sasha</span><span class="m-flag votes">fooled 1</span></div></div>
+        <div class="m-mic">Pat<small>LEADS THE ROUND</small></div>
+      </div>
+    </div></div></div></div>
+  </div>
+  <div class="intro-foot"><button type="button" class="intro-how" data-rules>❓ How to play</button></div>
+</div>
+
+<!-- ============ HOW TO PLAY ============ -->
+<div class="sheet rules-sheet" id="rules-sheet" role="dialog" aria-modal="true" aria-label="How to play">
+  <div class="sheet-inner">
+    <div class="sheet-head"><h2 style="margin:0;">How to play</h2><button class="x" type="button" id="btn-close-rules" aria-label="Close">✕</button></div>
+
+    <div class="rules-sec">Each round</div>
+    <div class="rule"><div class="ic">✍️</div><div><b>Bluff.</b> You get a strange word, person or movie. Write a fake answer that sounds real.</div></div>
+    <div class="rule"><div class="ic">📖</div><div><b>Listen.</b> One player reads all the answers out loud. The real one is hiding in there.</div></div>
+    <div class="rule"><div class="ic">🗳️</div><div><b>Vote.</b> Tap <b>Real</b> on the one you think is true. Tap <b>😂</b> on the funniest.</div></div>
+    <div class="rule"><div class="ic">😂</div><div><b>Laugh.</b> See the real answer, who wrote what, and who got fooled.</div></div>
+
+    <div class="rules-sec">Points</div>
+    <div class="rule"><div class="ic">✅</div><div><span class="pts">+2</span>for picking the real answer</div></div>
+    <div class="rule"><div class="ic"><svg class="cards-ico" viewBox="0 0 32 28" aria-hidden="true"><g stroke="#1B1F2A" stroke-width="1.3"><rect x="6" y="4" width="13" height="19" rx="2" fill="#fff" transform="rotate(-22 12.5 22)"/><rect x="9.5" y="3" width="13" height="19" rx="2" fill="#fff"/><rect x="13" y="4" width="13" height="19" rx="2" fill="#fff" transform="rotate(22 19.5 22)"/></g><path d="M11 8.5c1.4-1.8 3.4 0 1.2 2l-1.2 1.1-1.2-1.1c-2.2-2 -.2-3.8 1.2-2z" fill="#DC2626" transform="rotate(-22 12.5 22)"/><text x="19.2" y="15.2" transform="rotate(22 19.5 22)" font-size="9" font-weight="700" text-anchor="middle" fill="#1B1F2A" font-family="Georgia,serif">A</text></svg></div><div><span class="pts">+1</span>for every player your bluff fools</div></div>
+    <div class="rule"><div class="ic">😂</div><div><span class="pts">+1</span>for every funniest vote <span class="note">(if the host turns it on)</span></div></div>
+
+    <div class="rules-sec">Good to know</div>
+    <div class="rule"><div class="ic">🚫</div><div>You can't vote for your own answer.</div></div>
+    <div class="rule"><div class="ic">👀</div><div>No peeking at other apps. If you leave the game mid-round, everyone finds out.</div></div>
+    <div class="rule"><div class="ic">🪑</div><div>Need a break? Tap <b>⋯</b> and choose <b>Sit out</b>.</div></div>
+    <div class="rule"><div class="ic">🤖</div><div>The host can let Claude play. Claude writes a bluff and can score, but never votes for the real answer.</div></div>
+
+    <button class="btn" type="button" id="btn-rules-done" style="margin-top:18px;">Got it</button>
   </div>
 </div>
 
@@ -702,6 +872,7 @@ async function getGeneratedAnswer(answerId){
   return snap.exists() ? snap.data().real : '(answer unavailable)';
 }
 const CAT_LABEL = { oddWords:"Odd Words", obscurePeople:"Obscure People", movies:"That's Really a Movie?" };
+const CAT_WRITE_LABEL = { oddWords:"Write a believable definition", obscurePeople:"Write a believable mini-bio", movies:"Write a believable plot summary" };
 
 // ---- Cross-game cooldown --------------------------------------------------
 // Both live generation and the seeded fallback have independently
@@ -1630,6 +1801,7 @@ function renderWriting(isNew){
   const r = game.round;
   $('writing-round-pill').textContent = formatRoundLabel(r);
   $('writing-cat').textContent = CAT_LABEL[r.category];
+  $('writing-label').textContent = CAT_WRITE_LABEL[r.category] || 'Write a believable answer';
   $('writing-term').textContent = r.term;
 
   const sittingOut = amISittingOut();
@@ -2558,11 +2730,36 @@ $('btn-leave-reading').onclick = leaveGame;
 $('btn-leave-voting').onclick = leaveGame;
 $('btn-leave-reveal').onclick = leaveGame;
 
+// ---- Intro splash + How to play ----------------------------------------------
+function openIntro(){
+  const el = $('intro');
+  el.hidden = false; el.scrollTop = 0;
+  el.querySelectorAll('.ipop').forEach(p => { p.style.animation = 'none'; void p.offsetHeight; p.style.animation = ''; });
+}
+function closeIntro(){
+  const el = $('intro');
+  if(el.hidden) return;
+  el.classList.add('closing');
+  setTimeout(() => { el.hidden = true; el.classList.remove('closing'); }, 300);
+}
+function openRules(){ closeIntro(); closeMenu(); $('rules-sheet').classList.add('open'); $('rules-sheet').scrollTop = 0; }
+function closeRules(){ $('rules-sheet').classList.remove('open'); }
+$('intro-x').onclick = closeIntro;
+$('btn-close-rules').onclick = closeRules;
+$('btn-rules-done').onclick = closeRules;
+$('menu-rules').onclick = (e) => { e.stopPropagation(); openRules(); };
+document.querySelectorAll('[data-rules]').forEach(b => b.onclick = openRules);
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  if($('rules-sheet').classList.contains('open')) closeRules(); else closeIntro();
+});
+
 (async () => {
   const resumed = await tryResume();
   if(!resumed){
     initHome();
     showScreen('screen-home');
+    openIntro(); // every fresh open — but never when a refresh drops you back into a game
   }
 })();
 </script>

@@ -279,3 +279,14 @@ ones deleted after 24h). Leaving mid-game now parks you as `left: true`
 colour; joining with the same name from another device reclaims a left seat.
 Play again drops left players. Fixed: home screen wasn't set up when the page
 resumed straight into a game and the player later left.
+
+## Intro splash & How to play
+- Every fresh open shows a full-screen intro (`#intro`): three tilted "game
+  footage" cards (Bluff / Vote / Laugh) that pop out in turn. Close with ✕ or
+  Esc. It is **not** shown when a refresh resumes straight into a game.
+- "How to play" (`#rules-sheet`) is reachable from the intro, the home
+  screen, the lobby, and the ⋯ menu on every round screen. Plain-wording
+  rules with icons: the round steps, points, and a few table rules.
+- Tagline is now "bluff, vote, laugh" (Vote, not Guess, everywhere).
+- The writing box label now matches the category: definition / mini-bio /
+  plot summary (it said "definition" for all three before).
