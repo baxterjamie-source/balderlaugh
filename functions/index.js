@@ -55,6 +55,12 @@ const MIN_ROOM_SAMPLES = 6;
 const ROOM_WINDOW = 24;      // most recent human bluffs considered
 const MAX_WORDS = 30;
 
+// Movies need a longer minimum, so their short/middle bands shift up to
+// stay distinct: 8-11 / 12-19 / 20-30.
+function bandsFor(category){
+  const floor = category === "movies" ? 8 : 4;
+  return floor === 4 ? DEFAULT_BANDS : [[floor, floor + 3], [floor + 4, 19], [20, MAX_WORDS]];
+}
 function randInt(lo, hi){ return lo + Math.floor(Math.random() * (hi - lo + 1)); }
 function shuffle(arr){
   const a = [...arr];
@@ -63,6 +69,14 @@ function shuffle(arr){
 }
 function wordCount(t){ return String(t || "").trim().split(/\s+/).filter(Boolean).length; }
 function minWords(category){ return category === "movies" ? 8 : 4; }
+// Below the minimum: land somewhere just above it (floor..floor+3) instead
+// of piling every short card onto exactly the minimum, which would itself
+// become a recognizable length.
+function clampTarget(n, category){
+  const floor = minWords(category);
+  if (!Number.isFinite(n) || n < floor) return randInt(floor, floor + 3);
+  return Math.min(MAX_WORDS, n);
+}
 
 function buildDeck(roomLengths, category){
   const floor = minWords(category);
@@ -74,13 +88,13 @@ function buildDeck(roomLengths, category){
   if (L.length >= 8) L = L.slice(1, -1); // drop the single shortest and longest
   const useRoom = L.length >= MIN_ROOM_SAMPLES;
   const w = useRoom ? L.length / (L.length + 4) : 0; // more data, more trust
-  const cards = DEFAULT_BANDS.map(([lo, hi], i) => {
+  const cards = bandsFor(category).map(([lo, hi], i) => {
     const def = randInt(lo, hi);
     if (!useRoom) return def;
     const third = L.slice(Math.floor(i * L.length / 3), Math.max(Math.floor((i + 1) * L.length / 3), Math.floor(i * L.length / 3) + 1));
     const room = third[Math.floor(Math.random() * third.length)];
     return Math.round(w * room + (1 - w) * def);
-  }).map(n => Math.min(MAX_WORDS, Math.max(floor, n)));
+  }).map(n => clampTarget(n, category));
   return shuffle(cards);
 }
 
@@ -100,8 +114,7 @@ async function drawTarget(gameId, roundIndex, kind, category){
       if (state.roundKey === roundKey && Number.isFinite(state.target)) return state.target;
       let deck = Array.isArray(state.deck) ? [...state.deck] : [];
       if (!deck.length) deck = buildDeck(g.exists ? g.data().bluffLengths : [], category);
-      const floor = minWords(category);
-      const target = Math.min(MAX_WORDS, Math.max(floor, deck.shift()));
+      const target = clampTarget(deck.shift(), category);
       tx.set(stateRef, { [kind]: { deck, roundKey, target }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       return target;
     });
@@ -111,12 +124,12 @@ async function drawTarget(gameId, roundIndex, kind, category){
   }
 }
 
-function lengthBand(target){
+function lengthBand(target, category){
   const tol = Math.max(2, Math.round(target * 0.2));
-  return { lo: Math.max(3, target - tol), hi: Math.min(MAX_WORDS, target + tol) };
+  return { lo: Math.max(minWords(category), target - tol), hi: Math.min(MAX_WORDS, target + tol) };
 }
-function lengthInstruction(target){
-  const { lo, hi } = lengthBand(target);
+function lengthInstruction(target, category){
+  const { lo, hi } = lengthBand(target, category);
   const numbers = target < 12
     ? "No specific numbers or dates at all."
     : "Never state more than ONE specific number, date, or quantity in the whole thing (zero is fine).";
@@ -139,10 +152,11 @@ async function callClaude(body){
 
 // If the text missed its band badly, one cheap rewrite (no web search).
 // `isReal` keeps the rewrite from inventing facts in the real answer.
-async function fitLength(text, target, isReal){
-  const { lo, hi } = lengthBand(target);
+async function fitLength(text, target, isReal, category){
+  const { lo, hi } = lengthBand(target, category);
   const n = wordCount(text);
-  if (n >= lo - 2 && n <= hi + 2) return text;
+  // A little slack either side, but never below the category minimum.
+  if (n >= Math.max(minWords(category), lo - 2) && n <= hi + 2) return text;
   const rule = isReal
     ? "Keep it TRUE: do not add any new facts, names, numbers or dates. To lengthen, only add general description of what is already there; to shorten, drop detail."
     : "Keep it the same joke and the same (false) content — don't make it more accurate.";
@@ -190,7 +204,7 @@ the "real" answer being genuinely true, not something you recall
 unverified from memory. Pick something obscure enough to not be
 immediately obvious, but confirmable.${avoid}
 
-For the "real" field: ${lengthInstruction(target)}
+For the "real" field: ${lengthInstruction(target, category)}
 
 Once verified, respond with ONLY a JSON object (no other text):
 {"term": "the word/person name/movie title", "real": "the real definition/bio/plot summary", "source": "brief note on where you verified this"}`;
@@ -246,7 +260,7 @@ Once verified, respond with ONLY a JSON object (no other text):
   if (!parsed.term || !parsed.real) {
     throw new Error("Generated item was missing a term or real answer.");
   }
-  parsed.real = await fitLength(parsed.real, target, true);
+  parsed.real = await fitLength(parsed.real, target, true, category);
 
   // Store the real answer server-side, keyed to this exact game+round.
   // Clients can't read this collection at all — the answer only reaches a
@@ -323,7 +337,7 @@ tell that this was AI-generated, not a real human bluff.
 
 ${overlapRule}
 
-${lengthInstruction(target)}
+${lengthInstruction(target, category)}
 
 Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
 
@@ -355,7 +369,7 @@ Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
     console.error("generateBluff parse failure — raw text:", text.slice(0, 500));
     throw new Error("Could not parse a bluff from the model response.");
   }
-  return { bluff: await fitLength(parsed.bluff, target, false) };
+  return { bluff: await fitLength(parsed.bluff, target, false, category) };
 });
 
 // ---- Answer lookup helpers (server-side only) -------------------------------

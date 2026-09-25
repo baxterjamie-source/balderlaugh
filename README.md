@@ -314,13 +314,20 @@ answer early is to force the round forward, which the whole table sees.
 The real answer and Claude's bluff each get a word-count target from their
 own shuffled 3-card deck (one short, one middle, one long). Decks are
 re-dealt every 3 rounds. Until the room has 6+ human bluffs on record, the
-default spread is used (4-9, 10-18, 19-30 words); after that, the recent
+default spread is used (4-9, 10-18, 19-30 words; movies 8-11, 12-19, 20-30); after that, the recent
 human bluff lengths (`game.bluffLengths`, last 40, word counts only) are
 split into thirds and blended with the default, trusting the room more as
-data grows. Clamped to 4-30 words (movies 8-30). If Claude misses its range
+data grows. Clamped to 4-30 words (movies 8-30); a target that would fall below the
+minimum lands a few words above it instead of piling up on the minimum. If Claude misses its range
 badly, one quick rewrite is tried. Decks live in `balderlaugh_length_state`
 (server only). Backup-bank items keep their original lengths.
 
 ## Server runtime
 Functions run on Node 22 (`functions/package.json`); Google retires Node 20
 on 2026-10-30.
+
+## Offline tests
+`node tests/functions-tests.js` runs the real `functions/index.js` against a
+fake Firestore and a fake Claude (no Firebase login or API key needed):
+length decks, retries, rewrites, checkAnswers and startReading. Run it after
+any change to the functions, before deploying.
