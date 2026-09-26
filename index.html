@@ -220,6 +220,13 @@
     80%{transform:translate(4px,-1px)} 90%{transform:translate(-2px,1px)} 100%{transform:translate(0,0) rotate(0)}
   }
   .shake{animation:shake .5s ease-out;}
+  /* Name field nudge when someone tries to join/start without a name */
+  #input-name.need-name{border-color:var(--danger);outline:2px solid var(--danger);outline-offset:1px;background:rgba(180,68,58,.12);}
+  .who-for{font-size:13px;color:var(--muted);margin:0 0 14px;}
+  .intro-who{display:inline-block;margin-top:12px;padding:6px 14px;border-radius:20px;background:rgba(242,233,216,.12);
+    border:1.5px solid rgba(242,233,216,.35);color:var(--parchment);font-size:14px;font-weight:700;line-height:1.35;margin-left:-40px;margin-right:-40px;}
+  .intro-who .nw{white-space:nowrap;}
+  .intro-who small{display:block;font-size:12.5px;font-weight:600;opacity:.85;margin-top:2px;}
   /* ---- Round screens: ⋯ menu + round label live inside the item card ---- */
   .hidden-actions{display:none;}
   .prompt-card{position:relative;padding-bottom:30px !important;}
@@ -405,6 +412,7 @@
   <!-- ============ HOME (name entry + open games) ============ -->
   <section class="screen" id="screen-home">
     <div class="brand"><span class="mark">Balderlaugh</span><span class="brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="26" cy="30" r="21" fill="#D4A017"/><path d="M15 23.5q4.5-5.5 9 0M28 23.5q4.5-5.5 9 0" stroke="#3a2c00" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M10.5 27.5q-3.5 5.5 0 8q3.5-2.5 0-8z" fill="#7DD3FC"/><path d="M13 32h24q-1.5 13-12 13q-10.5 0-12-13z" fill="#3a2c00"/><path d="M17.5 40.5q7.5-4.5 15 0q-3 4-7.5 4q-4.5 0-7.5-4z" fill="#E86A5A"/><g transform="rotate(16 49 43)"><rect x="39" y="26" width="19" height="32" rx="4.5" fill="#1B1F2A" stroke="#F2E9D8" stroke-width="2.6"/><rect x="42.5" y="30.5" width="12" height="20" rx="1.5" fill="#F2E9D8"/><path d="M45 35h7M45 39.5h5M45 44h7" stroke="#C1521C" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="tag">bluff, vote, laugh</span></div>
+    <div class="who-for">👥 2–8 players · same room · everyone on their own phone</div>
 
     <label for="input-name">Your name</label>
     <input type="text" id="input-name" placeholder="e.g. Jamie" maxlength="24" autocomplete="off">
@@ -723,7 +731,7 @@
 <!-- ============ INTRO SPLASH (shown on every fresh open, not on resume) ============ -->
 <div class="intro" id="intro" role="dialog" aria-modal="true" aria-label="Welcome to Balderlaugh" hidden>
   <button class="intro-x" id="intro-x" type="button" aria-label="Close">✕</button>
-  <div class="intro-head"><div class="mark">Balderlaugh</div></div>
+  <div class="intro-head"><div class="mark">Balderlaugh</div><div class="intro-who"><span class="nw">👥 A party game for 2–8 players</span><small>Same room · everyone on their own phone</small></div></div>
   <div class="intro-stage">
     <div class="ishot is1"><div class="itilt"><div class="ipop"><div class="ifloat">
       <div class="istep"><small>1</small>Bluff</div>
@@ -771,6 +779,12 @@
 <div class="sheet rules-sheet" id="rules-sheet" role="dialog" aria-modal="true" aria-label="How to play">
   <div class="sheet-inner">
     <div class="sheet-head"><h2 style="margin:0;">How to play</h2><button class="x" type="button" id="btn-close-rules" aria-label="Close">✕</button></div>
+
+    <div class="rules-sec">Setup</div>
+    <div class="rule"><div class="ic">👥</div><div><b>2 to 8 players.</b></div></div>
+    <div class="rule"><div class="ic">🛋️</div><div><b>Play together in the same room.</b> Part of the fun is reading the answers out loud and watching faces.</div></div>
+    <div class="rule"><div class="ic">📱</div><div><b>Everyone uses their own phone.</b> There's no shared screen, and each person's bluff stays secret.</div></div>
+    <div class="rule"><div class="ic">🏷️</div><div><b>Enter your name first.</b> One person taps <b>Start a new game</b>. Everyone else taps that game in the list, or types its code.</div></div>
 
     <div class="rules-sec">Each round</div>
     <div class="rule"><div class="ic">✍️</div><div><b>Bluff.</b> You get a strange word, person or movie. Write a fake answer that sounds real.</div></div>
@@ -1048,6 +1062,20 @@ function playerColor(uid){
 }
 class JoinError extends Error {}
 
+// No name yet? Make it impossible to miss: pop a toast, highlight + shake the
+// name box, scroll to it and focus it. (The old bottom-of-page error was easy
+// to miss on a phone.)
+function nudgeForName(){
+  const msg = 'Enter your name first, then join or start a game.';
+  $('home-err').textContent = msg;
+  showToast('name', `<strong>What's your name?</strong><br>Type it in the <b>Your name</b> box at the top so the others know who wrote what.`, '👋', 6000);
+  const inp = $('input-name');
+  inp.classList.add('need-name');
+  inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  inp.scrollIntoView({ behavior:'smooth', block:'center' });
+  setTimeout(() => inp.focus(), 250);
+}
+
 // Everyone with a score: the players, plus Claude when it's in the game
 // (Include Claude on) or has already banked points.
 function scoreboard(){
@@ -1068,11 +1096,12 @@ function initHome(){
   $('input-name').addEventListener('input', e => {
     myName = e.target.value;
     localStorage.setItem('balderlaugh_name', myName);
+    if(myName.trim()){ e.target.classList.remove('need-name'); if(/name first/.test($('home-err').textContent)) $('home-err').textContent = ''; }
   });
 
   $('btn-create-game').onclick = async () => {
     const name = myName.trim();
-    if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
+    if(!name){ nudgeForName(); return; }
     if(isReservedName(name)){ $('home-err').textContent = "Nice try — that name is reserved. Pick another."; return; }
     $('home-err').textContent = '';
     const code = genCode();
@@ -1143,7 +1172,7 @@ function gameListItem(id, g, meta, goLabel, disabled){
   el.onclick = () => {
     if(disabled) return;
     const name = myName.trim();
-    if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
+    if(!name){ nudgeForName(); return; }
     joinGame(id);
   };
   if(g.hostUid === myUid){
@@ -1265,7 +1294,7 @@ function checkHostReturn(){
 
 async function joinGame(code){
   const name = myName.trim();
-  if(!name){ $('home-err').textContent = 'Enter your name first.'; return; }
+  if(!name){ nudgeForName(); return; }
   if(isReservedName(name)){ $('home-err').textContent = "Nice try — that name is reserved. Pick another."; return; }
   // Transaction so two people joining at the same instant can't both grab
   // the 8th seat or the same colour.
