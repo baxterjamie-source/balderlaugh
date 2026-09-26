@@ -1,0 +1,2831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balderlaugh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1F2A;
+    --ink-2:#242A3A;
+    --ink-3:#323A50;
+    --parchment:#F2E9D8;
+    --parchment-2:#E7DAC0;
+    --fox:#C1521C;
+    --fox-2:#A6431590;
+    --moss:#4F6F52;
+    --gold:#D4A017;
+    --muted:#8891A6;
+    --text-light:#F5EFE2;
+    --text-dark:#26241D;
+    --danger:#B4443A;
+    --radius:14px;
+    --shadow: 0 8px 24px rgba(0,0,0,.28);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text-light);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;margin:0 0 .3em;letter-spacing:-.01em;}
+  .app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding:20px 18px 96px;}
+  .screen{display:none;flex:1;flex-direction:column;animation:fadein .25s ease;}
+  .screen.active{display:flex;}
+  @keyframes fadein{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  .brand{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
+  .brand .mark{font-family:'Fraunces',serif;font-size:34px;font-weight:700;color:var(--fox);}
+  .brand .tag{color:var(--muted);font-size:13px;}
+  .subhead{color:var(--muted);font-size:14px;margin-bottom:22px;line-height:1.5;}
+
+  label{display:block;font-size:13px;color:var(--muted);margin:16px 0 6px;}
+  input[type=text],textarea,select{
+    width:100%;background:var(--ink-2);border:1px solid var(--ink-3);color:var(--text-light);
+    border-radius:10px;padding:12px 14px;font-size:16px;font-family:inherit;
+  }
+  input[type=text]:focus,textarea:focus,select:focus{outline:2px solid var(--fox);outline-offset:1px;}
+  textarea{resize:vertical;min-height:80px;line-height:1.4;}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--fox);color:#fff;border:none;border-radius:12px;
+    padding:14px 20px;font-size:16px;font-weight:600;font-family:'Inter',sans-serif;
+    cursor:pointer;width:100%;transition:transform .08s ease, filter .15s ease;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn:disabled{filter:grayscale(.6);opacity:.5;cursor:not-allowed;}
+  .btn.secondary{background:var(--ink-2);border:1px solid var(--ink-3);color:var(--text-light);}
+  .btn.ghost{background:transparent;border:1px solid var(--ink-3);color:var(--muted);}
+  .btn.small{padding:8px 12px;font-size:13px;width:auto;border-radius:9px;}
+  .btn.danger{background:var(--danger);}
+
+  .card{background:var(--ink-2);border:1px solid var(--ink-3);border-radius:var(--radius);padding:16px;margin-bottom:12px;}
+  .card.parchment{background:var(--parchment);color:var(--text-dark);}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .stack{display:flex;flex-direction:column;gap:10px;}
+
+  .lobby-list-item{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--ink-2);border:1px solid var(--ink-3);border-radius:12px;
+    padding:14px 16px;margin-bottom:10px;cursor:pointer;
+  }
+  .lobby-list-item:active{background:var(--ink-3);}
+  .lobby-list-item .name{font-weight:600;}
+  .lobby-list-item .meta{color:var(--muted);font-size:12px;margin-top:2px;}
+  .lobby-list-item .del{flex:0 0 auto;margin-left:10px;min-width:40px;height:36px;padding:0 10px;border-radius:9px;
+    border:1px solid var(--ink-3);background:transparent;color:var(--muted);font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .lobby-list-item .del.confirm{background:var(--danger);border-color:var(--danger);color:#fff;font-size:13px;}
+  .lobby-list-item .go{flex:0 0 auto;margin-left:6px;}
+  .empty-note{color:var(--muted);font-size:13px;text-align:center;padding:18px 0;}
+
+  .player-chip{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 12px;border-radius:10px;background:var(--ink-2);margin-bottom:6px;
+  }
+  .player-chip .who{display:flex;align-items:center;gap:8px;}
+  .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.02em;}
+  .badge.host{background:var(--gold);color:#3a2c00;}
+  .badge.you{background:var(--ink-3);color:var(--text-light);}
+  .score{font-variant-numeric:tabular-nums;font-weight:600;color:var(--fox);}
+
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid var(--ink-3);}
+  .toggle-row:last-child{border-bottom:none;}
+  .toggle-row .lbl{font-size:14px;}
+  .toggle-row .sub{color:var(--muted);font-size:11px;margin-top:2px;}
+  .switch{position:relative;width:42px;height:24px;flex:0 0 auto;}
+  .switch input{opacity:0;width:100%;height:100%;position:absolute;margin:0;cursor:pointer;z-index:1;}
+  .switch .track{position:absolute;inset:0;background:var(--ink-3);border-radius:20px;transition:background .15s;}
+  .switch .thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s;}
+  .switch input:checked ~ .track{background:var(--fox);}
+  .switch input:checked ~ .thumb{transform:translateX(18px);}
+  .switch input:disabled ~ .track{opacity:.35;}
+
+  .prompt-card{background:var(--parchment);color:var(--text-dark);border-radius:var(--radius);padding:26px 20px;text-align:center;margin-bottom:18px;}
+  .prompt-card .cat{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--fox);font-weight:700;margin-bottom:10px;}
+  .prompt-card .term{font-family:'Fraunces',serif;font-size:30px;font-weight:700;line-height:1.15;}
+
+  .timer{
+    text-align:center;font-variant-numeric:tabular-nums;font-family:'Fraunces',serif;
+    font-size:15px;color:var(--muted);margin-bottom:14px;
+  }
+  .timer.low{color:var(--danger);}
+
+  .sub-option{
+    background:var(--parchment);color:var(--text-dark);border-radius:12px;padding:14px 16px;
+    margin-bottom:10px;border:2px solid transparent;cursor:pointer;line-height:1.45;font-size:15px;
+  }
+  .sub-option:active{filter:brightness(.97);}
+  .sub-option.selected{border:3px solid #fff;background:var(--fox);color:#fff;box-shadow:0 4px 14px rgba(193,82,28,.45);}
+  .sub-option.selected .idx{color:#fff;}
+  .sub-option.disabled{cursor:default;opacity:.55;}
+  .sub-option.readonly{cursor:default;}
+  .sub-option .idx{font-weight:700;color:var(--fox);margin-right:6px;}
+  .sub-option .flags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .flag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;}
+  .flag.real{background:var(--moss);color:#fff;}
+  .flag.votes{background:var(--ink-3);color:var(--text-light);}
+  .flag.ccc{background:var(--gold);color:#3a2c00;}
+  .flag.csf{background:var(--fox);color:#fff;}
+  .flag.funniest{background:#7A4FA0;color:#fff;}
+  .vote-chips{display:flex;gap:8px;margin-top:10px;}
+  .vote-chip{font-size:12px;font-weight:700;padding:7px 14px;border-radius:20px;border:2px solid var(--ink-3);background:transparent;cursor:pointer;font-family:inherit;}
+  .vote-chip.real{border-color:var(--fox);color:var(--fox);}
+  .vote-chip.real.selected{background:var(--fox);color:#fff;}
+  .vote-chip.funny{border-color:#7A4FA0;color:#7A4FA0;}
+  .vote-chip.funny.selected{background:#7A4FA0;color:#fff;}
+  .flag.you{background:var(--parchment-2);color:var(--text-dark);}
+
+  .waiting{text-align:center;color:var(--muted);font-size:14px;padding:18px 0;}
+  .waiting .count{font-family:'Fraunces',serif;font-size:22px;color:var(--text-light);}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .topbar .code{font-family:'Fraunces',serif;font-size:13px;color:var(--muted);letter-spacing:.05em;}
+  .roundpill{font-size:11px;color:var(--muted);background:var(--ink-2);border:1px solid var(--ink-3);padding:4px 10px;border-radius:20px;}
+
+  .leader-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;background:var(--ink-2);margin-bottom:8px;}
+  .leader-row .rank{color:var(--muted);width:22px;font-family:'Fraunces',serif;}
+  .leader-row.first{background:linear-gradient(90deg, var(--ink-2), rgba(212,160,23,.12));border:1px solid var(--gold);}
+
+  .footer-actions{position:sticky;bottom:0;padding-top:14px;margin-top:auto;}
+  .note{font-size:12px;color:var(--muted);line-height:1.5;}
+  .err{color:var(--danger);font-size:13px;margin-top:8px;min-height:1em;}
+  a.linklike{color:var(--fox);cursor:pointer;text-decoration:underline;}
+  .center{text-align:center;}
+  .spacer{flex:1;}
+  .divider{height:1px;background:var(--ink-3);margin:18px 0;}
+
+  /* ---- Anti-copy: nothing on screen is selectable except the text boxes
+     players actually type into (keeps "long-press → Search" off the prompt) */
+  body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  input,textarea,select{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;}
+
+  /* ---- Brand icon ---- */
+  .brand-icon{display:inline-flex;align-self:center;width:36px;height:36px;margin-left:-4px;}
+  .brand-icon svg{width:100%;height:100%;display:block;}
+  #input-joincode::placeholder{font-size:14px;text-transform:none;}
+
+  /* ---- Player colours ---- */
+  .pdot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.15);}
+  .flags{align-items:center;gap:6px;}
+  .flag.author{font-size:11px;padding:3px 10px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18);}
+  .laugh{font-size:18px;line-height:1;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}
+  /* Claude's funniest pick: the same 😂, tinted blue */
+  .laugh.claude{display:inline-flex;}
+  .laugh.claude .e{filter:hue-rotate(185deg) saturate(1.6);}
+  .laugh-img{width:20px;height:20px;display:block;}
+  .laugh.egg{cursor:pointer;}
+  .egg-bubble{position:fixed;z-index:57;display:none;background:#fff;color:var(--text-dark);border:2px solid #AEB8C6;
+    border-radius:14px;padding:10px 14px;font-size:15px;line-height:1.4;box-shadow:0 12px 30px rgba(0,0,0,.4);}
+  .egg-bubble.open{display:block;animation:toastin .2s ease;}
+  .egg-who{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748B;margin-bottom:3px;}
+  .csf-key .laugh-img{width:18px;height:18px;}
+  .csf-key{font-size:13px;color:var(--muted);margin:2px 0 4px;line-height:1.5;}
+  .csf-key .row-key{display:flex;align-items:center;gap:6px;margin-top:4px;}
+  .leader-row.colored .rank{color:inherit;opacity:.7;}
+  .leader-row.colored .score{color:inherit;}
+  .leader-row.colored.first{border:2px solid var(--gold);box-shadow:0 0 0 2px rgba(212,160,23,.35);}
+  .gs-name{flex:1;min-width:0;padding:0 8px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .gs-stats{display:flex;gap:10px;margin-right:12px;font-size:14px;flex:0 0 auto;}
+  .gs-stat{display:inline-flex;align-items:center;gap:3px;}
+  .cards-ico{width:1.35em;height:1.2em;display:inline-block;vertical-align:-.2em;}
+  .emo{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}
+  .gs-stat b{font-weight:700;font-variant-numeric:tabular-nums;}
+  .gs-stat.zero{opacity:.5;}
+  .leader-row .delta{font-size:12px;font-weight:700;background:rgba(0,0,0,.28);color:#fff;padding:2px 7px;border-radius:10px;margin-left:6px;}
+
+  /* ---- Round-leader "mic drop" splash ---- */
+  .splash{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;background:rgba(10,12,18,.55);opacity:0;transition:opacity .35s ease;padding:16px;}
+  .splash.show{opacity:1;}
+  .splash-block{width:min(88vw,420px);padding:28px 22px;border-radius:20px;text-align:center;border:4px solid #fff;
+    box-shadow:0 24px 60px rgba(0,0,0,.55);opacity:0;}
+  .splash-name{font-family:'Fraunces',serif;font-size:36px;font-weight:700;line-height:1.1;word-break:break-word;}
+  .splash-leads{font-size:17px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-top:8px;}
+  .splash-pts{font-family:'Fraunces',serif;font-size:48px;font-weight:700;margin-top:2px;}
+  /* Same shake as the Mic Drop in Darts Baseball (overlayShake) */
+  @keyframes shake{
+    0%{transform:translate(0,0) rotate(0)} 10%{transform:translate(-10px,-3px) rotate(-0.4deg)}
+    20%{transform:translate(9px,3px) rotate(0.4deg)} 30%{transform:translate(-8px,4px) rotate(-0.3deg)}
+    40%{transform:translate(8px,-3px) rotate(0.3deg)} 50%{transform:translate(-6px,3px) rotate(-0.2deg)}
+    60%{transform:translate(6px,-2px) rotate(0.2deg)} 70%{transform:translate(-4px,2px)}
+    80%{transform:translate(4px,-1px)} 90%{transform:translate(-2px,1px)} 100%{transform:translate(0,0) rotate(0)}
+  }
+  .shake{animation:shake .5s ease-out;}
+  /* Name field nudge when someone tries to join/start without a name */
+  #input-name.need-name{border-color:var(--danger);outline:2px solid var(--danger);outline-offset:1px;background:rgba(180,68,58,.12);}
+  .who-for{font-size:13px;color:var(--muted);margin:0 0 14px;}
+  .intro-who{display:inline-block;margin-top:12px;padding:6px 14px;border-radius:20px;background:rgba(242,233,216,.12);
+    border:1.5px solid rgba(242,233,216,.35);color:var(--parchment);font-size:14px;font-weight:700;line-height:1.35;margin-left:-40px;margin-right:-40px;}
+  .intro-who .nw{white-space:nowrap;}
+  .intro-who small{display:block;font-size:12.5px;font-weight:600;opacity:.85;margin-top:2px;}
+  /* ---- Round screens: ⋯ menu + round label live inside the item card ---- */
+  .hidden-actions{display:none;}
+  .prompt-card{position:relative;padding-bottom:30px !important;}
+  .menu-btn{position:absolute;top:6px;right:8px;width:36px;height:32px;border:none;background:transparent;
+    color:#8a7f6a;font-size:22px;line-height:1;cursor:pointer;border-radius:8px;font-family:inherit;}
+  .menu-btn:active{background:rgba(0,0,0,.06);}
+  .round-corner{position:absolute;right:12px;bottom:8px;font-size:11px;color:#8a7f6a;font-weight:600;letter-spacing:.02em;}
+  .menu-pop{position:fixed;z-index:58;min-width:190px;background:var(--ink-2);border:1px solid var(--ink-3);border-radius:12px;
+    box-shadow:0 12px 30px rgba(0,0,0,.45);padding:6px;display:none;}
+  .menu-pop.open{display:block;}
+  .menu-pop button{display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text-light);
+    font-size:15px;padding:11px 12px;border-radius:8px;cursor:pointer;font-family:inherit;}
+  .menu-pop button:active{background:var(--ink-3);}
+  .menu-pop .danger{color:#E7877D;}
+
+  /* ---- Loading / generating screen ---- */
+  .load-title{font-family:'Inter',sans-serif;font-weight:800;font-size:26px;letter-spacing:.1em;color:var(--text-light);}
+  .load-main{font-family:'Fraunces',serif;font-size:22px;color:var(--text-light);margin-top:10px;}
+  .load-sub{font-size:17px;color:var(--muted);margin-top:6px;}
+  .load-dots{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle;}
+  .load-dots i{width:7px;height:7px;border-radius:50%;background:var(--gold);display:block;animation:bob 1.2s ease-in-out infinite;}
+  .load-dots i:nth-child(2){animation-delay:.15s;} .load-dots i:nth-child(3){animation-delay:.3s;}
+  @keyframes bob{0%,60%,100%{transform:translateY(0);opacity:.35;}30%{transform:translateY(-6px);opacity:1;}}
+  .stopwatch{width:92px;height:92px;margin:22px auto 4px;display:block;}
+  .stopwatch .hand{transform-origin:50px 56px;animation:sweep 2.4s linear infinite;}
+  @keyframes sweep{to{transform:rotate(360deg);}}
+  .gen-elapsed{font-family:'Fraunces',serif;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted);}
+
+  /* ---- Host settings gear + sheet ---- */
+  .gear{width:36px;height:36px;padding:0;font-size:18px;line-height:1;}
+  .sheet{position:fixed;inset:0;z-index:55;background:rgba(10,12,18,.7);display:none;overflow-y:auto;padding:16px;}
+  .sheet.open{display:block;}
+  .sheet-inner{max-width:456px;margin:12px auto 40px;}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .sheet-head .x{width:40px;height:40px;border-radius:50%;border:none;background:var(--parchment);color:var(--ink);font-size:20px;font-weight:700;cursor:pointer;}
+  .paste-note{font-size:13px;color:var(--gold);min-height:1em;margin-top:6px;}
+
+  /* ---- Wander watch toasts ---- */
+  .toasts{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;z-index:60;
+    display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 12px;pointer-events:none;}
+  .toast{pointer-events:auto;width:min(100%,456px);display:flex;align-items:center;gap:12px;
+    background:var(--parchment);color:var(--text-dark);border:3px solid var(--gold);border-radius:16px;
+    padding:12px 12px 12px 14px;box-shadow:0 12px 32px rgba(0,0,0,.45);animation:toastin .3s ease;}
+  .toast .eyes{font-size:40px;line-height:1;flex:0 0 auto;}
+  .toast .msg{flex:1;font-size:15px;line-height:1.4;}
+  .toast .msg .who{display:inline-block;font-weight:700;padding:1px 9px;border-radius:20px;}
+  .toast .x{flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:none;background:var(--ink);color:#fff;
+    font-size:20px;font-weight:700;cursor:pointer;line-height:1;}
+  .toast.leaving{opacity:0;transform:translateY(-8px);transition:opacity .25s, transform .25s;}
+  @keyframes toastin{from{opacity:0;transform:translateY(-14px);}to{opacity:1;transform:none;}}
+  .wander-line{font-size:14px;color:var(--text-light);padding:8px 2px;border-bottom:1px solid var(--ink-3);}
+  .wander-line:last-child{border-bottom:none;}
+  .wander-line .who{display:inline-block;font-weight:700;padding:1px 9px;border-radius:20px;}
+
+
+  /* =========================================================
+     INTRO SPLASH (every fresh open) + HOW TO PLAY sheet
+     ========================================================= */
+  .intro{position:fixed;inset:0;z-index:70;overflow-y:auto;overflow-x:hidden;
+    background:radial-gradient(120% 80% at 50% 0%, rgba(193,82,28,.22), transparent 60%), rgba(10,12,18,.86);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:opacity .3s ease;}
+  .intro.closing{opacity:0;}
+  .intro[hidden]{display:none;}
+  .intro-x{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);right:14px;z-index:2;
+    width:44px;height:44px;border-radius:50%;border:none;background:var(--parchment);color:var(--ink);
+    font-size:22px;font-weight:700;line-height:1;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45);font-family:inherit;}
+  .intro-x:active{transform:scale(.94);}
+  .intro-head{text-align:center;padding:30px 60px 0;}
+  .intro-head .mark{font-family:'Fraunces',serif;font-size:40px;font-weight:700;color:var(--fox);line-height:1;}
+  .intro-stage{position:relative;width:min(100%,440px);margin:0 auto;padding:44px 0 20px;}
+  .intro-foot{text-align:center;padding:0 16px 48px;}
+  .intro-how{display:inline-flex;align-items:center;gap:8px;background:transparent;border:2px solid var(--parchment);
+    color:var(--parchment);border-radius:24px;padding:10px 20px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .ishot{position:relative;width:212px;margin:0 auto;}
+  .ishot + .ishot{margin-top:-4px;}
+  .ishot.is1,.ishot.is3{left:-50px;}
+  .ishot.is2{left:50px;}
+  .itilt{transform:rotate(20deg);}
+  .is2 .itilt{transform:rotate(-20deg);}
+  .ipop{animation:ipopout .7s cubic-bezier(.2,1.5,.35,1) both;}
+  .is1 .ipop{animation-delay:.15s;} .is2 .ipop{animation-delay:.45s;} .is3 .ipop{animation-delay:.75s;}
+  @keyframes ipopout{0%{opacity:0;transform:scale(.35) translateY(40px);filter:blur(4px);}
+    60%{opacity:1;filter:blur(0);}100%{opacity:1;transform:scale(1) translateY(0);}}
+  .ifloat{animation:ifloat 4.5s ease-in-out infinite;}
+  .is2 .ifloat{animation-delay:-1.5s;} .is3 .ifloat{animation-delay:-3s;}
+  @keyframes ifloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+  .iphone{position:relative;background:var(--ink);border:5px solid var(--parchment);border-radius:22px;padding:12px 10px;overflow:hidden;
+    box-shadow:0 2px 0 rgba(255,255,255,.08) inset, 0 18px 30px rgba(0,0,0,.55), 0 40px 80px rgba(0,0,0,.45);}
+  .iphone::before{content:"";display:block;width:46px;height:5px;border-radius:5px;background:var(--ink-3);margin:-4px auto 9px;}
+  .istep{position:absolute;z-index:3;top:-20px;font-family:'Fraunces',serif;font-weight:700;font-size:25px;
+    padding:5px 16px 7px;border-radius:14px;border:3px solid #fff;color:#fff;box-shadow:0 8px 18px rgba(0,0,0,.5);}
+  .is1 .istep{left:-18px;background:var(--fox);transform:rotate(-8deg);}
+  .is2 .istep{right:-18px;background:var(--gold);color:#3a2c00;transform:rotate(8deg);}
+  .is3 .istep{left:-18px;background:#7A4FA0;transform:rotate(-8deg);}
+  .istep small{font-family:'Inter',sans-serif;font-size:12px;font-weight:800;opacity:.8;margin-right:6px;vertical-align:3px;}
+  .m-prompt{background:var(--parchment);color:var(--text-dark);border-radius:10px;padding:10px 8px 12px;text-align:center;}
+  .m-cat{font-size:7.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--fox);font-weight:800;margin-bottom:4px;}
+  .m-term{font-family:'Fraunces',serif;font-size:15px;font-weight:700;line-height:1.15;}
+  .m-timer{text-align:center;font-family:'Fraunces',serif;font-size:10px;color:var(--muted);margin:6px 0 4px;}
+  .m-label{font-size:8.5px;color:var(--muted);margin:2px 0 4px;}
+  .m-box{background:var(--ink-2);border:1.5px solid var(--fox);border-radius:7px;padding:7px 8px;font-size:10px;line-height:1.4;color:var(--text-light);min-height:64px;}
+  .m-caret{display:inline-block;width:1.5px;height:11px;background:var(--text-light);vertical-align:-2px;margin-left:1px;animation:mblink 1s steps(1) infinite;}
+  @keyframes mblink{50%{opacity:0;}}
+  .m-btn{margin-top:8px;background:var(--fox);color:#fff;border-radius:8px;text-align:center;font-size:10px;font-weight:700;padding:7px;}
+  .m-opt{position:relative;background:var(--parchment);color:var(--text-dark);border-radius:8px;padding:6px 7px;margin-top:5px;font-size:8.8px;line-height:1.35;border:1.5px solid transparent;}
+  .m-opt.realrow{border-color:var(--moss);}
+  .m-chips{display:flex;gap:4px;margin-top:4px;}
+  .m-chip{font-size:7px;font-weight:800;padding:2px 7px;border-radius:10px;border:1.5px solid;}
+  .m-chip.real{border-color:var(--fox);color:var(--fox);}
+  .m-chip.real.on{background:var(--fox);color:#fff;}
+  .m-chip.funny{border-color:#7A4FA0;color:#7A4FA0;}
+  .m-chip.funny.on{background:#7A4FA0;color:#fff;}
+  .m-tap{position:absolute;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 0 0 3px rgba(255,255,255,.25);
+    animation:mtap 2.4s ease-out infinite;pointer-events:none;}
+  @keyframes mtap{0%,55%{transform:scale(.4);opacity:0;}65%{opacity:1;transform:scale(1);}100%{opacity:0;transform:scale(1.6);}}
+  .m-flags{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;}
+  .m-flag{font-size:7px;font-weight:800;padding:2px 6px;border-radius:10px;}
+  .m-flag.realf{background:var(--moss);color:#fff;}
+  .m-flag.votes{background:var(--ink-3);color:var(--text-light);}
+  .m-laughs{display:inline-flex;gap:1px;font-size:10px;line-height:1;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}
+  .m-laughs span{display:inline-block;border-radius:50%;padding:1px;}
+  .m-mic{margin-top:6px;text-align:center;border-radius:8px;padding:5px;border:2px solid #fff;background:#EC4899;color:#fff;
+    font-family:'Fraunces',serif;font-weight:700;font-size:11px;}
+  .m-mic small{display:block;font-family:'Inter',sans-serif;font-size:7px;letter-spacing:.14em;font-weight:800;}
+  @media (min-width:760px){
+    .intro-stage{width:760px;display:flex;justify-content:space-between;align-items:flex-start;padding:70px 20px 40px;}
+    .ishot,.ishot.is1,.ishot.is2,.ishot.is3{left:0;margin:0;}
+    .ishot.is2{margin-top:60px !important;}
+  }
+  @media (max-width:380px){
+    .ishot{width:196px;}
+    .ishot.is1,.ishot.is3{left:-42px;} .ishot.is2{left:42px;}
+  }
+
+  /* How to play */
+  .rules-sheet{z-index:80;background:rgba(14,17,25,.97);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);}
+  .rules-sec{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:18px 0 6px;}
+  .rule{display:flex;align-items:flex-start;gap:12px;padding:9px 2px;border-bottom:1px solid var(--ink-3);font-size:15px;line-height:1.45;}
+  .rule:last-child{border-bottom:none;}
+  .rule .ic{flex:0 0 34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;
+    font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;background:var(--ink-3);}
+  .rule .ic .cards-ico{width:24px;height:22px;}
+  .rule b{color:var(--text-light);}
+  .rule .pts{display:inline-block;font-weight:800;font-variant-numeric:tabular-nums;color:var(--gold);min-width:2.2em;}
+  .how-link{display:block;text-align:center;font-size:14px;color:var(--muted);margin-top:12px;cursor:pointer;background:none;border:none;font-family:inherit;width:100%;}
+  .how-link span{color:var(--fox);text-decoration:underline;}
+
+  @media (prefers-reduced-motion: reduce){
+    .shake{animation:none;}
+    .ipop,.ifloat,.m-caret,.m-tap{animation:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ============ LOADING / RESUME ============ -->
+  <section class="screen active" id="screen-loading">
+    <div class="spacer"></div>
+    <div class="center">
+      <div class="load-title">BALDERLAUGH</div>
+      <svg class="stopwatch" id="gen-stopwatch" viewBox="0 0 100 100" aria-hidden="true" style="display:none;">
+        <rect x="44" y="6" width="12" height="9" rx="2.5" fill="#8891A6"/>
+        <rect x="47" y="13" width="6" height="6" fill="#8891A6"/>
+        <path d="M76 24l6-6" stroke="#8891A6" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="50" cy="56" r="36" fill="#242A3A" stroke="#F2E9D8" stroke-width="5"/>
+        <line class="hand" x1="50" y1="56" x2="50" y2="31" stroke="#D4A017" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="50" cy="56" r="4.5" fill="#D4A017"/>
+      </svg>
+      <div class="gen-elapsed" id="gen-elapsed" style="display:none;">0:00</div>
+      <div class="load-main"><span id="loading-message">Reconnecting&hellip;</span><span class="load-dots" id="load-dots" style="display:none;"><i></i><i></i><i></i></span></div>
+      <div class="load-sub" id="loading-sub" style="display:none;"></div>
+      <div id="gen-controls" style="display:none;margin-top:18px;">
+        <div class="note" id="gen-note" style="margin-bottom:12px;"></div>
+        <button class="btn" id="btn-gen-retry" style="display:none;">Try again</button>
+        <button class="btn" id="btn-gen-oldie" style="display:none;background:var(--gold);color:#3a2c00;">🕰 Replay a golden oldie</button>
+        <button class="btn ghost" id="btn-gen-end" style="display:none;margin-top:10px;">End the game here</button>
+      </div>
+    </div>
+    <div class="spacer"></div>
+  </section>
+
+  <!-- ============ HOME (name entry + open games) ============ -->
+  <section class="screen" id="screen-home">
+    <div class="brand"><span class="mark">Balderlaugh</span><span class="brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="26" cy="30" r="21" fill="#D4A017"/><path d="M15 23.5q4.5-5.5 9 0M28 23.5q4.5-5.5 9 0" stroke="#3a2c00" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M10.5 27.5q-3.5 5.5 0 8q3.5-2.5 0-8z" fill="#7DD3FC"/><path d="M13 32h24q-1.5 13-12 13q-10.5 0-12-13z" fill="#3a2c00"/><path d="M17.5 40.5q7.5-4.5 15 0q-3 4-7.5 4q-4.5 0-7.5-4z" fill="#E86A5A"/><g transform="rotate(16 49 43)"><rect x="39" y="26" width="19" height="32" rx="4.5" fill="#1B1F2A" stroke="#F2E9D8" stroke-width="2.6"/><rect x="42.5" y="30.5" width="12" height="20" rx="1.5" fill="#F2E9D8"/><path d="M45 35h7M45 39.5h5M45 44h7" stroke="#C1521C" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="tag">bluff, vote, laugh</span></div>
+    <div class="who-for">👥 2–8 players · same room · everyone on their own phone</div>
+
+    <label for="input-name">Your name</label>
+    <input type="text" id="input-name" placeholder="e.g. Jamie" maxlength="24" autocomplete="off">
+
+    <div class="divider"></div>
+
+    <div class="row" style="margin-bottom:10px;">
+      <h3 style="margin:0;">Open games</h3>
+      <span class="roundpill" id="open-games-count">0</span>
+    </div>
+    <div id="open-games-list"></div>
+    <div class="empty-note" id="no-games-note">No games open right now — start one below.</div>
+
+    <div id="inprog-wrap" style="display:none;margin-top:8px;">
+      <div class="row" style="margin-bottom:10px;">
+        <h3 style="margin:0;">In progress</h3>
+        <span class="roundpill" id="inprog-count">0</span>
+      </div>
+      <div id="inprog-list"></div>
+    </div>
+
+    <div class="footer-actions stack">
+      <button class="btn" id="btn-create-game">Start a new game</button>
+      <div class="row" style="gap:8px;">
+        <input type="text" id="input-joincode" placeholder="Click a game above or enter code" maxlength="6" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" style="text-transform:uppercase;">
+        <button class="btn secondary small" id="btn-join-code">Join</button>
+      </div>
+      <button type="button" class="how-link" data-rules>❓ <span>How to play</span></button>
+    </div>
+    <div class="err" id="home-err"></div>
+  </section>
+
+  <!-- ============ LOBBY ============ -->
+  <section class="screen" id="screen-lobby">
+    <div class="topbar">
+      <div>
+        <h2 id="lobby-title" style="margin-bottom:2px;">Jamie's Game</h2>
+        <div class="code">CODE <span id="lobby-code">------</span></div>
+      </div>
+      <button class="btn ghost small" id="btn-leave-lobby">Leave</button>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:8px;"><strong>Players</strong><span class="roundpill" id="lobby-player-count">0</span></div>
+      <div id="lobby-player-list" class="stack"></div>
+    </div>
+
+    <div class="card" id="host-settings-card">
+      <strong>Game settings</strong>
+      <div class="note" id="settings-midgame-note" style="display:none;margin-top:4px;">Changes kick in from the next new round.</div>
+      <label>Rounds</label>
+      <select id="setting-rounds">
+        <option value="4">4 rounds</option>
+        <option value="6" selected>6 rounds</option>
+        <option value="8">8 rounds</option>
+        <option value="12">12 rounds</option>
+      </select>
+
+      <label>Time to write a bluff</label>
+      <select id="setting-writing-seconds">
+        <option value="120">2:00</option>
+        <option value="150">2:30</option>
+        <option value="180" selected>3:00</option>
+        <option value="210">3:30</option>
+        <option value="240">4:00</option>
+        <option value="270">4:30</option>
+        <option value="300">5:00</option>
+      </select>
+
+      <label>Time to vote</label>
+      <select id="setting-voting-seconds">
+        <option value="120">2:00</option>
+        <option value="150">2:30</option>
+        <option value="180" selected>3:00</option>
+        <option value="210">3:30</option>
+        <option value="240">4:00</option>
+        <option value="270">4:30</option>
+        <option value="300">5:00</option>
+      </select>
+
+      <label>Categories in the mix</label>
+      <div class="stack" style="gap:4px;">
+        <label class="row" style="margin:4px 0;"><span>Odd Words</span><input type="checkbox" id="cat-oddWords" checked></label>
+        <label class="row" style="margin:4px 0;"><span>Obscure People</span><input type="checkbox" id="cat-obscurePeople" checked></label>
+        <label class="row" style="margin:4px 0;"><span>That's Really a Movie?</span><input type="checkbox" id="cat-movies" checked></label>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="toggle-row">
+        <div><div class="lbl">Crowd funniest vote</div><div class="sub">Everyone also picks the funniest</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-crowdFunny" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Claude casts a funniest vote too</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-csf"><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">Points for funniest</div><div class="sub">+1 per funniest vote</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-funnyPoints"><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">Include Claude</div><div class="sub">Claude writes a bluff and scores</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-includeClaude"><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="lbl">Wander watch 👀</div><div class="sub">Leaving the screen gets noticed 👀</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-wanderWatch" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div id="settings-save-wrap" style="display:none;margin-top:14px;">
+        <button class="btn" id="btn-save-settings">Save — applies next round</button>
+        <div class="err" id="settings-err"></div>
+      </div>
+    </div>
+    <div id="settings-home"></div>
+
+    <div class="footer-actions">
+      <button class="btn" id="btn-start-game">Start game</button>
+      <div class="err" id="lobby-err"></div>
+      <div class="note center" id="lobby-wait-note">Waiting for the host to start&hellip;</div>
+      <button type="button" class="how-link" data-rules>❓ <span>How to play</span></button>
+    </div>
+  </section>
+
+  <!-- ============ WRITING ============ -->
+  <section class="screen" id="screen-writing">
+    <div class="hidden-actions" aria-hidden="true">
+      
+      <div style="display:flex;gap:6px;">
+        <button class="btn ghost small" id="btn-sitout-writing">Sit out</button>
+        <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-writing">Leave</button>
+      </div>
+    </div>
+    <div class="prompt-card">
+      <div class="cat" id="writing-cat">ODD WORDS</div>
+      <div class="term" id="writing-term">Fudgel</div>
+      <button class="menu-btn" type="button" aria-label="Menu" data-screen="writing">⋯</button>
+      <div class="round-corner" id="writing-round-pill">Round 1 of 6</div>
+    </div>
+    <div class="timer" id="writing-timer">1:30</div>
+
+    <div id="writing-input-area">
+      <label id="writing-label" for="writing-textarea">Write a believable definition</label>
+      <textarea id="writing-textarea" maxlength="220" placeholder="Make it sound real..."></textarea>
+      <div class="paste-note" id="paste-note"></div>
+      <button class="btn" id="btn-submit-bluff" style="margin-top:14px;">Submit bluff</button>
+    </div>
+    <div id="writing-submitted" style="display:none;">
+      <div class="waiting">
+        <div id="writing-submitted-msg">Nice bluff. Waiting on everyone else&hellip;</div>
+        <div class="count" id="writing-count">0 / 0</div>
+      </div>
+    </div>
+    <div id="writing-sitting-out" class="card" style="display:none;text-align:center;">
+      <div style="margin-bottom:10px;">You're sitting this round out — everyone else can still play without waiting on you.</div>
+      <button class="btn secondary" id="btn-jointhisround-writing">Join this round</button>
+    </div>
+  </section>
+
+  <!-- ============ READING (the Reader reveals to the table) ============ -->
+  <section class="screen" id="screen-reading">
+    <div class="hidden-actions" aria-hidden="true">
+      
+      <div style="display:flex;gap:6px;"><button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-reading">Leave</button></div>
+    </div>
+    <div class="prompt-card">
+      <div class="cat" id="reading-cat">ODD WORDS</div>
+      <div class="term" id="reading-term">Fudgel</div>
+      <button class="menu-btn" type="button" aria-label="Menu" data-screen="reading">⋯</button>
+      <div class="round-corner" id="reading-round-pill">Round 1 of 6</div>
+    </div>
+    <div class="timer" id="reading-timer">8:00</div>
+
+    <div id="reading-reader-view" style="display:none;">
+      <div class="card parchment" style="text-align:center;margin-bottom:14px;">
+        <div style="font-size:22px;font-weight:700;color:var(--fox);">📖 You are the Reader!</div>
+        <div style="font-size:17px;font-weight:700;color:var(--fox);margin-top:2px;">Read now, vote later.</div>
+        <div style="margin-top:8px;">Read each one aloud, then tap Show Group.</div>
+      </div>
+      <div id="reading-list"></div>
+    </div>
+
+    <div id="reading-waiting-view" style="display:none;">
+      <div class="waiting">
+        <div id="reading-waiting-msg" style="font-size:18px;color:var(--text-light);">Someone is the Reader.</div>
+        <div class="note" style="margin-top:10px;font-size:14px;">Simmer down people…</div>
+        <div style="font-size:17px;font-weight:700;color:var(--fox);margin-top:10px;">Listen first. Vote next.</div>
+      </div>
+    </div>
+
+    <div class="footer-actions" id="reading-footer" style="display:none;">
+      <button class="btn" id="btn-show-group">Show Group</button>
+    </div>
+  </section>
+
+  <!-- ============ VOTING (single combined list) ============ -->
+  <section class="screen" id="screen-voting">
+    <div class="hidden-actions" aria-hidden="true">
+      
+      <div style="display:flex;gap:6px;">
+        <button class="btn ghost small" id="btn-sitout-voting">Sit out</button>
+        <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-voting">Leave</button>
+      </div>
+    </div>
+    <div class="prompt-card">
+      <div class="cat" id="voting-cat">ODD WORDS</div>
+      <div class="term" id="voting-term">Fudgel</div>
+      <button class="menu-btn" type="button" aria-label="Menu" data-screen="voting">⋯</button>
+      <div class="round-corner" id="voting-round-pill">Round 1 of 6</div>
+    </div>
+    <div class="timer" id="voting-timer">1:00</div>
+
+    <div class="note" id="voting-instructions" style="margin-bottom:12px;">Pick the real one and the funniest.</div>
+    <div id="voting-list"></div>
+
+    <div id="voting-sitting-out" class="card" style="display:none;text-align:center;">
+      <div style="margin-bottom:10px;">You're sitting this round out — everyone else can still play without waiting on you.</div>
+      <button class="btn secondary" id="btn-jointhisround-voting">Join this round</button>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn" id="btn-submit-votes" disabled>Submit votes</button>
+      <div class="waiting" id="voting-waiting" style="display:none;">
+        <div>Votes in. Waiting on everyone else&hellip;</div>
+        <div class="count" id="voting-count">0 / 0</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REVEAL ============ -->
+  <section class="screen" id="screen-reveal">
+    <div class="hidden-actions" aria-hidden="true">
+      
+      <div style="display:flex;gap:6px;">
+        <button class="btn ghost small" id="btn-sitout-reveal">Sit out next round</button>
+        <button class="btn ghost small gear host-gear" type="button" aria-label="Game settings" title="Game settings">⚙</button><button class="btn ghost small" id="btn-leave-reveal">Leave</button>
+      </div>
+    </div>
+    <div class="prompt-card">
+      <div class="cat" id="reveal-cat">ODD WORDS</div>
+      <div class="term" id="reveal-term">Fudgel</div>
+      <button class="menu-btn" type="button" aria-label="Menu" data-screen="reveal">⋯</button>
+      <div class="round-corner" id="reveal-round-pill">Round 1 of 6</div>
+    </div>
+    <h3 style="font-size:16px;margin-bottom:8px;">Voting Results</h3>
+    <div id="reveal-list"></div>
+    <div class="csf-key" id="csf-key" style="display:none;"></div>
+
+    <div class="divider"></div>
+    <h3 style="font-size:16px;">Standings</h3>
+    <div id="reveal-standings"></div>
+    <div id="reveal-wander-wrap" style="display:none;">
+      <div class="divider"></div>
+      <div id="reveal-wander"></div>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn" id="btn-next-round">Next round</button>
+      <div class="note center" id="reveal-wait-note" style="display:none;">Waiting for the host to continue&hellip;</div>
+    </div>
+  </section>
+
+  <!-- ============ GAME OVER ============ -->
+  <section class="screen" id="screen-gameover">
+    <div class="center" style="margin-bottom:6px;">
+      <div class="cat" style="color:var(--gold);font-weight:700;font-size:12px;letter-spacing:.08em;">GAME OVER</div>
+      <h1 style="font-size:30px;">Game summary</h1>
+      <div class="note" id="gameover-tie-note" style="display:none;color:var(--gold);">👑 It's a tie!</div>
+    </div>
+    <div id="gameover-standings"></div>
+    <div class="note center" style="margin-top:4px;"><span class="emo">✅</span> spotted the real one · <span id="legend-cards"></span> fooled someone · <span class="emo">😂</span> funniest votes</div>
+    <div class="footer-actions">
+      <button class="btn" id="btn-tiebreak" style="display:none;background:var(--gold);color:#3a2c00;margin-bottom:10px;">⚔️ Tiebreaker — play until someone pulls ahead</button>
+      <div class="note center" id="tiebreak-note" style="display:none;margin:0 0 10px;">Tied at the top — the host can call a tiebreaker.</div>
+      <button class="btn" id="btn-play-again">Play again — same group</button>
+      <div class="note center" id="btn-play-again-note" style="display:none;margin:8px 0;">Waiting for the host to start a new game, or leave below.</div>
+      <button class="btn" id="btn-gameover-home" style="margin-top:10px;background:transparent;border:2px solid var(--parchment);color:var(--parchment);">Leave this game</button>
+    </div>
+  </section>
+
+</div>
+
+<!-- Host settings sheet (mid-game) — the lobby's settings card is moved in here while open -->
+<div class="sheet" id="settings-sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head"><h2 style="margin:0;">⚙ Settings</h2><button class="x" type="button" id="btn-close-settings" aria-label="Close">✕</button></div>
+    <div id="settings-sheet-body"></div>
+  </div>
+</div>
+
+<!-- Claude's funniest-vote easter egg -->
+<div class="egg-bubble" id="egg-bubble" role="dialog"><div class="egg-who">Claude says…</div><div id="egg-text"></div></div>
+
+<!-- ⋯ menu for round screens -->
+<div class="menu-pop" id="menu-pop" role="menu">
+  <button type="button" id="menu-sitout">Sit out</button>
+  <button type="button" id="menu-settings">⚙ Settings</button>
+  <button type="button" id="menu-rules">❓ How to play</button>
+  <button type="button" id="menu-leave" class="danger">Leave for now</button>
+</div>
+
+<!-- Wander watch alerts -->
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- Round-leader splash ("mic drop") — sits above every screen -->
+<div class="splash" id="splash" aria-live="polite">
+  <div id="splash-shaker">
+    <div class="splash-block" id="splash-block">
+      <div class="splash-name" id="splash-name"></div>
+      <div class="splash-leads" id="splash-leads">Leads Round</div>
+      <div class="splash-pts" id="splash-pts">+2 points!</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ INTRO SPLASH (shown on every fresh open, not on resume) ============ -->
+<div class="intro" id="intro" role="dialog" aria-modal="true" aria-label="Welcome to Balderlaugh" hidden>
+  <button class="intro-x" id="intro-x" type="button" aria-label="Close">✕</button>
+  <div class="intro-head"><div class="mark">Balderlaugh</div><div class="intro-who"><span class="nw">👥 A party game for 2–8 players</span><small>Same room · everyone on their own phone</small></div></div>
+  <div class="intro-stage">
+    <div class="ishot is1"><div class="itilt"><div class="ipop"><div class="ifloat">
+      <div class="istep"><small>1</small>Bluff</div>
+      <div class="iphone">
+        <div class="m-prompt"><div class="m-cat">That's Really a Movie?</div><div class="m-term">The Moose Who Knew Too Much</div></div>
+        <div class="m-timer">2:41</div>
+        <div class="m-label">Write a believable plot summary</div>
+        <div class="m-box">A retired Mountie and a very determined moose team up to bust a maple-syrup smuggling ring on Lake Muskoka.<span class="m-caret"></span></div>
+        <div class="m-btn">Submit bluff</div>
+      </div>
+    </div></div></div></div>
+    <div class="ishot is2"><div class="itilt"><div class="ipop"><div class="ifloat">
+      <div class="istep"><small>2</small>Vote</div>
+      <div class="iphone">
+        <div class="m-prompt"><div class="m-cat">That's Really a Movie?</div><div class="m-term">The Moose Who Knew Too Much</div></div>
+        <div class="m-timer">1:12</div>
+        <div class="m-opt">A 1962 Swedish documentary following one moose's migration across Lapland.
+          <div class="m-chips"><span class="m-chip real on">Real</span><span class="m-chip funny">😂 Funniest</span></div></div>
+        <div class="m-opt">A moose inherits a failing ski resort and must win the winter carnival to save it.
+          <div class="m-chips"><span class="m-chip real">Real</span><span class="m-chip funny on">😂 Funniest</span></div>
+          <span class="m-tap" style="left:62px;bottom:-4px;"></span></div>
+        <div class="m-opt">A retired Mountie and a very determined moose bust a maple-syrup smuggling ring.
+          <div class="m-chips"><span class="m-chip real">Real</span><span class="m-chip funny">😂 Funniest</span></div></div>
+      </div>
+    </div></div></div></div>
+    <div class="ishot is3"><div class="itilt"><div class="ipop"><div class="ifloat">
+      <div class="istep"><small>3</small>Laugh</div>
+      <div class="iphone">
+        <div class="m-prompt"><div class="m-cat">That's Really a Movie?</div><div class="m-term">The Moose Who Knew Too Much</div></div>
+        <div class="m-opt realrow">A 1962 Swedish documentary following one moose's migration across Lapland.
+          <div class="m-flags"><span class="m-flag realf">REAL</span><span class="m-flag votes">1 vote</span></div></div>
+        <div class="m-opt">A moose inherits a failing ski resort and must win the winter carnival to save it.
+          <div class="m-flags"><span class="m-flag" style="background:#EC4899;color:#fff;">Pat</span><span class="m-flag votes">fooled 2</span>
+            <span class="m-laughs"><span style="background:#2563EB">😂</span><span style="background:#0D9488">😂</span><span style="background:#DC2626">😂</span></span></div></div>
+        <div class="m-opt">A retired Mountie and a very determined moose bust a maple-syrup smuggling ring.
+          <div class="m-flags"><span class="m-flag" style="background:#2563EB;color:#fff;">Sasha</span><span class="m-flag votes">fooled 1</span></div></div>
+        <div class="m-mic">Pat<small>LEADS THE ROUND</small></div>
+      </div>
+    </div></div></div></div>
+  </div>
+  <div class="intro-foot"><button type="button" class="intro-how" data-rules>❓ How to play</button></div>
+</div>
+
+<!-- ============ HOW TO PLAY ============ -->
+<div class="sheet rules-sheet" id="rules-sheet" role="dialog" aria-modal="true" aria-label="How to play">
+  <div class="sheet-inner">
+    <div class="sheet-head"><h2 style="margin:0;">How to play</h2><button class="x" type="button" id="btn-close-rules" aria-label="Close">✕</button></div>
+
+    <div class="rules-sec">Setup</div>
+    <div class="rule"><div class="ic">👥</div><div><b>2 to 8 players.</b></div></div>
+    <div class="rule"><div class="ic">🛋️</div><div><b>Play together in the same room.</b> Part of the fun is reading the answers out loud and watching faces.</div></div>
+    <div class="rule"><div class="ic">📱</div><div><b>Everyone uses their own phone.</b> There's no shared screen, and each person's bluff stays secret.</div></div>
+    <div class="rule"><div class="ic">🏷️</div><div><b>Enter your name first.</b> One person taps <b>Start a new game</b>. Everyone else taps that game in the list, or types its code.</div></div>
+
+    <div class="rules-sec">Each round</div>
+    <div class="rule"><div class="ic">✍️</div><div><b>Bluff.</b> You get a strange word, person or movie. Write a fake answer that sounds real.</div></div>
+    <div class="rule"><div class="ic">📖</div><div><b>Listen.</b> One player reads all the answers out loud. The real one is hiding in there.</div></div>
+    <div class="rule"><div class="ic">🗳️</div><div><b>Vote.</b> Tap <b>Real</b> on the one you think is true. Tap <b>😂</b> on the funniest.</div></div>
+    <div class="rule"><div class="ic">😂</div><div><b>Laugh.</b> See the real answer, who wrote what, and who got fooled.</div></div>
+
+    <div class="rules-sec">Points</div>
+    <div class="rule"><div class="ic">✅</div><div><span class="pts">+2</span>for picking the real answer</div></div>
+    <div class="rule"><div class="ic"><svg class="cards-ico" viewBox="0 0 32 28" aria-hidden="true"><g stroke="#1B1F2A" stroke-width="1.3"><rect x="6" y="4" width="13" height="19" rx="2" fill="#fff" transform="rotate(-22 12.5 22)"/><rect x="9.5" y="3" width="13" height="19" rx="2" fill="#fff"/><rect x="13" y="4" width="13" height="19" rx="2" fill="#fff" transform="rotate(22 19.5 22)"/></g><path d="M11 8.5c1.4-1.8 3.4 0 1.2 2l-1.2 1.1-1.2-1.1c-2.2-2 -.2-3.8 1.2-2z" fill="#DC2626" transform="rotate(-22 12.5 22)"/><text x="19.2" y="15.2" transform="rotate(22 19.5 22)" font-size="9" font-weight="700" text-anchor="middle" fill="#1B1F2A" font-family="Georgia,serif">A</text></svg></div><div><span class="pts">+1</span>for every player your bluff fools</div></div>
+    <div class="rule"><div class="ic">😂</div><div><span class="pts">+1</span>for every funniest vote <span class="note">(if the host turns it on)</span></div></div>
+
+    <div class="rules-sec">Good to know</div>
+    <div class="rule"><div class="ic">🚫</div><div>You can't vote for your own answer.</div></div>
+    <div class="rule"><div class="ic">👀</div><div>No peeking at other apps. If you leave the game mid-round, everyone finds out.</div></div>
+    <div class="rule"><div class="ic">🪑</div><div>Need a break? Tap <b>⋯</b> and choose <b>Sit out</b>.</div></div>
+    <div class="rule"><div class="ic">🤖</div><div>The host can let Claude play. Claude writes a bluff and can score, but never votes for the real answer.</div></div>
+
+    <button class="btn" type="button" id="btn-rules-done" style="margin-top:18px;">Got it</button>
+  </div>
+</div>
+
+<script type="module">
+/* =========================================================================
+   BALDERLAUGH — single-file client
+   Firestore is used wide open (no auth), same pattern as the cottage's
+   other tools (e.g. the Low-or-Out list): anyone with the page can read
+   and write. Fine for a trusted group of players in one room.
+
+   KNOWN LIMITATION: game state itself (submissions, votes, scores) is still
+   wide open in Firestore, same as the rest of the cottage's tools — a
+   player who opened devtools mid-round could see other players' bluffs
+   before voting closes, or the game's live score state. The actual answer
+   key (all the words/people/movies and their real definitions) is NOT
+   exposed this way anymore, though: it lives in a separate, locked-down
+   part of Firestore that only reveals one item at a time, on request, and
+   can't be browsed wholesale (see the ITEM CONTENT section below). Good
+   enough for a trusted room of friends; a real auth layer would be the
+   next step if that ever stops being true.
+   ========================================================================= */
+
+// ---- 1. FIREBASE CONFIG ---------------------------------------------------
+// Paste your Firebase project config here (create a new project, or reuse
+// an existing one — just keep the Firestore collection name below unique
+// so it doesn't collide with e.g. cottagerestocklist's own collections).
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot,
+  collection, query, where, orderBy, limit, serverTimestamp, deleteField, Timestamp, runTransaction, increment, deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDhQO70r9B55hTJEjT_5qjfFWOUcfJkDo0",
+  authDomain: "cottagerestocklist.firebaseapp.com",
+  projectId: "cottagerestocklist",
+  storageBucket: "cottagerestocklist.firebasestorage.app",
+  messagingSenderId: "1061783772523",
+  appId: "1:1061783772523:web:5f6118355535b46862c02e",
+  measurementId: "G-PQC6PQVHBN"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const functionsClient = getFunctions(app); // default region (us-central1) — must match wherever judge-function is deployed
+const GAMES = "balderlaugh_games";
+
+// ---- 2. ITEM CONTENT (words/people/movies + real answers) -----------------
+// PRIMARY: live-generated per round via the generateItem Cloud Function,
+// which asks Claude — with web search enabled — for a genuinely real item
+// and verifies it before responding. Only the term comes back to the
+// client; the real answer is written straight to Firestore server-side
+// (balderlaugh_round_answers/{gameId}_{roundIndex}, fully locked to
+// browsers) and attached to the round by the startReading function.
+//
+// FALLBACK: if generation fails (function not deployed yet, network
+// hiccup, model couldn't produce a verifiable answer), falls back to the
+// pre-seeded bank in Firestore (see seed/seed.js) — answers equally locked:
+//   balderlaugh_meta/itemIndex   — {category: [{id, term}, ...]}  (no answers)
+//   balderlaugh_items/{itemId}   — {category, term, real}
+const generateItemFn = httpsCallable(functionsClient, 'generateItem');
+const generateBluffFn = httpsCallable(functionsClient, 'generateBluff'); // Include Claude
+const judgeCloseCallsFn = httpsCallable(functionsClient, 'judgeCloseCalls'); // CCC
+const judgeFunniestFn = httpsCallable(functionsClient, 'judgeFunniest'); // CSF
+
+let itemIndexCache = null;
+async function getItemIndex(){
+  if(itemIndexCache) return itemIndexCache;
+  const snap = await getDoc(doc(db, 'balderlaugh_meta', 'itemIndex'));
+  itemIndexCache = snap.exists() ? snap.data() : { oddWords:[], obscurePeople:[], movies:[] };
+  return itemIndexCache;
+}
+// The answer collections (balderlaugh_items, balderlaugh_round_answers) are
+// fully locked to browsers. Two server functions stand in for reading them:
+//   checkAnswers  — yes/no "does this item's answer exist?", never the text
+//   startReading  — moves the round to reading with the answer attached
+const checkAnswersFn = httpsCallable(functionsClient, 'checkAnswers');
+const startReadingFn = httpsCallable(functionsClient, 'startReading');
+// Returns the first ref (in the order given) whose answer exists, or null.
+async function firstWithAnswer(refs){
+  if(!refs.length) return null;
+  try{
+    const res = await checkAnswersFn({ refs: refs.map(r => ({ answerSource: r.answerSource, answerId: r.answerId || null, itemId: r.itemId || null })) });
+    const ok = (res.data && res.data.exists) || [];
+    refs.forEach((r, i) => { if(!ok[i]) console.error('No answer record, skipping:', r.term || r.itemId || r.answerId); });
+    return refs.find((r, i) => ok[i]) || null;
+  }catch(e){ console.error('Answer check failed:', e); return null; }
+}
+const ANSWER_CHECK_MAX = 6; // candidates to try before giving up on this attempt
+const CAT_LABEL = { oddWords:"Odd Words", obscurePeople:"Obscure People", movies:"That's Really a Movie?" };
+const CAT_WRITE_LABEL = { oddWords:"Write a believable definition", obscurePeople:"Write a believable mini-bio", movies:"Write a believable plot summary" };
+
+// ---- Cross-game cooldown --------------------------------------------------
+// Both live generation and the seeded fallback have independently
+// resurfaced the same word/person/movie — this tracks every term ever
+// used, across ALL games, so a fresh one isn't chosen again for 60 days.
+// Holds no secrets (the term itself is shown to every player every round
+// anyway), so it's plainly readable/writable, unlike the answer-key
+// collections. Reset this collection in Firestore whenever a clean slate
+// is wanted (e.g. once testing wraps, before a real game night).
+const COOLDOWN_DAYS = 60;
+function normalizeTermId(term){
+  return (term||'').trim().toLowerCase().replace(/[\/.\s]+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 200) || ('t-' + Date.now());
+}
+async function getRecentlyUsedTerms(){
+  const cutoff = Timestamp.fromMillis(Date.now() - COOLDOWN_DAYS*24*60*60*1000);
+  const q = query(collection(db, 'balderlaugh_used_terms'), where('lastUsedAt', '>', cutoff));
+  const snap = await getDocs(q);
+  const terms = [];
+  snap.forEach(d => { if(d.data().term) terms.push(d.data().term); });
+  return terms;
+}
+// Also records WHERE the real answer lives (never the answer itself), so a
+// long-ago item can be replayed as a "golden oldie" when nothing fresh is left.
+async function markTermUsed(term, category, ref = {}){
+  await setDoc(doc(db, 'balderlaugh_used_terms', normalizeTermId(term)), {
+    term, category, lastUsedAt: serverTimestamp(),
+    answerSource: ref.answerSource || null, answerId: ref.answerId || null, itemId: ref.itemId || null
+  });
+}
+
+// Writing and voting time are both per-game host settings now
+// (game.settings.writingSeconds / votingSeconds).
+const READING_SECONDS = 480; // 8 min cap — the Reader has the floor, not unlimited power
+
+// Rotates who's Reader — a shuffled bag drawn down with no repeats until
+// exhausted, then reshuffled. Skips anyone no longer active (sat out,
+// left) rather than handing them the round.
+function pickNextReader(queue, activeUids){
+  let q = (queue||[]).filter(uid => activeUids.includes(uid));
+  if(q.length === 0 && activeUids.length > 0){
+    q = randomShuffle(activeUids);
+  }
+  const readerUid = q[0] || null;
+  const remainingQueue = q.slice(1);
+  return { readerUid, remainingQueue };
+}
+
+// Same shuffled-bag pattern as the Reader rotation: random order, no
+// repeats until every category's been used once, then reshuffled — so a
+// repeat can land right at that reshuffle boundary (e.g. round 3 and
+// round 4 happen to match), but never more predictably than that.
+function pickNextCategory(queue, categories){
+  let q = (queue||[]).filter(c => categories.includes(c));
+  if(q.length === 0 && categories.length > 0){
+    q = randomShuffle(categories);
+  }
+  const cat = q[0] || categories[0];
+  const remainingQueue = q.slice(1);
+  return { cat, remainingQueue };
+}
+
+// ---- 3. IDENTITY --------------------------------------------------------
+function uuid(){ return 'xxxxxxxx-xxxx'.replace(/x/g, () => (Math.random()*16|0).toString(16)); }
+let myUid = localStorage.getItem('balderlaugh_uid');
+if(!myUid){ myUid = uuid(); localStorage.setItem('balderlaugh_uid', myUid); }
+let myName = localStorage.getItem('balderlaugh_name') || '';
+// ---- 4. STATE -------------------------------------------------------------
+let currentGameCode = null;
+let unsubGame = null;
+let unsubOpenGames = null;
+let game = null; // live game doc data
+let lastPhaseKey = null; // to detect phase transitions client-side
+let timerInterval = null;
+
+// ---- 5. HELPERS -------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+function genCode(){
+  // Letters only (no I/O to avoid 1/0 confusion) — no keyboard switching on phones.
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let c = '';
+  for(let i=0;i<5;i++) c += chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+function isHost(){ return game && game.hostUid === myUid; }
+function fmtTime(ms){
+  const s = Math.max(0, Math.ceil(ms/1000));
+  const m = Math.floor(s/60), r = s%60;
+  return `${m}:${String(r).padStart(2,'0')}`;
+}
+// Cryptographically random Fisher–Yates shuffle (the old seeded LCG was
+// weak and partly predictable from the timestamp).
+function randomShuffle(arr){
+  const a = [...arr];
+  const rnd = new Uint32Array(Math.max(1, a.length));
+  crypto.getRandomValues(rnd);
+  for(let i=a.length-1;i>0;i--){
+    const j = rnd[i] % (i+1);
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+// Evens out formatting so the real answer doesn't stand out just because
+// it's the only one with a capital letter and a period at the end — or with
+// "writerly" punctuation people don't type on phones (em dashes, semicolons,
+// curly quotes, the single-character ellipsis). Applied to every entry.
+function tidy(s){
+  let t = (s||'')
+    .replace(/[\u2018\u2019\u201B\u2032]/g, "'").replace(/[\u201C\u201D\u201E\u2033]/g, '"')
+    .replace(/\u2026/g, '...')
+    .replace(/\s*[\u2014\u2013]\s*/g, ', ').replace(/\s*;\s*/g, ', ')
+    .replace(/,\s*([,.!?])/g, '$1')
+    .replace(/\s+/g,' ').trim().replace(/^,\s*/, '').replace(/[,\s]+$/, '');
+  if(!t) return t;
+  t = t[0].toUpperCase() + t.slice(1);
+  if(!/[.!?"')\]]$/.test(t)) t += '.';
+  return t;
+}
+
+// ---- Players: cap, reserved names, colours --------------------------------
+const MAX_PLAYERS = 8;
+const STALE_LOBBY_MS = 12*60*60*1000; // open games older than this drop off the list
+const RESERVED_NAMES = ['claude','claud'];
+function isReservedName(n){
+  return RESERVED_NAMES.includes((n||'').toLowerCase().replace(/[^a-z]/g,''));
+}
+// Eight player colours, deliberately avoiding the game's own meaning-colours:
+// fox orange (buttons / "Real" chip), moss green (real answer), gold
+// (host / leader) and purple (funniest). Claude gets its own slate.
+const PLAYER_COLORS = [
+  { bg:'#2563EB', fg:'#FFFFFF' }, // blue
+  { bg:'#EC4899', fg:'#FFFFFF' }, // pink
+  { bg:'#0D9488', fg:'#FFFFFF' }, // teal
+  { bg:'#A3E635', fg:'#1A2A04' }, // lime
+  { bg:'#DC2626', fg:'#FFFFFF' }, // crimson
+  { bg:'#7DD3FC', fg:'#0C2A3A' }, // sky
+  { bg:'#8D6E63', fg:'#FFFFFF' }, // cocoa
+  { bg:'#8B5CF6', fg:'#FFFFFF' }, // violet (grey is Claude's)
+];
+const CLAUDE_COLOR = { bg:'#64748B', fg:'#FFFFFF' };
+const CLAUDE_LAUGH = '#AEB8C6'; // lighter grey for Claude's 😂 (the slate reads too dark on a face)
+function firstFreeColor(players, exceptUid){
+  const used = new Set(Object.entries(players||{})
+    .filter(([u]) => u !== exceptUid).map(([,p]) => p.color).filter(Number.isInteger));
+  let c = 0; while(used.has(c)) c++;
+  return c % PLAYER_COLORS.length;
+}
+// uid -> palette entry. Uses each player's stored colour; anyone without
+// one (games started before colours existed) gets the next free slot.
+function playerColor(uid){
+  if(uid === 'CLAUDE') return CLAUDE_COLOR;
+  const players = (game && game.players) || {};
+  const used = new Set(); const map = {};
+  Object.entries(players).forEach(([u,p]) => {
+    if(Number.isInteger(p.color) && !used.has(p.color)){ map[u] = p.color; used.add(p.color); }
+  });
+  Object.keys(players).sort().forEach(u => {
+    if(map[u] === undefined){ let c = 0; while(used.has(c)) c++; map[u] = c; used.add(c); }
+  });
+  return PLAYER_COLORS[(map[uid] ?? 0) % PLAYER_COLORS.length];
+}
+class JoinError extends Error {}
+
+// No name yet? Make it impossible to miss: pop a toast, highlight + shake the
+// name box, scroll to it and focus it. (The old bottom-of-page error was easy
+// to miss on a phone.)
+function nudgeForName(){
+  const msg = 'Enter your name first, then join or start a game.';
+  $('home-err').textContent = msg;
+  showToast('name', `<strong>What's your name?</strong><br>Type it in the <b>Your name</b> box at the top so the others know who wrote what.`, '👋', 6000);
+  const inp = $('input-name');
+  inp.classList.add('need-name');
+  inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  inp.scrollIntoView({ behavior:'smooth', block:'center' });
+  setTimeout(() => inp.focus(), 250);
+}
+
+// Everyone with a score: the players, plus Claude when it's in the game
+// (Include Claude on) or has already banked points.
+function scoreboard(){
+  const rows = Object.entries((game && game.players) || {}).map(([uid,p]) => [uid, { name:p.name, score:p.score||0, stats:p.stats||null }]);
+  const cs = (game && game.claudeScore) || 0;
+  if((game && game.settings && game.settings.includeClaude) || cs > 0) rows.push(['CLAUDE', { name:'Claude', score:cs, stats:(game && game.claudeStats) || null }]);
+  return rows.sort((a,b) => b[1].score - a[1].score);
+}
+
+// ---- 6. HOME SCREEN ---------------------------------------------------------
+let homeReady = false;
+function initHome(){
+  // Runs once per page load — including when the page first resumed straight
+  // into a game and the player only reaches home later by leaving it.
+  if(homeReady){ listenOpenGames(); return; }
+  homeReady = true;
+  $('input-name').value = myName;
+  $('input-name').addEventListener('input', e => {
+    myName = e.target.value;
+    localStorage.setItem('balderlaugh_name', myName);
+    if(myName.trim()){ e.target.classList.remove('need-name'); if(/name first/.test($('home-err').textContent)) $('home-err').textContent = ''; }
+  });
+
+  $('btn-create-game').onclick = async () => {
+    const name = myName.trim();
+    if(!name){ nudgeForName(); return; }
+    if(isReservedName(name)){ $('home-err').textContent = "Nice try — that name is reserved. Pick another."; return; }
+    $('home-err').textContent = '';
+    const code = genCode();
+    await setDoc(doc(db, GAMES, code), {
+      hostUid: myUid,
+      hostName: name,
+      creatorUid: myUid,   // the game keeps its creator's name even if hosting passes on
+      creatorName: name,
+      status: 'lobby',
+      createdAt: serverTimestamp(),
+      settings: { numRounds:6, categories:['oddWords','obscurePeople','movies'], crowdFunny:true, ccc:false, csf:false, includeClaude:false },
+      players: { [myUid]: { name, score:0, color:0 } },
+      usedTerms: [],
+      readerQueue: [],
+      categoryQueue: [],
+      round: null
+    });
+    joinGame(code);
+  };
+
+  // Letters only — strip anything else as it's typed.
+  $('input-joincode').addEventListener('input', e => {
+    const clean = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+    if(clean !== e.target.value) e.target.value = clean;
+  });
+
+  $('btn-join-code').onclick = () => {
+    const code = $('input-joincode').value.trim().toUpperCase();
+    if(!code){ return; }
+    joinGame(code);
+  };
+
+  listenOpenGames();
+}
+// Open games untouched for 12h+ are deleted outright (not just hidden), by
+// whichever device next opens the home screen — once per page load.
+let staleSweepDone = false;
+async function sweepStaleLobbies(){
+  if(staleSweepDone) return;
+  staleSweepDone = true;
+  try{
+    const cutoff = Timestamp.fromMillis(Date.now() - STALE_LOBBY_MS);
+    const q = query(collection(db, GAMES), where('status','==','lobby'), where('createdAt','<', cutoff), limit(25));
+    const snap = await getDocs(q);
+    const dels = [];
+    snap.forEach(d => dels.push(deleteDoc(doc(db, GAMES, d.id)).catch(err => console.error('Stale delete failed:', d.id, err))));
+    // Abandoned in-progress games: gone after a day.
+    const cutoffPlay = Timestamp.fromMillis(Date.now() - 2*STALE_LOBBY_MS);
+    const snap2 = await getDocs(query(collection(db, GAMES), where('status','==','playing'), where('createdAt','<', cutoffPlay), limit(25)));
+    snap2.forEach(d => dels.push(deleteDoc(doc(db, GAMES, d.id)).catch(err => console.error('Stale delete failed:', d.id, err))));
+    await Promise.all(dels);
+  } catch(err){ console.error('Stale lobby sweep failed:', err); }
+}
+
+function gameCreatedMs(g){
+  const c = g.createdAt;
+  return c && typeof c.toMillis === 'function' ? c.toMillis() : (typeof c === 'number' ? c : Date.now());
+}
+// One row in either home-screen list. The 🗑 shows only on this device's own
+// games (no logins, so "same browser that's hosting it" is the best proof of
+// ownership we have). Two taps: 🗑 → "Delete?" → gone; anyone inside is
+// sent home automatically (their listener sees the doc vanish).
+function gameListItem(id, g, meta, goLabel, disabled){
+  const el = document.createElement('div');
+  el.className = 'lobby-list-item';
+  if(disabled) el.style.opacity = '.5';
+  el.innerHTML = `<div style="flex:1;min-width:0;"><div class="name">${escapeHtml(gameTitle(g))}</div><div class="meta">${meta}</div></div><span class="go">${disabled ? '' : goLabel}</span>`;
+  el.onclick = () => {
+    if(disabled) return;
+    const name = myName.trim();
+    if(!name){ nudgeForName(); return; }
+    joinGame(id);
+  };
+  if(g.hostUid === myUid){
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'del'; del.textContent = '🗑';
+    del.setAttribute('aria-label', 'Delete this game');
+    let armTimer = null;
+    del.onclick = async (e) => {
+      e.stopPropagation();
+      if(!del.classList.contains('confirm')){
+        del.classList.add('confirm'); del.textContent = 'Delete?';
+        armTimer = setTimeout(() => { del.classList.remove('confirm'); del.textContent = '🗑'; }, 3000);
+        return;
+      }
+      clearTimeout(armTimer);
+      del.disabled = true;
+      try{ await deleteDoc(doc(db, GAMES, id)); }
+      catch(err){ console.error('Delete failed:', err); $('home-err').textContent = 'Could not delete that game — try again.'; del.disabled = false; }
+    };
+    el.insertBefore(del, el.querySelector('.go'));
+  }
+  return el;
+}
+function gameTitle(g){
+  const base = `${g.creatorName || g.hostName || 'Someone'}'s Game`;
+  // "Fitz's Game (now hosted by JJ)" once hosting has passed to someone else
+  return g.creatorUid && g.hostUid && g.hostUid !== g.creatorUid && g.hostName ? `${base} (now hosted by ${g.hostName})` : base;
+}
+function seatedPlayers(g){ return Object.values(g.players||{}).filter(p => !p.left); }
+
+let unsubInProgress = null;
+function listenOpenGames(){
+  if(unsubOpenGames) unsubOpenGames();
+  sweepStaleLobbies();
+  // Hide games nobody's touched in 12h+ — forgotten test games, or ones
+  // started on a device whose owner can't delete them here.
+  const fresh = d => gameCreatedMs(d.data()) >= Date.now() - STALE_LOBBY_MS;
+
+  const qOpen = query(collection(db, GAMES), where('status','==','lobby'), orderBy('createdAt','desc'), limit(15));
+  const u1 = onSnapshot(qOpen, snap => {
+    const list = $('open-games-list');
+    list.innerHTML = '';
+    const docs = []; snap.forEach(d => { if(fresh(d)) docs.push(d); });
+    $('open-games-count').textContent = docs.length;
+    $('no-games-note').style.display = docs.length ? 'none' : 'block';
+    docs.forEach(d => {
+      const g = d.data();
+      const count = seatedPlayers(g).length;
+      const full = count >= MAX_PLAYERS;
+      list.appendChild(gameListItem(d.id, g, `${count}/${MAX_PLAYERS} players · code ${d.id}${full ? ' · full' : ''}`, '&rarr;', full));
+    });
+  }, err => { console.error(err); });
+
+  // Games already under way — so anyone who left (or dropped off) can
+  // get back in without needing the code. Rejoining keeps your score.
+  const qPlay = query(collection(db, GAMES), where('status','==','playing'), orderBy('createdAt','desc'), limit(15));
+  const u2 = onSnapshot(qPlay, snap => {
+    const list = $('inprog-list');
+    list.innerHTML = '';
+    // Show games with someone still playing — or ones you were in, so you
+    // can always get back in (even if everyone stepped away).
+    const docs = []; snap.forEach(d => {
+      const g = d.data();
+      const mine = !!(g.players && (g.players[myUid] || Object.values(g.players).some(p => p.left && (p.name||'').trim().toLowerCase() === myName.trim().toLowerCase())));
+      if(fresh(d) && (seatedPlayers(g).length || mine)) docs.push(d);
+    });
+    $('inprog-count').textContent = docs.length;
+    $('inprog-wrap').style.display = docs.length ? 'block' : 'none';
+    docs.forEach(d => {
+      const g = d.data();
+      const n = (g.settings && g.settings.numRounds) || 0;
+      const idx = g.round ? g.round.index + 1 : 1;
+      const roundTxt = n && idx > n ? `Bonus round ${idx - n}` : `Round ${idx} of ${n}`;
+      const mine = !!(g.players && g.players[myUid]);
+      const count = seatedPlayers(g).length;
+      const full = !mine && count >= MAX_PLAYERS;
+      list.appendChild(gameListItem(d.id, g, `${roundTxt} · ${count} playing · code ${d.id}${full ? ' · full' : ''}`,
+        mine ? 'Rejoin &rarr;' : 'Join &rarr;', full));
+    });
+  }, err => { console.error(err); });
+
+  unsubOpenGames = () => { u1(); u2(); };
+}
+function escapeHtml(s){
+  const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+function formatRoundLabel(r){
+  const n = game.settings.numRounds;
+  if(r.index + 1 <= n) return `Round ${r.index+1} of ${n}`;
+  return `Bonus round ${r.index+1 - n} (tiebreaker)`; // "play until clear winner" overtime
+}
+
+// Someone returning to a game in progress takes the host role back if they
+// created the game, or if the current host has left (so the room is never
+// stuck without anyone who can press "Next round").
+function hostOnReturn(data, returningUid, name){
+  const host = (data.players||{})[data.hostUid];
+  const hostGone = !host || host.left || data.hostUid === returningUid;
+  if(data.creatorUid === returningUid && host && data.hostUid !== returningUid){
+    // The creator takes the reins back from a stand-in host — tell the room.
+    return { hostUid: myUid, hostName: name, hostReturn: { at: Date.now(), name, prevName: host.name || data.hostName || '' } };
+  }
+  if(data.creatorUid === returningUid || hostGone) return { hostUid: myUid, hostName: name };
+  return {};
+}
+
+// "Fitz is once again host / (Your service is appreciated JJ)" — shown to
+// everyone for 10s (✕ to close sooner), once per handback, and only if it
+// just happened (not when someone reloads later).
+let hostReturnSeen = null;
+function checkHostReturn(){
+  const h = game && game.hostReturn;
+  if(!h || !h.at || h.at === hostReturnSeen) return;
+  hostReturnSeen = h.at;
+  if(Date.now() - h.at > 20000) return;
+  const thanks = h.prevName ? `<br><span style="font-size:14px;">(Your service is appreciated ${escapeHtml(h.prevName)})</span>` : '';
+  showToast('host', `<strong>${escapeHtml(h.name)} is once again host</strong>${thanks}`, '', 10000);
+}
+
+async function joinGame(code){
+  const name = myName.trim();
+  if(!name){ nudgeForName(); return; }
+  if(isReservedName(name)){ $('home-err').textContent = "Nice try — that name is reserved. Pick another."; return; }
+  // Transaction so two people joining at the same instant can't both grab
+  // the 8th seat or the same colour.
+  try{
+    await runTransaction(db, async tx => {
+      const ref = doc(db, GAMES, code);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new JoinError('No game with that code.');
+      const data = snap.data();
+      const players = data.players || {};
+      const others = Object.entries(players).filter(([uid]) => uid !== myUid);
+      const me = players[myUid];
+      const sameName = others.find(([,p]) => (p.name||'').trim().toLowerCase() === name.toLowerCase());
+      if(sameName){
+        const [oldUid, old] = sameName;
+        // Someone who left mid-game coming back on a different phone/browser:
+        // hand them their old seat (score + colour) under this device.
+        if(old.left && !me && data.status === 'playing'){
+          const upd = {
+            [`players.${oldUid}`]: deleteField(),
+            [`players.${myUid}`]: { ...old, name, left:false, sittingOut:false },
+            ...hostOnReturn(data, oldUid, name)
+          };
+          if(data.creatorUid === oldUid) upd.creatorUid = myUid; // creator switched devices
+          tx.update(ref, upd);
+          return;
+        }
+        throw new JoinError('That name is taken — try a different one.');
+      }
+      if(!me){
+        if(others.filter(([,p]) => !p.left).length >= MAX_PLAYERS) throw new JoinError(`That game is full (${MAX_PLAYERS} players max).`);
+        tx.update(ref, { [`players.${myUid}`]: { name, score:0, color: firstFreeColor(players, myUid) } });
+      } else {
+        const upd = {};
+        // Back after leaving mid-game: take your seat again, score intact.
+        if(me.left){
+          upd[`players.${myUid}.left`] = false; upd[`players.${myUid}.sittingOut`] = false;
+          Object.assign(upd, hostOnReturn(data, myUid, name));
+        }
+        // Name changed since last visit (e.g. rejoining after a reload) — keep it in sync.
+        if(me.name !== name) upd[`players.${myUid}.name`] = name;
+        if(Object.keys(upd).length) tx.update(ref, upd);
+      }
+    });
+  } catch(err){
+    if(err instanceof JoinError){ $('home-err').textContent = err.message; }
+    else { console.error('Join failed:', err); $('home-err').textContent = 'Could not join — try again.'; }
+    return;
+  }
+  $('home-err').textContent = '';
+  currentGameCode = code;
+  attachGameListener(code);
+}
+
+// ---- 7. GAME LISTENER + ROUTER --------------------------------------------
+function attachGameListener(code){
+  if(unsubGame) unsubGame();
+  if(unsubOpenGames) unsubOpenGames();
+  localStorage.setItem('balderlaugh_current_game', code);
+  unsubGame = onSnapshot(doc(db, GAMES, code), snap => {
+    if(!snap.exists()){ leaveToHome(); return; }
+    game = snap.data();
+    route();
+    checkWanderers();
+    checkHostReturn();
+  });
+}
+function leaveToHome(){
+  if(unsubGame) unsubGame();
+  if(wakeLock){ const l = wakeLock; wakeLock = null; l.release().catch(()=>{}); }
+  clearInterval(timerInterval);
+  localStorage.removeItem('balderlaugh_current_game');
+  currentGameCode = null; game = null; lastPhaseKey = null;
+  showScreen('screen-home');
+  $('input-name').value = myName;
+  initHome(); // sets up the home screen if this load resumed straight into a game
+}
+
+// Leaving mid-game (not just from the lobby) needs the same cleanup —
+// remove yourself from players, hand off host if it was you, go home.
+async function leaveGame(){
+  if(!currentGameCode || !game){ leaveToHome(); return; }
+  const wasHost = isHost();
+  const midGame = game.status === 'playing';
+  const remaining = Object.keys(game.players||{}).filter(uid => uid !== myUid && !game.players[uid].left);
+  try{
+    // Mid-game you're parked as "left" (score + colour kept, nobody waits on
+    // you) so you can rejoin from "In progress"; from the lobby you're removed.
+    const updates = midGame
+      ? { [`players.${myUid}.left`]: true, [`players.${myUid}.sittingOut`]: true }
+      : { [`players.${myUid}`]: deleteField() };
+    if(wasHost && remaining.length){
+      updates.hostUid = remaining[0];
+      updates.hostName = game.players[remaining[0]].name;
+    }
+    await updateDoc(doc(db, GAMES, currentGameCode), updates);
+  } catch(err){
+    console.error('Leave game failed, returning home anyway:', err);
+  } finally {
+    leaveToHome();
+  }
+}
+
+// Sitting out keeps a player in the game (score intact, still visible to
+// everyone) but excludes them from the "waiting on everyone" counts, so
+// the room can move at full speed without them until they opt back in.
+function amISittingOut(){
+  return !!(game && game.players && game.players[myUid] && game.players[myUid].sittingOut);
+}
+function activePlayerUids(){
+  const players = (game && game.players) || {};
+  return Object.keys(players).filter(uid => !players[uid].sittingOut);
+}
+async function toggleSitOut(){
+  if(!currentGameCode || !game) return;
+  await updateDoc(doc(db, GAMES, currentGameCode), { [`players.${myUid}.sittingOut`]: !amISittingOut() });
+}
+
+// On load, try to reattach to whatever game this device was last in,
+// rather than always dropping the player back at the home screen.
+async function tryResume(){
+  const savedCode = localStorage.getItem('balderlaugh_current_game');
+  if(!savedCode) return false;
+  try{
+    const snap = await getDoc(doc(db, GAMES, savedCode));
+    if(!snap.exists() || !snap.data().players || !snap.data().players[myUid]){
+      localStorage.removeItem('balderlaugh_current_game');
+      return false;
+    }
+    currentGameCode = savedCode;
+    attachGameListener(savedCode);
+    return true;
+  } catch(err){
+    console.error('Resume failed:', err);
+    localStorage.removeItem('balderlaugh_current_game');
+    return false;
+  }
+}
+
+function route(){
+  syncWakeLock();
+  document.querySelectorAll('.host-gear').forEach(b => b.style.display = isHost() ? '' : 'none');
+  if(!isHost() && $('settings-sheet').classList.contains('open')) closeSettingsSheet();
+  if(game.status === 'lobby'){ renderLobby(); showScreen('screen-lobby'); return; }
+  if(game.status === 'ended'){ renderGameOver(); showScreen('screen-gameover'); return; }
+  if(game.status === 'playing' && game.round){
+    const phase = game.round.phase;
+    const phaseKey = `${game.round.index}-${phase}`;
+    const isNewPhase = phaseKey !== lastPhaseKey;
+    lastPhaseKey = phaseKey;
+    if(phase === 'generating'){ renderGenerating(); showScreen('screen-loading'); }
+    else if(phase === 'writing'){ resetLoadingScreen(); renderWriting(isNewPhase); showScreen('screen-writing'); }
+    else if(phase === 'reading'){ renderReading(isNewPhase); showScreen('screen-reading'); }
+    else if(phase === 'voting'){ renderVoting(isNewPhase); showScreen('screen-voting'); }
+    else if(phase === 'reveal'){ renderReveal(isNewPhase); showScreen('screen-reveal'); }
+  }
+}
+
+// ---- 8. LOBBY ---------------------------------------------------------------
+function renderLobby(){
+  $('lobby-title').textContent = gameTitle(game);
+  $('lobby-code').textContent = currentGameCode;
+  const players = game.players || {};
+  const uids = Object.keys(players);
+  $('lobby-player-count').textContent = `${uids.length}/${MAX_PLAYERS}`;
+
+  const list = $('lobby-player-list');
+  list.innerHTML = '';
+  uids.forEach(uid => {
+    const p = players[uid];
+    const chip = document.createElement('div');
+    chip.className = 'player-chip';
+    let badges = '';
+    if(uid === game.hostUid) badges += `<span class="badge host">HOST</span>`;
+    if(uid === myUid) badges += `<span class="badge you">YOU</span>`;
+    const col = playerColor(uid);
+    chip.innerHTML = `<div class="who"><span class="pdot" style="background:${col.bg}"></span><span>${escapeHtml(p.name)}</span>${badges}</div>`;
+    if(isHost() && uid !== myUid){
+      const btn = document.createElement('button');
+      btn.className = 'btn ghost small';
+      btn.textContent = 'Make host';
+      btn.onclick = () => updateDoc(doc(db, GAMES, currentGameCode), { hostUid: uid });
+      chip.appendChild(btn);
+    }
+    list.appendChild(chip);
+  });
+
+  if($('settings-sheet').classList.contains('open')) closeSettingsSheet();
+  const hostCard = $('host-settings-card');
+  hostCard.style.display = isHost() ? 'block' : 'none';
+  $('btn-start-game').style.display = isHost() ? 'block' : 'none';
+  $('lobby-wait-note').style.display = isHost() ? 'none' : 'block';
+
+  $('btn-leave-lobby').onclick = leaveGame;
+
+  if(isHost()){
+    $('btn-start-game').onclick = startGame;
+  }
+}
+
+// ---- Settings form (shared by the lobby and the mid-game ⚙ sheet) --------
+const TOGGLES = ['crowdFunny','csf','funnyPoints','includeClaude','wanderWatch'];
+function readSettingsForm(){
+  return {
+    numRounds: parseInt($('setting-rounds').value, 10),
+    writingSeconds: parseInt($('setting-writing-seconds').value, 10),
+    votingSeconds: parseInt($('setting-voting-seconds').value, 10),
+    categories: ['oddWords','obscurePeople','movies'].filter(c => $(`cat-${c}`).checked),
+    ...Object.fromEntries(TOGGLES.map(k => [k, $(`toggle-${k}`).checked]))
+  };
+}
+function fillSettingsForm(st){
+  $('setting-rounds').value = String(st.numRounds);
+  $('setting-writing-seconds').value = String(st.writingSeconds || 180);
+  $('setting-voting-seconds').value = String(st.votingSeconds || 180);
+  ['oddWords','obscurePeople','movies'].forEach(c => $(`cat-${c}`).checked = (st.categories||[]).includes(c));
+  TOGGLES.forEach(k => $(`toggle-${k}`).checked = !!st[k]);
+}
+// Settings the NEXT round will use: live settings plus anything the host
+// changed mid-game (held in pendingSettings until a new round starts).
+function effectiveSettings(){
+  return { ...(game.settings||{}), ...(game.pendingSettings||{}) };
+}
+
+function openSettingsSheet(){
+  if(!isHost() || !game || game.status !== 'playing') return;
+  const card = $('host-settings-card');
+  $('settings-sheet-body').appendChild(card);
+  card.style.display = 'block';
+  $('settings-midgame-note').style.display = 'block';
+  $('settings-save-wrap').style.display = 'block';
+  $('settings-err').textContent = '';
+  fillSettingsForm(effectiveSettings());
+  // Rounds can't drop below the round you're on (or one already started).
+  const minRounds = game.round ? game.round.index + 1 : 1;
+  const sel = $('setting-rounds');
+  [...sel.options].forEach(o => { o.disabled = parseInt(o.value,10) < minRounds; });
+  if(!sel.options[sel.selectedIndex] || sel.options[sel.selectedIndex].disabled){
+    const ok = [...sel.options].find(o => !o.disabled); if(ok) sel.value = ok.value;
+  }
+  $('settings-sheet').classList.add('open');
+}
+function closeSettingsSheet(){
+  const card = $('host-settings-card');
+  $('settings-home').before(card); // back to its lobby spot
+  $('settings-midgame-note').style.display = 'none';
+  $('settings-save-wrap').style.display = 'none';
+  [...$('setting-rounds').options].forEach(o => o.disabled = false);
+  $('settings-sheet').classList.remove('open');
+}
+$('btn-close-settings').onclick = closeSettingsSheet;
+
+// ---- ⋯ menu (Sit out / Settings / Leave) --------------------------------------
+// The original per-screen buttons still exist (hidden) and keep all their
+// logic and labels; the menu just offers them from one tidy spot.
+let menuScreen = null;
+function closeMenu(){ $('menu-pop').classList.remove('open'); menuScreen = null; }
+document.querySelectorAll('.menu-btn').forEach(btn => btn.onclick = (e) => {
+  e.stopPropagation();
+  const pop = $('menu-pop');
+  if(pop.classList.contains('open')){ closeMenu(); return; }
+  menuScreen = btn.dataset.screen;
+  const sit = $(`btn-sitout-${menuScreen}`);
+  $('menu-sitout').style.display = sit ? 'block' : 'none';
+  if(sit) $('menu-sitout').textContent = sit.textContent;
+  $('menu-settings').style.display = isHost() ? 'block' : 'none';
+  const r = btn.getBoundingClientRect();
+  pop.style.top = `${r.bottom + 6}px`;
+  pop.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+  pop.classList.add('open');
+});
+$('menu-sitout').onclick = () => { const b = $(`btn-sitout-${menuScreen}`); closeMenu(); if(b) b.click(); };
+$('menu-settings').onclick = () => { closeMenu(); openSettingsSheet(); };
+$('menu-leave').onclick = () => { const b = $(`btn-leave-${menuScreen}`); closeMenu(); if(b) b.click(); };
+document.addEventListener('click', (e) => { if(!e.target.closest('#menu-pop')) closeMenu(); });
+document.querySelectorAll('.host-gear').forEach(b => b.onclick = openSettingsSheet);
+$('btn-save-settings').onclick = async () => {
+  const st = readSettingsForm();
+  if(st.categories.length === 0){ $('settings-err').textContent = 'Pick at least one category.'; return; }
+  try{
+    await updateDoc(doc(db, GAMES, currentGameCode), { pendingSettings: st });
+    closeSettingsSheet();
+    showToast('self', 'Settings saved — they kick in from the next round.', '⚙');
+  } catch(err){
+    console.error(err); $('settings-err').textContent = 'Could not save — try again.';
+  }
+};
+
+async function startGame(){
+  const settings = readSettingsForm();
+  if(settings.categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
+  if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
+  const categories = settings.categories;
+  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing', claudeScore: 0, claudeStats: null, tiebreak: false, pendingSettings: deleteField() });
+  await beginRound(0, categories, []);
+}
+
+// ---- Fresh items only (hard block) ------------------------------------------
+// A term used earlier this game or anywhere in the last COOLDOWN_DAYS is never
+// picked — no quiet repeats. If nothing fresh turns up (or it's slow), the
+// host gets "Try again" (twice), then the option to end the game.
+const GEN_TRY_AGAIN_MS = 30000;
+const GEN_MAX_ATTEMPTS = 3; // first try + 2 "Try again"s
+function normTerm(t){
+  return (t||'').toLowerCase().replace(/[\u2018\u2019']/g, "'").replace(/\s+/g,' ').trim().replace(/^(the|a|an) /, '');
+}
+// Only the attempt the room is currently waiting on may finish the round —
+// a slow earlier attempt that lands after a "Try again" is ignored.
+function isCurrentAttempt(index, attempt){
+  return !!(game && game.round && game.round.index === index && game.round.phase === 'generating' && (game.round.genAttempt||1) === attempt);
+}
+async function markGenFailed(index, attempt){
+  if(!isCurrentAttempt(index, attempt)) return;
+  try{ await updateDoc(doc(db, GAMES, currentGameCode), { 'round.genFailed': true }); }catch(e){ console.error(e); }
+}
+
+async function beginRound(index, categories, usedTerms, extra = {}, attempt = 1){
+  // Any mid-game changes from the host's ⚙ take effect now, at the start
+  // of a fresh round — never partway through one.
+  const settings = effectiveSettings();
+  const hadPending = !!game.pendingSettings;
+  categories = settings.categories && settings.categories.length ? settings.categories : categories;
+  const { cat, remainingQueue: categoryQueue } = pickNextCategory(game.categoryQueue, categories);
+
+  // Reading the room: log how long the humans' bluffs were in the round
+  // that just finished (never Claude's). The server's length decks for the
+  // real answer and Claude's bluff are re-dealt from this every 3 rounds.
+  // Word counts only — nothing secret — and only the most recent 40 kept.
+  const prev = game.round;
+  const newLengths = (prev && prev.index !== index && prev.phase !== 'generating' && prev.phase !== 'writing')
+    ? Object.entries(prev.submissions||{}).filter(([uid]) => uid !== 'CLAUDE')
+        .map(([, s]) => (s.text||'').trim().split(/\s+/).filter(Boolean).length).filter(n => n > 0)
+    : [];
+  if(newLengths.length) extra = { ...extra, bluffLengths: [...(game.bluffLengths||[]), ...newLengths].slice(-40) };
+
+  // Show a loading state immediately, and fetch the cross-game cooldown
+  // list in parallel with it (they're independent — no reason to wait on
+  // one before starting the other).
+  const [, recentTermsResult] = await Promise.allSettled([
+    updateDoc(doc(db, GAMES, currentGameCode), {
+      categoryQueue,
+      ...extra,
+      ...(hadPending ? { settings, pendingSettings: deleteField() } : {}),
+      round: {
+        index, category: cat, phase: 'generating', term: null, itemId: null,
+        answerSource: null, answerId: null, phaseEndsAt: null,
+        submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false,
+        genAttempt: attempt, genStartedAt: Date.now(), genFailed: false
+      }
+    }),
+    getRecentlyUsedTerms()
+  ]);
+  // Hard block: without the recently-used list we can't guarantee no
+  // repeats, so a failed fetch counts as a failed attempt (host can retry).
+  if(recentTermsResult.status === 'rejected'){
+    console.error('Could not fetch recently-used terms:', recentTermsResult.reason);
+    await markGenFailed(index, attempt);
+    return;
+  }
+  const recentTerms = recentTermsResult.value;
+  const excludeTerms = [...new Set([...usedTerms, ...recentTerms])];
+  const blocked = new Set(excludeTerms.map(normTerm));
+
+  let term, itemId = null, answerSource, answerId = null;
+  try{
+    // Each attempt gets its own answer slot (…_3, …_3-2, …_3-3) so a slow
+    // earlier attempt can never overwrite a retry's stored answer.
+    const result = await generateItemFn({ category: cat, excludeTerms, gameId: currentGameCode, roundIndex: attempt > 1 ? `${index}-${attempt}` : index });
+    if(!result.data || !result.data.term) throw new Error('No term returned');
+    if(blocked.has(normTerm(result.data.term))) throw new Error(`Generator suggested a recent repeat ("${result.data.term}") — rejected`);
+    term = result.data.term;
+    answerId = result.data.answerId;
+    answerSource = 'generated';
+  } catch(err){
+    // Function not deployed yet, network hiccup, the model couldn't
+    // produce a verifiable answer, or it suggested a repeat — fall back to
+    // the pre-seeded bank, still fresh items only.
+    console.error('Live generation failed, falling back to the seeded bank:', err);
+    if(!isCurrentAttempt(index, attempt)) return; // host already moved on
+    let bank = [];
+    try{
+      const idx = await getItemIndex();
+      bank = (idx[cat] || []).filter(it => !blocked.has(normTerm(it.term)));
+    }catch(e){ console.error('Could not read the seeded bank:', e); }
+    if(bank.length === 0){
+      console.error('No fresh fallback items for category', cat);
+      await markGenFailed(index, attempt);
+      return;
+    }
+    const cands = randomShuffle(bank).slice(0, ANSWER_CHECK_MAX)
+      .map(c => ({ answerSource:'seed', itemId: c.id, term: c.term }));
+    const hit = await firstWithAnswer(cands);
+    if(!isCurrentAttempt(index, attempt)) return;
+    const item = hit ? { id: hit.itemId, term: hit.term } : null;
+    if(!item){
+      await markGenFailed(index, attempt);
+      return;
+    }
+    term = item.term; itemId = item.id; answerSource = 'seed';
+  }
+
+  await startWritingPhase({ index, attempt, cat, term, itemId, answerSource, answerId, settings, usedTerms });
+}
+
+// Shared by a normal round start and a golden-oldie replay: Claude's bluff
+// (if on), cooldown bookkeeping, then open the round for writing.
+async function startWritingPhase({ index, attempt, cat, term, itemId, answerSource, answerId, settings, usedTerms }){
+  // Include Claude: get its bluff now, alongside the term — it needs the
+  // real answer for overlap-avoidance (see generateBluff), so this can't
+  // run in parallel with the term fetch above; it genuinely has to wait
+  // for it.
+  const submissions = {};
+  if(settings.includeClaude){
+    try{
+      const bluffResult = await generateBluffFn({ term, category: cat, answerSource, answerId, itemId, gameId: currentGameCode, roundIndex: index });
+      if(bluffResult.data && bluffResult.data.bluff){
+        submissions['CLAUDE'] = { text: bluffResult.data.bluff, author: 'CLAUDE' };
+      }
+    } catch(err){
+      // Skip Claude's entry this round rather than blocking it — Include
+      // Claude is a nice-to-have, not core to the round happening.
+      console.error('generateBluff failed, continuing without Claude this round:', err);
+    }
+  }
+
+  // A "Try again" (or a game ending) may have happened while we waited —
+  // only the attempt the room's still waiting on gets to start the round.
+  if(!isCurrentAttempt(index, attempt)) return;
+
+  // Record this term for the cross-game cooldown, regardless of source.
+  // Bookkeeping only — don't make players wait on this write.
+  markTermUsed(term, cat, { answerSource, answerId, itemId }).catch(err => console.error('Could not record term as used:', err));
+
+  // The timer starts NOW — after everything (term + Claude's bluff, if
+  // any) is actually ready — not earlier, or players lose real time to
+  // network/generation latency before they can even see the prompt.
+  const phaseEndsAt = Date.now() + settings.writingSeconds*1000;
+
+  await updateDoc(doc(db, GAMES, currentGameCode), {
+    usedTerms: [...usedTerms, term],
+    round: {
+      index, category: cat, term, itemId, answerSource, answerId,
+      phase: 'writing', phaseEndsAt,
+      submissions, votes: {}, shuffleOrder: null, answerText: null, scored: false
+    }
+  });
+}
+
+// ---- Golden oldies ------------------------------------------------------------
+// When fresh items run out, replay something from a while back. "A while"
+// grows with the game's history, like memory: at least 24h ago, or half the
+// age of the oldest item on record, whichever is further back. Never
+// anything already played in THIS game, only enabled categories, and only
+// items whose real answer we can still find.
+const OLDIE_MIN_AGE_MS = 24*60*60*1000;
+async function findGoldenOldie(categories, usedTerms){
+  const snap = await getDocs(query(collection(db, 'balderlaugh_used_terms'), orderBy('lastUsedAt','asc'), limit(300)));
+  const rows = [];
+  snap.forEach(d => {
+    const x = d.data();
+    const t = x.lastUsedAt && typeof x.lastUsedAt.toMillis === 'function' ? x.lastUsedAt.toMillis() : x.lastUsedAt;
+    if(x.term && typeof t === 'number') rows.push({ ...x, t });
+  });
+  if(!rows.length) return null;
+  const now = Date.now();
+  const oldest = Math.min(...rows.map(r => r.t));
+  const minAge = Math.max(OLDIE_MIN_AGE_MS, (now - oldest) * 0.5);
+  const inThisGame = new Set((usedTerms||[]).map(normTerm));
+  let idx = null;
+  const picks = [];
+  for(const r of rows){
+    if(now - r.t < minAge) continue;
+    if(!categories.includes(r.category)) continue;
+    if(inThisGame.has(normTerm(r.term))) continue;
+    let ref = null;
+    if(r.answerSource === 'generated' && r.answerId) ref = { answerSource:'generated', answerId:r.answerId, itemId:null };
+    else if(r.answerSource === 'seed' && r.itemId) ref = { answerSource:'seed', itemId:r.itemId, answerId:null };
+    else {
+      // Older records didn't note where the answer lives — seeded items can
+      // still be found by name; generated ones can't, so they're skipped.
+      try{ idx = idx || await getItemIndex(); }catch(e){ idx = {}; }
+      const hit = (idx[r.category]||[]).find(it => normTerm(it.term) === normTerm(r.term));
+      if(hit) ref = { answerSource:'seed', itemId:hit.id, answerId:null };
+    }
+    if(ref) picks.push({ term:r.term, category:r.category, ...ref });
+  }
+  return firstWithAnswer(randomShuffle(picks).slice(0, ANSWER_CHECK_MAX));
+}
+async function replayOldie(oldie, index, attempt){
+  if(!isCurrentAttempt(index, attempt)) return;
+  const settings = effectiveSettings();
+  await startWritingPhase({ index, attempt, cat: oldie.category, term: oldie.term, itemId: oldie.itemId,
+    answerSource: oldie.answerSource, answerId: oldie.answerId, settings, usedTerms: game.usedTerms||[] });
+}
+
+// ---- 8b. GENERATING (waiting for a fresh item) -----------------------------
+function resetLoadingScreen(){
+  $('gen-controls').style.display = 'none';
+  $('gen-stopwatch').style.display = 'none';
+  $('gen-elapsed').style.display = 'none';
+  $('loading-sub').style.display = 'none';
+  $('load-dots').style.display = 'none';
+}
+let oldieState = null; // { key, loading, pick } for the current out-of-retries screen
+function renderGenerating(){
+  const r = game.round;
+  const attempt = r.genAttempt || 1;
+  const left = GEN_MAX_ATTEMPTS - attempt;
+  $('gen-controls').style.display = 'block';
+  const retryBtn = $('btn-gen-retry'), endBtn = $('btn-gen-end'), oldieBtn = $('btn-gen-oldie');
+  retryBtn.disabled = false; endBtn.disabled = false; oldieBtn.disabled = false;
+  oldieBtn.onclick = async () => {
+    if(!oldieState || !oldieState.pick) return;
+    oldieBtn.disabled = true;
+    await replayOldie(oldieState.pick, r.index, attempt);
+  };
+  retryBtn.onclick = async () => {
+    retryBtn.disabled = true;
+    await beginRound(r.index, effectiveSettings().categories, game.usedTerms||[], {}, attempt + 1);
+  };
+  endBtn.onclick = async () => {
+    endBtn.disabled = true;
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'ended' });
+  };
+  clearInterval(timerInterval);
+  const tick = () => {
+    if(!game || !game.round || game.round.phase !== 'generating'){ clearInterval(timerInterval); return; }
+    const waited = Date.now() - (r.genStartedAt || Date.now());
+    const stuck = !!r.genFailed || waited > GEN_TRY_AGAIN_MS;
+    const msg = $('loading-message'), sub = $('loading-sub');
+    msg.textContent = r.genFailed ? "Couldn't find a fresh item" : stuck ? 'Still hunting for a fresh one' : 'Generating an item';
+    $('load-dots').style.display = r.genFailed ? 'none' : 'inline-flex';
+    sub.style.display = 'block';
+    sub.textContent = r.genFailed ? "Nothing new that hasn't been played recently." : stuck ? 'Good ones take a moment.' : 'This can take a few seconds.';
+    $('gen-stopwatch').style.display = r.genFailed ? 'none' : 'block';
+    $('gen-elapsed').style.display = r.genFailed ? 'none' : 'block';
+    $('gen-elapsed').textContent = fmtTime(Math.max(0, waited));
+    const host = isHost();
+    const outOfTries = host && stuck && left <= 0;
+    // Out of retries: look (once) for a golden oldie to offer the host.
+    const oKey = `${currentGameCode}-${r.index}-${attempt}`;
+    if(outOfTries && (!oldieState || oldieState.key !== oKey)){
+      oldieState = { key: oKey, loading: true, pick: null };
+      findGoldenOldie(effectiveSettings().categories, game.usedTerms||[])
+        .then(p => { if(oldieState && oldieState.key === oKey){ oldieState.pick = p; oldieState.loading = false; tick(); } })
+        .catch(err => { console.error('Oldie search failed:', err); if(oldieState && oldieState.key === oKey){ oldieState.loading = false; tick(); } });
+    }
+    const hasOldie = outOfTries && oldieState && oldieState.key === oKey && !!oldieState.pick;
+    const noOldie = outOfTries && oldieState && oldieState.key === oKey && !oldieState.loading && !oldieState.pick;
+    retryBtn.style.display = host && stuck && left > 0 ? 'block' : 'none';
+    retryBtn.textContent = `Try again (${left} left)`;
+    oldieBtn.style.display = hasOldie ? 'block' : 'none';
+    endBtn.style.display = hasOldie || noOldie ? 'block' : 'none';
+    $('gen-note').textContent = !stuck ? ''
+      : !host ? 'Hang tight — the host can give it another go.'
+      : left > 0 ? ''
+      : hasOldie ? 'Nothing fresh left. Replay something from a while back?'
+      : noOldie ? "Nothing fresh left, and nothing old enough to replay yet — that's the game!"
+      : 'Looking for something from a while back\u2026';
+  };
+  tick();
+  timerInterval = setInterval(tick, 1000);
+}
+
+// ---- 9. WRITING ---------------------------------------------------------
+function renderWriting(isNew){
+  const r = game.round;
+  $('writing-round-pill').textContent = formatRoundLabel(r);
+  $('writing-cat').textContent = CAT_LABEL[r.category];
+  $('writing-label').textContent = CAT_WRITE_LABEL[r.category] || 'Write a believable answer';
+  $('writing-term').textContent = r.term;
+
+  const sittingOut = amISittingOut();
+  $('btn-sitout-writing').textContent = sittingOut ? "I'm back" : 'Sit out';
+  $('btn-sitout-writing').onclick = toggleSitOut;
+  $('btn-jointhisround-writing').onclick = toggleSitOut;
+
+  const activeUids = activePlayerUids();
+  // Claude's own entry (Include Claude) is pre-seeded into submissions at
+  // round start, but it isn't a player — it must not count toward "has
+  // everyone submitted," or a single real player finishing could satisfy
+  // the threshold and kick everyone else into voting early.
+  const submittedCount = Object.keys(r.submissions||{}).filter(uid => activeUids.includes(uid)).length;
+  const playerCount = activeUids.length; // sitting-out players don't count toward "everyone's in"
+  $('writing-count').textContent = `${submittedCount} / ${playerCount}`;
+
+  $('writing-sitting-out').style.display = sittingOut ? 'block' : 'none';
+  if(sittingOut){
+    $('writing-input-area').style.display = 'none';
+    $('writing-submitted').style.display = 'none';
+  } else {
+    const already = r.submissions && r.submissions[myUid];
+    $('writing-input-area').style.display = already ? 'none' : 'block';
+    $('writing-submitted').style.display = already ? 'block' : 'none';
+    $('writing-submitted-msg').textContent = 'Nice bluff. Waiting on everyone else\u2026';
+
+    if(isNew){ $('writing-textarea').value = ''; }
+
+    $('btn-submit-bluff').onclick = async () => {
+      const text = $('writing-textarea').value.trim();
+      if(!text) return;
+      await updateDoc(doc(db, GAMES, currentGameCode), {
+        [`round.submissions.${myUid}`]: { text, author: myUid }
+      });
+    };
+  }
+
+  runTimer('writing-timer', r.phaseEndsAt, () => {
+    maybeAdvanceFromWriting();
+  });
+
+  // Auto-advance the moment every ACTIVE (not sitting-out) player's in —
+  // any client can trigger this, so a locked/backgrounded host phone
+  // can't stall the room.
+  if(submittedCount >= playerCount && playerCount > 0){
+    maybeAdvanceFromWriting();
+  }
+}
+let advancing = false;
+async function maybeAdvanceFromWriting(){
+  if(advancing) return;
+  advancing = true;
+  try{
+    const r = game.round;
+    if(r.phase !== 'writing') return;
+    const ids = Object.keys(r.submissions||{});
+    // True random order (crypto RNG) — never the order entries were
+    // submitted/stored, which would be a dead giveaway in the room.
+    const order = randomShuffle([...ids, 'REAL']);
+
+    // Reader: pick who gets the table's spotlight this round, drawing
+    // from a no-repeat-until-exhausted queue of active players.
+    const { readerUid, remainingQueue } = pickNextReader(game.readerQueue, activePlayerUids());
+
+    // The server makes the move to reading AND attaches the real answer in
+    // one step — the answer never reaches any browser before that. It also
+    // double-checks the round is really ready (everyone in, or time's up),
+    // and ignores the call if another phone already moved the round on.
+    let res = null;
+    try{
+      res = await startReadingFn({ gameId: currentGameCode, roundIndex: r.index, order,
+        readerUid, readerQueue: remainingQueue, readingSeconds: READING_SECONDS });
+    }catch(err){ console.error('startReading failed, will retry:', err); }
+    const ok = res && res.data && (res.data.ok || res.data.reason === 'already-moved' || res.data.reason === 'no-game');
+    if(!ok) scheduleWritingRetry(r.index);
+  } finally { advancing = false; }
+}
+// Clocks on phones and the server can disagree by a second or two, and a
+// network blip can drop a call — keep nudging until the round moves.
+let writingRetryTimer = null;
+function scheduleWritingRetry(index){
+  clearTimeout(writingRetryTimer);
+  writingRetryTimer = setTimeout(() => {
+    if(game && game.round && game.round.index === index && game.round.phase === 'writing') maybeAdvanceFromWriting();
+  }, 2500);
+}
+
+// The Reader releases the list to the table (or the 8-min cap does it for
+// them) — the voting clock starts HERE, not while they were reading.
+async function maybeAdvanceFromReading(){
+  if(advancing) return;
+  advancing = true;
+  try{
+    const r = game.round;
+    if(r.phase !== 'reading') return;
+    await updateDoc(doc(db, GAMES, currentGameCode), {
+      'round.phase':'voting',
+      'round.phaseEndsAt': Date.now() + game.settings.votingSeconds*1000
+    });
+  } finally { advancing = false; }
+}
+
+// ---- 9b. READING ---------------------------------------------------------
+function renderReading(isNew){
+  const r = game.round;
+  $('reading-round-pill').textContent = formatRoundLabel(r);
+  $('reading-cat').textContent = CAT_LABEL[r.category];
+  $('reading-term').textContent = r.term;
+
+  const isReader = r.readerUid === myUid;
+  $('reading-reader-view').style.display = isReader ? 'block' : 'none';
+  $('reading-waiting-view').style.display = isReader ? 'none' : 'block';
+  $('reading-footer').style.display = isReader ? 'block' : 'none';
+
+  if(isReader){
+    const order = r.shuffleOrder || [];
+    const list = $('reading-list');
+    list.innerHTML = '';
+    // The Reader is blind to which one is real, same as everyone else —
+    // they're purely reading the list aloud, not the "dasher" who already
+    // knows the answer. No distinguishing mark on any row.
+    order.forEach((id) => {
+      const isReal = id === 'REAL';
+      const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
+      const div = document.createElement('div');
+      // Full-opacity, no border/background changes — this is a plain
+      // read-aloud list, not a voting or reveal screen. No numbers either.
+      // (The Reader's own entry is NOT moved to the bottom here — the room
+      // would learn "last one read = the Reader's".)
+      div.className = 'sub-option readonly';
+      div.innerHTML = escapeHtml(tidy(text));
+      list.appendChild(div);
+    });
+    $('btn-show-group').onclick = () => maybeAdvanceFromReading();
+  } else {
+    const readerName = (game.players[r.readerUid] && game.players[r.readerUid].name) || 'Someone';
+    $('reading-waiting-msg').textContent = `${readerName} is the Reader.`;
+  }
+
+  runTimer('reading-timer', r.phaseEndsAt, () => {
+    maybeAdvanceFromReading();
+  });
+}
+
+// ---- 10. VOTING ---------------------------------------------------------
+function renderVoting(isNew){
+  const r = game.round;
+  $('voting-round-pill').textContent = formatRoundLabel(r);
+  $('voting-cat').textContent = CAT_LABEL[r.category];
+  $('voting-term').textContent = r.term;
+
+  const sittingOut = amISittingOut();
+  $('btn-sitout-voting').textContent = sittingOut ? "I'm back" : 'Sit out';
+  $('btn-sitout-voting').onclick = toggleSitOut;
+  $('btn-jointhisround-voting').onclick = toggleSitOut;
+
+  // Same shared random order for everyone, except your own entry is pulled
+  // out and parked at the bottom of YOUR list, so you always know where it
+  // is and can ignore it.
+  const shared = r.shuffleOrder || [];
+  const order = [...shared.filter(id => id !== myUid), ...shared.filter(id => id === myUid)];
+  // The real answer text is already on the round doc — it was fetched
+  // from Firestore once, right when voting began (see maybeAdvanceFromWriting).
+
+  let selectedReal = null, selectedFunny = null;
+  const existingVote = r.votes && r.votes[myUid];
+  if(existingVote){ selectedReal = existingVote.real; selectedFunny = existingVote.funny; }
+  const already = !!existingVote;
+
+  function updateSubmitEnabled(){
+    const need = game.settings.crowdFunny ? (selectedReal && selectedFunny) : selectedReal;
+    $('btn-submit-votes').disabled = !need;
+  }
+
+  // One list, one row per submission — each row carries its own Real /
+  // Funniest chips rather than the whole list rendering twice.
+  function buildList(){
+    const container = $('voting-list');
+    container.innerHTML = '';
+    order.forEach((id) => {
+      const isReal = id === 'REAL';
+      const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
+      const isMine = id === myUid;
+      const div = document.createElement('div');
+      div.className = 'sub-option' + (isMine ? ' disabled' : '');
+      div.innerHTML = escapeHtml(tidy(text));
+
+      // "Yours" is intentionally not labeled — hidden by default so it
+      // doesn't stand out while scanning the list.
+      if(!isMine){
+        const chips = document.createElement('div'); chips.className = 'vote-chips';
+        const realChip = document.createElement('button');
+        realChip.type = 'button';
+        realChip.className = 'vote-chip real' + (selectedReal===id ? ' selected' : '');
+        realChip.textContent = 'Real';
+        realChip.onclick = () => { selectedReal = id; buildList(); updateSubmitEnabled(); };
+        chips.appendChild(realChip);
+        if(game.settings.crowdFunny){
+          const funnyChip = document.createElement('button');
+          funnyChip.type = 'button';
+          funnyChip.className = 'vote-chip funny' + (selectedFunny===id ? ' selected' : '');
+          funnyChip.textContent = '😂 Funniest';
+          funnyChip.onclick = () => { selectedFunny = id; buildList(); updateSubmitEnabled(); };
+          chips.appendChild(funnyChip);
+        }
+        div.appendChild(chips);
+      }
+      container.appendChild(div);
+    });
+  }
+
+  const votedCount = Object.keys(r.votes||{}).length;
+  const playerCount = activePlayerUids().length; // sitting-out players don't count toward "everyone's in"
+  $('voting-count').textContent = `${votedCount} / ${playerCount}`;
+
+  $('voting-sitting-out').style.display = sittingOut ? 'block' : 'none';
+  if(sittingOut){
+    $('voting-list').style.display = 'none';
+    $('voting-instructions').style.display = 'none';
+    $('btn-submit-votes').style.display = 'none';
+    $('voting-waiting').style.display = 'none';
+  } else {
+    $('voting-instructions').textContent = game.settings.crowdFunny
+      ? (game.settings.funnyPoints ? "Pick the real one and the funniest (worth a point this game)." : "Pick the real one and the funniest.")
+      : "Pick the real one.";
+    buildList();
+    updateSubmitEnabled();
+
+    $('voting-list').style.display = already ? 'none' : 'block';
+    $('voting-instructions').style.display = already ? 'none' : 'block';
+    $('btn-submit-votes').style.display = already ? 'none' : 'block';
+    $('voting-waiting').style.display = already ? 'block' : 'none';
+
+    $('btn-submit-votes').onclick = async () => {
+      const payload = { real: selectedReal };
+      if(game.settings.crowdFunny) payload.funny = selectedFunny;
+      await updateDoc(doc(db, GAMES, currentGameCode), { [`round.votes.${myUid}`]: payload });
+    };
+  }
+
+  runTimer('voting-timer', r.phaseEndsAt, () => {
+    maybeAdvanceFromVoting();
+  });
+  if(votedCount >= playerCount && playerCount > 0){
+    maybeAdvanceFromVoting();
+  }
+}
+
+async function maybeAdvanceFromVoting(){
+  if(advancing) return;
+  advancing = true;
+  try{
+    const r = game.round;
+    if(r.phase !== 'voting') return;
+    // Capture the scoring baseline NOW, not later — the judge calls below
+    // take several real seconds, during which another client could
+    // already complete this same transition and update game.players out
+    // from under us. Scoring off a stale local snapshot is fine (we
+    // re-check before writing, below); scoring off a baseline that
+    // silently updated mid-calculation is how a round's points got
+    // applied twice.
+    const playersBaseline = game.players;
+    const claudeBaseline = game.claudeScore || 0;
+    const claudeStatsBaseline = game.claudeStats || null;
+
+    // CSF: Claude casts one funniest vote of its own, HUMAN bluffs only
+    // (Claude's own entry, if Include Claude is on, is excluded — this is
+    // Claude judging others, not itself). Folded directly into the same
+    // funny-vote tally as everyone else's.
+    let csfWinnerId = null, csfReason = null;
+    const humanSubs = Object.entries(r.submissions||{})
+      .filter(([id]) => id !== 'CLAUDE')
+      .map(([id, s]) => ({ id, text: s.text }));
+    if(game.settings.csf && humanSubs.length){
+      try{
+        const res = await judgeFunniestFn({ term: r.term, submissions: humanSubs });
+        csfWinnerId = res.data.winnerId || null;
+        csfReason = (csfWinnerId && res.data.reason) ? String(res.data.reason).slice(0, 300) : null;
+      } catch(err){
+        console.error('judgeFunniest failed:', err);
+      }
+    }
+
+    // CCC: mark any human bluff Claude judges as surprisingly close to the
+    // real answer — bragging rights only, no scoring impact.
+    let cccCloseIds = [];
+    if(humanSubs.length){
+      try{
+        const res = await judgeCloseCallsFn({ term: r.term, realAnswer: r.answerText, submissions: humanSubs });
+        cccCloseIds = res.data.closeIds || [];
+      } catch(err){
+        console.error('judgeCloseCalls failed:', err);
+      }
+    }
+
+    const scored = computeScores(r, playersBaseline, csfWinnerId, claudeBaseline, claudeStatsBaseline);
+
+    // Another client may have already finished this exact transition while
+    // we were awaiting the judge calls above — if so, back out instead of
+    // overwriting real state with a stale or doubled computation.
+    if(game.round.phase !== 'voting') return;
+
+    await updateDoc(doc(db, GAMES, currentGameCode), {
+      'round.phase':'reveal',
+      'round.scored': true,
+      players: scored.players,
+      claudeScore: scored.claudeScore,
+      claudeStats: scored.claudeStats || null,
+      [`round.scoreDeltas`]: scored.deltas,
+      [`round.funnyTally`]: scored.funnyTally,
+      [`round.cccCloseIds`]: cccCloseIds,
+      'round.csfPick': csfWinnerId || null, // which funniest vote was Claude's (grey 😂)
+      'round.csfReason': csfReason,          // Claude's one-liner on why — the easter egg
+      'round.revealedAt': Date.now() // lets clients show the splash only on a live reveal, not a reload
+    });
+  } finally { advancing = false; }
+}
+
+// Running game totals shown on the Game summary: ✅ spotted the real one,
+// 🎭 fooled someone with a bluff, 😂 funniest votes received.
+// Bluff icon: a fanned hand of cards (poker bluffing), drawn so it looks the same everywhere.
+const CARDS_ICON = `<svg class="cards-ico" viewBox="0 0 32 28" aria-hidden="true"><g stroke="#1B1F2A" stroke-width="1.3"><rect x="6" y="4" width="13" height="19" rx="2" fill="#fff" transform="rotate(-22 12.5 22)"/><rect x="9.5" y="3" width="13" height="19" rx="2" fill="#fff"/><rect x="13" y="4" width="13" height="19" rx="2" fill="#fff" transform="rotate(22 19.5 22)"/></g><path d="M11 8.5c1.4-1.8 3.4 0 1.2 2l-1.2 1.1-1.2-1.1c-2.2-2 -.2-3.8 1.2-2z" fill="#DC2626" transform="rotate(-22 12.5 22)"/><text x="19.2" y="15.2" transform="rotate(22 19.5 22)" font-size="9" font-weight="700" text-anchor="middle" fill="#1B1F2A" font-family="Georgia,serif">A</text><path d="M19.5 17.3c-1.6 1.6-3.2 2.4-3.2 3.7 0 1 .8 1.6 1.7 1.4.5-.1.9-.4 1.1-.8l-.4 1.6h1.6l-.4-1.6c.2.4.6.7 1.1.8.9.2 1.7-.4 1.7-1.4 0-1.3-1.6-2.1-3.2-3.7z" fill="#1B1F2A" transform="rotate(22 19.5 22) translate(0 -6.2) scale(1)"/></svg>`;
+function bumpStat(p, key, n = 1){
+  if(!p) return;
+  p.stats = p.stats || { correct:0, fooled:0, funny:0 };
+  p.stats[key] = (p.stats[key] || 0) + n;
+}
+function computeScores(r, players, csfWinnerId, claudeScore = 0, claudeStats = null){
+  const updated = JSON.parse(JSON.stringify(players));
+  // Claude plays as a bluffer (Include Claude): it scores for fooling people
+  // and, with Points for funniest, for laughs — but never guesses the real
+  // answer (its bluff call has already seen it). Its score lives outside
+  // game.players so it never counts as someone the room is waiting on.
+  const claudeIn = !!(r.submissions && r.submissions.CLAUDE);
+  if(claudeIn) updated.CLAUDE = { name: 'Claude', score: claudeScore, stats: claudeStats ? { ...claudeStats } : { correct:0, fooled:0, funny:0 } };
+  const deltas = {};
+  Object.keys(updated).forEach(uid => deltas[uid] = 0);
+
+  Object.entries(r.votes||{}).forEach(([voterUid, v]) => {
+    // Ignore votes for your own bluff (only possible by tampering, but
+    // it would otherwise hand you a free point).
+    if(v.real && r.submissions[v.real] && r.submissions[v.real].author === voterUid) return;
+    if(v.real === 'REAL' && updated[voterUid]){
+      updated[voterUid].score += 2;
+      deltas[voterUid] = (deltas[voterUid]||0) + 2;
+      bumpStat(updated[voterUid], 'correct');
+    } else if(v.real && r.submissions[v.real]){
+      const authorUid = r.submissions[v.real].author;
+      if(updated[authorUid]){
+        updated[authorUid].score += 1;
+        deltas[authorUid] = (deltas[authorUid]||0) + 1;
+        bumpStat(updated[authorUid], 'fooled');
+      }
+    }
+  });
+
+  // Full per-submission funny-vote tally — every vote (crowd or Claude's
+  // CSF pick) shows as one 😂 against that response on reveal, rather than
+  // singling out a "winner." No scoring impact either way.
+  const funnyTally = {};
+  Object.entries(r.votes||{}).forEach(([voterUid, v]) => {
+    if(v.funny && v.funny !== voterUid){ funnyTally[v.funny] = (funnyTally[v.funny]||0)+1; }
+  });
+  if(csfWinnerId){ funnyTally[csfWinnerId] = (funnyTally[csfWinnerId]||0)+1; }
+  Object.entries(funnyTally).forEach(([subId, n]) => {
+    const authorUid = r.submissions[subId] && r.submissions[subId].author;
+    bumpStat(updated[authorUid], 'funny', n);
+  });
+
+  // Points for funniest (host setting): +1 to a bluff's author for every
+  // funniest vote it got — players' and Claude's (CSF) alike. Claude's own
+  // bluff counts too — Claude's a contender.
+  if(game.settings && game.settings.funnyPoints){
+    Object.entries(funnyTally).forEach(([subId, n]) => {
+      const authorUid = r.submissions[subId] && r.submissions[subId].author;
+      if(authorUid && updated[authorUid]){
+        updated[authorUid].score += n;
+        deltas[authorUid] = (deltas[authorUid]||0) + n;
+      }
+    });
+  }
+
+  let newClaude = claudeScore, newClaudeStats = claudeStats;
+  if(claudeIn){ newClaude = updated.CLAUDE.score; newClaudeStats = updated.CLAUDE.stats; delete updated.CLAUDE; }
+  return { players: updated, deltas, funnyTally, claudeScore: newClaude, claudeStats: newClaudeStats };
+}
+
+// ---- Coloured laughs ---------------------------------------------------------
+// Each 😂 on the results is painted in the colour of whoever laughed (Claude's
+// in grey). Emojis can't be recoloured with CSS, so the device's own emoji is
+// drawn to a canvas and recoloured there — keeping its shading, teeth and
+// tears — then cached per colour. Falls back to the plain emoji if the
+// device can't draw a colour emoji onto a canvas.
+const laughCache = {};
+function hexToHsl(hex){
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n>>16&255)/255, g = (n>>8&255)/255, b = (n&255)/255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), l = (mx+mn)/2;
+  let h = 0, s = 0;
+  if(mx !== mn){
+    const d = mx - mn;
+    s = l > .5 ? d/(2-mx-mn) : d/(mx+mn);
+    h = mx === r ? (g-b)/d + (g<b?6:0) : mx === g ? (b-r)/d + 2 : (r-g)/d + 4;
+    h /= 6;
+  }
+  return [h, s, l];
+}
+function hslToRgb(h, s, l){
+  if(s === 0) return [l*255, l*255, l*255];
+  const q = l < .5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
+  const f = t => { t = (t+1)%1; return t<1/6 ? p+(q-p)*6*t : t<1/2 ? q : t<2/3 ? p+(q-p)*(2/3-t)*6 : p; };
+  return [f(h+1/3)*255, f(h)*255, f(h-1/3)*255];
+}
+function laughSrc(hex){
+  if(laughCache[hex] !== undefined) return laughCache[hex];
+  try{
+    const S = 64, c = document.createElement('canvas'); c.width = c.height = S;
+    const x = c.getContext('2d', { willReadFrequently:true });
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = `${Math.round(S*0.82)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    x.fillText('😂', S/2, S/2 + S*0.05);
+    const img = x.getImageData(0, 0, S, S), p = img.data;
+    const [th, ts, tl] = hexToHsl(hex);
+    let coloured = 0;
+    for(let i=0; i<p.length; i+=4){
+      if(!p[i+3]) continue;
+      const r = p[i]/255, g = p[i+1]/255, b = p[i+2]/255;
+      if(Math.max(r,g,b) - Math.min(r,g,b) > .15) coloured++;
+      const lum = .2126*r + .7152*g + .0722*b;
+      if(lum > .9) continue;                          // keep teeth / eye whites
+      const L = Math.min(.92, lum * (Math.max(tl, .3) / .78)); // face (~.78) lands on the player colour
+      const [R, G, B] = hslToRgb(th, Math.min(1, ts*1.05), L);
+      p[i] = R; p[i+1] = G; p[i+2] = B;
+    }
+    if(coloured < 50) return (laughCache[hex] = null); // no colour emoji on canvas — use plain 😂
+    x.putImageData(img, 0, 0);
+    return (laughCache[hex] = c.toDataURL());
+  }catch(e){ return (laughCache[hex] = null); }
+}
+function laughHtml(hex, who, egg){
+  const src = laughSrc(hex);
+  const t = escapeHtml(who || '');
+  const eggAttr = egg ? ` data-egg="${escapeHtml(egg)}"` : '';
+  const cls = egg ? 'laugh egg' : 'laugh';
+  return src ? `<span class="${cls}" title="${t}"${eggAttr}><img class="laugh-img" src="${src}" alt="😂"></span>` : `<span class="${cls}" title="${t}"${eggAttr}>😂</span>`;
+}
+
+// Easter egg: tap Claude's grey 😂 to see why Claude found that bluff funniest.
+// No hint anywhere — just there for whoever's curious enough to poke it.
+function showEgg(el){
+  const bub = $('egg-bubble');
+  $('egg-text').textContent = el.dataset.egg;
+  bub.classList.add('open');
+  const r = el.getBoundingClientRect();
+  const w = Math.min(280, window.innerWidth - 24);
+  bub.style.width = w + 'px';
+  bub.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width/2 - w/2)) + 'px';
+  const below = r.bottom + 10;
+  bub.style.top = (below + bub.offsetHeight > window.innerHeight - 12 ? r.top - bub.offsetHeight - 10 : below) + 'px';
+}
+document.addEventListener('click', (e) => {
+  const egg = e.target.closest && e.target.closest('.laugh.egg');
+  if(egg){ e.stopPropagation(); showEgg(egg); return; }
+  if(!e.target.closest('#egg-bubble')) $('egg-bubble').classList.remove('open');
+});
+window.addEventListener('scroll', () => $('egg-bubble').classList.remove('open'), { passive:true });
+
+// ---- 11. REVEAL ---------------------------------------------------------
+function renderReveal(isNew){
+  const r = game.round;
+  $('reveal-round-pill').textContent = formatRoundLabel(r);
+  $('reveal-cat').textContent = CAT_LABEL[r.category];
+  $('reveal-term').textContent = r.term;
+
+  const sittingOut = amISittingOut();
+  $('btn-sitout-reveal').textContent = sittingOut ? "I'm back in" : 'Sit out next round';
+  $('btn-sitout-reveal').onclick = toggleSitOut;
+
+  const order = r.shuffleOrder || [];
+  const voteTally = {};
+  Object.values(r.votes||{}).forEach(v => { if(v.real) voteTally[v.real] = (voteTally[v.real]||0)+1; });
+
+  const list = $('reveal-list');
+  list.innerHTML = '';
+  // Only Claude's grey vote needs a key — player colours speak for themselves.
+  const claudeLaughed = !!(r.csfPick && r.funnyTally && r.funnyTally[r.csfPick]);
+  $('csf-key').style.display = claudeLaughed ? 'block' : 'none';
+  $('csf-key').innerHTML = claudeLaughed ? `<div class="row-key">${laughHtml(CLAUDE_LAUGH, 'Claude')}<span>Claude's funniest vote</span></div>` : '';
+  order.forEach((id) => {
+    const isReal = id === 'REAL';
+    const isClaude = id === 'CLAUDE';
+    const text = isReal ? r.answerText : (r.submissions[id] ? r.submissions[id].text : '');
+    const authorName = isReal ? null : (isClaude ? 'Claude' : (game.players[r.submissions[id]?.author]?.name || '—'));
+    const div = document.createElement('div');
+    // Full-opacity, plain parchment — the reveal list is already clearly
+    // non-interactive from context (no chips, no click handlers), so it
+    // doesn't need to look dimmed too.
+    div.className = 'sub-option readonly';
+    if(isReal) div.style.border = '2px solid var(--moss)';
+    div.innerHTML = escapeHtml(tidy(text));
+    const flags = document.createElement('div'); flags.className='flags';
+    if(isReal) flags.innerHTML += `<span class="flag real">REAL ANSWER</span>`;
+    else {
+      const authorUid = isClaude ? 'CLAUDE' : r.submissions[id]?.author;
+      const col = playerColor(authorUid);
+      flags.innerHTML += `<span class="flag author" style="background:${col.bg};color:${col.fg};">${escapeHtml(authorName)}</span>`;
+    }
+    const votes = voteTally[id] || 0;
+    if(votes>0) flags.innerHTML += `<span class="flag votes">${votes} vote${votes===1?'':'s'}</span>`;
+    if(r.cccCloseIds && r.cccCloseIds.includes(id)) flags.innerHTML += `<span class="flag ccc">🎯 close call</span>`;
+    // Laughs sit on the same line as author + votes; each emoji is its own
+    // flex item so a big pile just wraps onto the next line.
+    // Each laugh in the colour of who laughed — Claude's (grey) first, then
+    // players in standings order.
+    const laughers = [];
+    if(r.csfPick === id) laughers.push('CLAUDE');
+    Object.entries(r.votes||{}).forEach(([voter, v]) => { if(v.funny === id && voter !== id) laughers.push(voter); });
+    const order = Object.keys(game.players||{});
+    laughers.sort((a,b) => (a==='CLAUDE'?-1:order.indexOf(a)) - (b==='CLAUDE'?-1:order.indexOf(b)));
+    laughers.forEach(uid => {
+      const who = uid === 'CLAUDE' ? 'Claude' : (game.players[uid] ? game.players[uid].name : '');
+      flags.innerHTML += uid === 'CLAUDE'
+        ? laughHtml(CLAUDE_LAUGH, who, r.csfReason)
+        : laughHtml(playerColor(uid).bg, who);
+    });
+    div.appendChild(flags);
+    list.appendChild(div);
+  });
+
+  const standings = $('reveal-standings');
+  standings.innerHTML = '';
+  const sorted = scoreboard();
+  const topNow = sorted.length ? sorted[0][1].score : 0;
+  sorted.forEach(([uid,p], i) => {
+    const row = document.createElement('div');
+    row.className = 'leader-row colored' + (p.score === topNow ? ' first':'');
+    const col = playerColor(uid);
+    row.style.background = col.bg; row.style.color = col.fg;
+    const delta = (r.scoreDeltas && r.scoreDeltas[uid]) || 0;
+    row.innerHTML = `<span class="rank">${i+1}</span><span style="flex:1;padding:0 8px;font-weight:600;">${escapeHtml(p.name)}</span><span class="score">${p.score}${delta>0?`<span class="delta">+${delta}</span>`:''}</span>`;
+    standings.appendChild(row);
+  });
+
+  renderWanderSummary(r);
+
+  // Mic drop — only for a reveal that just happened, not on a reload.
+  if(isNew && r.revealedAt && Date.now() - r.revealedAt < 8000){
+    showRoundLeaderSplash(r);
+  }
+
+  $('btn-next-round').style.display = isHost() ? 'block' : 'none';
+  {
+    // Last round (and no tiebreaker still running)? The button leads to the summary.
+    const st = effectiveSettings();
+    const ends = r.index + 1 >= st.numRounds && !(game.tiebreak && breakableTieAtTop());
+    $('btn-next-round').textContent = ends ? 'Game summary' : 'Next round';
+  }
+  $('reveal-wait-note').style.display = isHost() ? 'none' : 'block';
+  $('btn-next-round').onclick = async () => {
+    const nextIndex = r.index + 1;
+    const st = effectiveSettings();
+    if(nextIndex >= st.numRounds){
+      // Already in tiebreaker mode (host pressed the button on the final
+      // scores screen) and still tied at the top? Keep going.
+      if(game.tiebreak && breakableTieAtTop()){
+        await beginRound(nextIndex, st.categories, game.usedTerms||[]);
+        return;
+      }
+      await updateDoc(doc(db, GAMES, currentGameCode), { status:'ended' });
+    } else {
+      await beginRound(nextIndex, st.categories, game.usedTerms||[]);
+    }
+  };
+}
+
+// ---- 11b. ROUND-LEADER SPLASH ("mic drop") ---------------------------------
+// Borrowed from the Darts Baseball Mic Drop: the block peeks in from the top
+// of the screen (bottom ~45% showing) and fades in over 1s while creeping
+// down slowly, then drops fast (220ms, same ease-in) to the middle, shakes
+// the whole screen, and clears 3s later so everyone can read what's behind.
+const MIC_DROP_FADE_MS = 1000;
+const MIC_DROP_FALL_MS = 220;
+const MIC_DROP_PEEK_HIDDEN_FRACTION = 0.55;
+const MIC_DROP_CREEP_PX = 40;
+const SPLASH_HOLD_MS = 3000;
+let splashTimers = [], splashAnims = [];
+function showRoundLeaderSplash(r){
+  const deltas = r.scoreDeltas || {};
+  const players = Object.fromEntries(scoreboard());
+  const entries = Object.entries(deltas).filter(([uid]) => players[uid]);
+  const top = entries.reduce((m, [,d]) => Math.max(m, d), 0);
+  if(top <= 0) return; // nobody scored — nothing to shout about
+  const leaders = entries.filter(([,d]) => d === top).map(([uid]) => uid);
+  const names = leaders.map(uid => players[uid].name);
+  const nameText = names.length <= 2 ? names.join(' & ') : names.slice(0,-1).join(', ') + ' & ' + names[names.length-1];
+
+  const splash = $('splash'), block = $('splash-block'), app = $('app'), shaker = $('splash-shaker');
+  const col = leaders.length === 1 ? playerColor(leaders[0]) : { bg:'#D4A017', fg:'#3a2c00' };
+  block.style.background = col.bg; block.style.color = col.fg;
+  $('splash-name').textContent = nameText;
+  $('splash-leads').textContent = leaders.length === 1 ? 'Leads Round' : 'Lead Round';
+  $('splash-pts').textContent = `+${top} point${top===1?'':'s'}!`;
+
+  splashTimers.forEach(clearTimeout); splashTimers = [];
+  splashAnims.forEach(a => { try{ a.cancel(); }catch(e){} }); splashAnims = [];
+  app.classList.remove('shake'); shaker.classList.remove('shake');
+  block.style.transform = 'none'; block.style.opacity = '0';
+  splash.classList.add('show');
+
+  function shakeAll(){
+    [app, shaker].forEach(el => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); });
+    try{ navigator.vibrate && navigator.vibrate(180); }catch(e){}
+    splashTimers.push(setTimeout(() => { app.classList.remove('shake'); shaker.classList.remove('shake'); }, 500));
+    splashTimers.push(setTimeout(() => {
+      splash.classList.remove('show');
+      splashTimers.push(setTimeout(() => { block.style.opacity = '0'; block.style.transform = 'none'; }, 400));
+    }, SPLASH_HOLD_MS));
+  }
+
+  const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!block.animate || reduced){ block.style.opacity = '1'; shakeAll(); return; }
+
+  // Measure the resting (centred) spot, then work out the "peek" offset so
+  // only the bottom ~45% of the block shows at the very top of the screen.
+  const rect = block.getBoundingClientRect();
+  const peekY = -(rect.top + rect.height * MIC_DROP_PEEK_HIDDEN_FRACTION);
+  const creepY = peekY + MIC_DROP_CREEP_PX;
+
+  const fade = block.animate(
+    [{ opacity:0, transform:`translateY(${peekY}px)` }, { opacity:1, transform:`translateY(${creepY}px)` }],
+    { duration:MIC_DROP_FADE_MS, easing:'linear', fill:'forwards' }
+  );
+  splashAnims.push(fade);
+  fade.onfinish = () => {
+    const fall = block.animate(
+      [{ opacity:1, transform:`translateY(${creepY}px)` }, { opacity:1, transform:'translateY(0)' }],
+      { duration:MIC_DROP_FALL_MS, easing:'cubic-bezier(0.55,0,1,0.45)', fill:'forwards' }
+    );
+    splashAnims.push(fall);
+    fall.onfinish = () => { block.style.opacity = '1'; block.style.transform = 'none'; shakeAll(); };
+  };
+}
+
+// ---- 11c. WANDER WATCH -----------------------------------------------------
+// Shame-only, no points. If an active player's Balderlaugh tab is hidden
+// (switched apps/tabs, home screen) for 3s+ during writing, reading or
+// voting, everyone else gets a live 👀 alert, and the round's reveal lists
+// how long each wanderer was away.
+//
+// Stored on the round: round.away.{uid} = { leftAt, totalMs, lastTrip:{at,ms} }
+//  - leftAt is written the moment the tab hides (so the alert can go out
+//    while they're still gone), cleared when they come back.
+//  - Some phones (iPhone especially) freeze the page before that first write
+//    gets out — lastTrip, written on return, covers that case.
+// Other clients time the 3s grace from when THEY see leftAt, not from the
+// wanderer's clock, so phones with slightly different clocks can't misfire.
+const WANDER_GRACE_MS = 3000;
+const WANDER_GRACE_NO_WAKE_MS = 5000; // phones that can't be kept awake get a little longer
+
+// ---- Keep the screen awake during play --------------------------------------
+// Stops a short auto-lock (e.g. 30s) from firing mid-round and tripping
+// Wander watch. Held during generating/writing/reading/voting; released on
+// the results screen, lobby and home so the phone goes back to normal.
+// The browser drops it whenever the page is hidden, so it's re-requested
+// on return. Chrome/Android and Safari iOS 16.4+ support it.
+let wakeLock = null;
+let wakeOk = false; // did the last keep-awake request actually work on this device?
+let wakePending = false;
+const WAKE_PHASES = ['generating','writing','reading','voting'];
+function wantWake(){
+  return !!(game && game.status === 'playing' && game.round && WAKE_PHASES.includes(game.round.phase) && currentGameCode);
+}
+async function syncWakeLock(){
+  try{
+    if(wantWake()){
+      if(wakeLock || wakePending || document.visibilityState !== 'visible') return;
+      if(!('wakeLock' in navigator)){ wakeOk = false; return; }
+      wakePending = true;
+      try{ wakeLock = await navigator.wakeLock.request('screen'); } finally { wakePending = false; }
+      wakeOk = true;
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+      if(!wantWake()){ const l = wakeLock; wakeLock = null; l.release().catch(()=>{}); } // phase moved on while we waited
+    } else if(wakeLock){
+      const l = wakeLock; wakeLock = null; await l.release();
+    }
+  }catch(err){
+    wakeLock = null; wakeOk = false; // denied (battery saver, etc.) — fall back to the longer grace
+    console.warn('Keep-awake unavailable:', err && err.message);
+  }
+}
+function myWanderGrace(){ return wakeOk ? WANDER_GRACE_MS : WANDER_GRACE_NO_WAKE_MS; }
+const WANDER_PHASES = ['writing','reading','voting'];
+let myAway = null;                 // { at, roundIndex } while my tab is hidden
+const wanderSeen = new Set();      // alert keys already handled on this device
+const wanderTimers = {};           // key -> pending grace timer
+const wanderToasts = {};           // key -> toast element (to add "back after Xs")
+let wanderPrimedFor = null;        // game+round we've primed wanderSeen for
+
+function wanderActiveForMe(){
+  return !!(game && game.status === 'playing' && game.settings && game.settings.wanderWatch &&
+    game.round && WANDER_PHASES.includes(game.round.phase) &&
+    game.players && game.players[myUid] && !amISittingOut());
+}
+function whoPill(uid){
+  const p = game && game.players && game.players[uid];
+  const col = playerColor(uid);
+  return `<span class="who" style="background:${col.bg};color:${col.fg};">${escapeHtml(p ? p.name : 'Someone')}</span>`;
+}
+function fmtSecs(ms){ const s = Math.max(1, Math.round(ms/1000)); return `${s} second${s===1?'':'s'}`; }
+
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) syncWakeLock();
+  if(document.hidden){
+    if(!wanderActiveForMe()) return;
+    myAway = { at: Date.now(), roundIndex: game.round.index, grace: myWanderGrace() };
+    updateDoc(doc(db, GAMES, currentGameCode), {
+      [`round.away.${myUid}.leftAt`]: myAway.at,
+      [`round.away.${myUid}.graceMs`]: myAway.grace
+    })
+      .catch(err => console.error('wander write failed', err));
+  } else if(myAway){
+    const trip = myAway; myAway = null;
+    const ms = Date.now() - trip.at;
+    if(!game || !game.round || game.round.index !== trip.roundIndex || !currentGameCode) return; // round moved on
+    const upd = { [`round.away.${myUid}.leftAt`]: null };
+    if(ms >= trip.grace){
+      upd[`round.away.${myUid}.totalMs`] = increment(ms);
+      upd[`round.away.${myUid}.lastTrip`] = { at: trip.at, ms };
+      showToast('self', `You left the game screen for ${fmtSecs(ms)}. Everyone got the 👀`);
+    }
+    updateDoc(doc(db, GAMES, currentGameCode), upd).catch(err => console.error('wander write failed', err));
+  }
+});
+
+function wanderAlert(uid, key, ms){
+  if(wanderSeen.has(key)) return;
+  wanderSeen.add(key);
+  const name = whoPill(uid);
+  const plain = escapeHtml((game.players[uid] || {}).name || 'they');
+  const extra = ms ? ` <em>(gone ${fmtSecs(ms)})</em>` : '';
+  const t = showToast('wander', `${name} left the game screen 👀. Now why would ${plain} do that 🤔?${extra}`);
+  if(ms) t.dataset.back = '1'; // already says how long — don't tack "back after" on too
+  wanderToasts[key] = t;
+}
+
+function checkWanderers(){
+  if(!game || game.status !== 'playing' || !game.round || !game.settings || !game.settings.wanderWatch) return;
+  const r = game.round;
+  const away = r.away || {};
+  const primeKey = `${currentGameCode}-${r.index}`;
+  // First time this device sees this round (e.g. after a reload): mark
+  // everything already there as seen, so old trips don't re-alert.
+  const priming = wanderPrimedFor !== primeKey;
+  wanderPrimedFor = primeKey;
+
+  Object.entries(away).forEach(([uid, a]) => {
+    if(uid === myUid || !a) return;
+    // Live: they're gone right now — alert once the grace runs out.
+    if(a.leftAt){
+      const key = `${primeKey}-${uid}-${a.leftAt}`;
+      if(priming){ wanderSeen.add(key); }
+      else if(!wanderSeen.has(key) && !wanderTimers[key]){
+        wanderTimers[key] = setTimeout(() => {
+          delete wanderTimers[key];
+          const now = game && game.round && game.round.away && game.round.away[uid];
+          if(now && now.leftAt === a.leftAt) wanderAlert(uid, key);
+        }, a.graceMs || WANDER_GRACE_MS);
+      }
+    }
+    // On return: either tack the time onto the live alert, or (if their
+    // phone froze before the leave got out) send the alert now.
+    if(a.lastTrip && a.lastTrip.at){
+      const key = `${primeKey}-${uid}-${a.lastTrip.at}`;
+      if(priming){ wanderSeen.add(key); return; }
+      if(wanderTimers[key]){ clearTimeout(wanderTimers[key]); delete wanderTimers[key]; }
+      const t = wanderToasts[key];
+      if(t && t.isConnected && !t.dataset.back){
+        t.dataset.back = '1';
+        t.querySelector('.msg').insertAdjacentHTML('beforeend', ` <em>(back after ${fmtSecs(a.lastTrip.ms)})</em>`);
+      } else if(!wanderSeen.has(key)){
+        wanderAlert(uid, key, a.lastTrip.ms);
+      }
+    }
+  });
+}
+
+function showToast(kind, html, icon = '👀', ms = 15000){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `${icon ? `<div class="eyes">${icon}</div>` : ''}<div class="msg">${html}</div><button class="x" type="button" aria-label="Close">✕</button>`;
+  const close = () => { if(!el.isConnected) return; el.classList.add('leaving'); setTimeout(() => el.remove(), 250); };
+  el.querySelector('.x').onclick = close;
+  setTimeout(close, ms);
+  const box = $('toasts');
+  box.appendChild(el);
+  while(box.children.length > 3) box.firstElementChild.remove(); // never bury the game
+  return el;
+}
+
+function renderWanderSummary(r){
+  const wrap = $('reveal-wander-wrap');
+  const list = $('reveal-wander');
+  if(!game.settings || !game.settings.wanderWatch){ wrap.style.display = 'none'; return; }
+  const rows = Object.entries(r.away || {})
+    .filter(([uid, a]) => game.players[uid] && a && ((a.totalMs || 0) >= WANDER_GRACE_MS || a.leftAt))
+    .sort((a,b) => (b[1].totalMs||0) - (a[1].totalMs||0));
+  wrap.style.display = rows.length ? 'block' : 'none';
+  list.innerHTML = rows.map(([uid, a]) => {
+    const still = a.leftAt ? ' <span style="color:var(--muted);">(and still gone)</span>' : '';
+    const time = (a.totalMs||0) >= WANDER_GRACE_MS ? `was away for ${fmtSecs(a.totalMs)} this round 👀` : 'wandered off 👀';
+    return `<div class="wander-line">${whoPill(uid)} ${time}${still}</div>`;
+  }).join('');
+}
+
+// A tiebreaker is only on offer when two or more PLAYERS share first place
+// and Claude isn't up there with them (a tie involving Claude is a shared win).
+function breakableTieAtTop(){
+  const board = scoreboard();
+  if(!board.length) return false;
+  const top = Math.max(...board.map(([,p]) => p.score));
+  const humansAtTop = board.filter(([uid,p]) => p.score === top && uid !== 'CLAUDE').length;
+  const claudeAtTop = board.some(([uid,p]) => uid === 'CLAUDE' && p.score === top);
+  return humansAtTop > 1 && !claudeAtTop;
+}
+
+// ---- 12. GAME OVER ---------------------------------------------------------
+function renderGameOver(){
+  const standings = $('gameover-standings');
+  standings.innerHTML = '';
+  const sorted = scoreboard();
+  const topScore = sorted.length ? sorted[0][1].score : 0;
+  const winnerCount = sorted.filter(([,p]) => p.score === topScore).length;
+  $('legend-cards').innerHTML = CARDS_ICON;
+  $('gameover-tie-note').style.display = winnerCount > 1 ? 'block' : 'none';
+  sorted.forEach(([uid,p], i) => {
+    const isWinner = p.score === topScore; // ties all get the crown, not just whoever sorted first
+    const row = document.createElement('div');
+    row.className = 'leader-row colored' + (isWinner ? ' first':'');
+    const col = playerColor(uid);
+    row.style.background = col.bg; row.style.color = col.fg;
+    const st = p.stats || {};
+    const stat = (icon, n, label) => `<span class="gs-stat${n ? '' : ' zero'}" title="${label}"><span class="emo">${icon}</span><b>${n||0}</b></span>`;
+    const stats = (uid === 'CLAUDE' ? '' : stat('✅', st.correct, 'Spotted the real one'))
+      + stat(CARDS_ICON, st.fooled, 'Fooled someone') + stat('😂', st.funny, 'Funniest votes');
+    row.innerHTML = `<span class="rank">${i+1}</span><span class="gs-name">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="gs-stats">${stats}</span><span class="score">${p.score}</span>`;
+    standings.appendChild(row);
+  });
+  const canBreak = breakableTieAtTop();
+  $('btn-tiebreak').style.display = canBreak && isHost() ? 'block' : 'none';
+  $('tiebreak-note').style.display = canBreak && !isHost() ? 'block' : 'none';
+  $('btn-tiebreak').onclick = async () => {
+    // Straight back into play: bonus rounds continue until the tie breaks.
+    const nextIndex = game.round ? game.round.index + 1 : game.settings.numRounds;
+    await beginRound(nextIndex, effectiveSettings().categories, game.usedTerms||[], { status:'playing', tiebreak:true });
+  };
+  $('btn-play-again').style.display = isHost() ? 'block' : 'none';
+  $('btn-play-again-note').style.display = isHost() ? 'none' : 'block';
+  $('btn-play-again').onclick = async () => {
+    const resetPlayers = {};
+    Object.entries(game.players).filter(([,p]) => !p.left).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0, color: Number.isInteger(p.color) ? p.color : firstFreeColor(resetPlayers, uid) }; });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], claudeScore: 0, claudeStats: null, tiebreak: false, createdAt: serverTimestamp(), settings: effectiveSettings(), pendingSettings: deleteField() });
+  };
+  $('btn-gameover-home').onclick = leaveToHome;
+}
+
+// ---- 13. TIMER --------------------------------------------------------------
+function runTimer(elId, endsAt, onExpire){
+  clearInterval(timerInterval);
+  const el = $(elId);
+  function tick(){
+    const remaining = endsAt - Date.now();
+    el.textContent = fmtTime(remaining);
+    el.classList.toggle('low', remaining < 15000);
+    if(remaining <= 0){
+      clearInterval(timerInterval);
+      onExpire();
+    }
+  }
+  tick();
+  timerInterval = setInterval(tick, 250);
+}
+
+// ---- 14. BOOT ---------------------------------------------------------------
+// Anti-cheat: block copy / cut / right-click / long-press menus / drag /
+// select-all everywhere except the boxes players type into. Screenshots
+// can still beat this — the point is just not to make it one tap.
+const isEditable = t => !!(t && t.closest && t.closest('input, textarea, select'));
+['copy','cut','contextmenu','selectstart','dragstart'].forEach(ev =>
+  document.addEventListener(ev, e => { if(!isEditable(e.target)) e.preventDefault(); })
+);
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && ['c','x','a','u','s','p'].includes((e.key||'').toLowerCase()) && !isEditable(e.target)){
+    e.preventDefault();
+  }
+});
+
+// No pasting (or dropping text) into the bluff box — stops "look it up on
+// the laptop, paste on the phone" via shared clipboards. Typing, phone
+// keyboard suggestions and voice typing all still work.
+(() => {
+  const ta = $('writing-textarea');
+  let noteTimer = null;
+  const nope = e => {
+    e.preventDefault();
+    $('paste-note').textContent = 'Nice try — type it yourself 😏';
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { $('paste-note').textContent = ''; }, 3000);
+  };
+  ta.addEventListener('paste', nope);
+  ta.addEventListener('drop', nope);
+  ta.addEventListener('beforeinput', e => {
+    if(e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop' || e.inputType === 'insertFromPasteAsQuotation') nope(e);
+  });
+})();
+
+// Favicon = the brand icon
+try{
+  const svg = document.querySelector('.brand-icon svg');
+  const link = document.createElement('link');
+  link.rel = 'icon'; link.type = 'image/svg+xml';
+  link.href = 'data:image/svg+xml,' + encodeURIComponent(svg.outerHTML);
+  document.head.appendChild(link);
+}catch(e){}
+
+$('btn-leave-writing').onclick = leaveGame;
+$('btn-leave-reading').onclick = leaveGame;
+$('btn-leave-voting').onclick = leaveGame;
+$('btn-leave-reveal').onclick = leaveGame;
+
+// ---- Intro splash + How to play ----------------------------------------------
+function openIntro(){
+  const el = $('intro');
+  el.hidden = false; el.scrollTop = 0;
+  el.querySelectorAll('.ipop').forEach(p => { p.style.animation = 'none'; void p.offsetHeight; p.style.animation = ''; });
+}
+function closeIntro(){
+  const el = $('intro');
+  if(el.hidden) return;
+  el.classList.add('closing');
+  setTimeout(() => { el.hidden = true; el.classList.remove('closing'); }, 300);
+}
+function openRules(){ closeIntro(); closeMenu(); $('rules-sheet').classList.add('open'); $('rules-sheet').scrollTop = 0; }
+function closeRules(){ $('rules-sheet').classList.remove('open'); }
+$('intro-x').onclick = closeIntro;
+$('btn-close-rules').onclick = closeRules;
+$('btn-rules-done').onclick = closeRules;
+$('menu-rules').onclick = (e) => { e.stopPropagation(); openRules(); };
+document.querySelectorAll('[data-rules]').forEach(b => b.onclick = openRules);
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  if($('rules-sheet').classList.contains('open')) closeRules(); else closeIntro();
+});
+
+(async () => {
+  const resumed = await tryResume();
+  if(!resumed){
+    initHome();
+    showScreen('screen-home');
+    openIntro(); // every fresh open — but never when a refresh drops you back into a game
+  }
+})();
+</script>
+</body>
+</html>
