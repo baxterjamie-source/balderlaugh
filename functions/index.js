@@ -4,16 +4,16 @@
  *   - generateItem:   live round content (web-search grounded). The real
  *                     answer is written to balderlaugh_round_answers and only
  *                     the term goes back to the browser.
- *   - generateBluff:  Include Claude's own bluff.
+ *   - generateBotBluffs: every Claude Bot's bluff for the round, in one call.
  *   - checkAnswers:   "does this item's real answer still exist?" — yes/no
  *                     only, so a round never opens on a missing answer.
  *   - startReading:   moves a round from writing to reading AND attaches the
  *                     real answer in the same step. This is the only way an
  *                     answer ever reaches a browser, so the answer
  *                     collections can be fully locked (no client reads).
- *   - judgeCloseCalls (CCC) / judgeFunniest (CSF).
+ *   - judgeCloseCalls (CCC) / judgeBotFunniest (each bot's funniest vote).
  *
- * Answer lengths (real answer and Claude's bluff) come from a shuffled
+ * Answer lengths (real answer and each bot's bluff) come from a shuffled
  * 3-card "deck" per game, rebuilt every 3 rounds from how long the table's
  * own bluffs have been (see LENGTH DECKS below). Decks live in
  * balderlaugh_length_state, which clients can't read.
@@ -42,7 +42,7 @@ const CATEGORY_BRIEF = {
 // Left alone, Claude writes everything at about the same length, which
 // players learn to spot. Instead each game deals a 3-card deck of word-count
 // targets — one short, one middle, one long, shuffled — separately for the
-// real answer and for Claude's bluff. When a deck runs out (every 3 rounds)
+// real answer and for each bot's bluff. When a deck runs out (every 3 rounds)
 // it's re-dealt from the room: the recent HUMAN bluff lengths (the client
 // records these in the game doc as `bluffLengths`) give a short, a typical
 // and a long card sized to this table, so the real answer looks like just
@@ -103,7 +103,9 @@ function buildDeck(roomLengths, category){
   return shuffle(cards.map(n => clampTarget(n, category)));
 }
 
-// kind: "real" | "bluff". Same round (e.g. a "Try again") reuses its target.
+// kind: "real" | "bluff_<botUid>" (each bot keeps its own deck, so the bots
+// don't all write the same length). Same round (e.g. a "Try again") reuses
+// its target.
 // A deck dealt before the room had written anything is thrown out as soon
 // as room data exists, so the room steers from round 2, not round 4.
 async function drawTarget(gameId, roundIndex, kind, category){
@@ -418,39 +420,34 @@ Once verified, respond with ONLY a JSON object (no other text):
   return { term: parsed.term, answerId };
 });
 
-// ---- Include Claude: write Claude's own bluff for the round ----------------
-// Now sees the real answer server-side (never sent to any browser — same
-// document a normal player never gets to see before reveal) so it can
-// mechanically avoid reusing its specific words, rather than guessing at
-// what might overlap. Testing showed the blind approach still produced
-// accidental shared vocabulary ("yesterday" in both a real and fake
-// definition of a word about yesterday) since Claude's own general
-// knowledge of well-documented terms naturally converges with the truth.
-exports.generateBluff = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
-  const { term, category, answerSource, answerId, itemId, gameId, roundIndex } = request.data;
-  if (!term || !category) {
-    throw new Error("term and category are required.");
-  }
+// ---- Claude Bots: every bot's bluff for the round, in one call ---------------
+// One call writes all of them together so they can't land on the same joke
+// (separate calls kept converging). Each bot gets a random writing style
+// every round, so nobody can learn "Quinn's are the punny ones", and its own
+// length deck, so they don't all come out the same size.
+//
+// The bluffs see the real answer server-side (never sent to any browser) so
+// they can avoid its specific words: staying blind still produced accidental
+// overlap ("yesterday" in both a real and fake definition of a word about
+// yesterday), since Claude's general knowledge of a term converges with the
+// truth even without being told it.
+const BOT_STYLES = [
+  "deadpan and plausible, like someone calmly stating a fact they're sure of",
+  "silly, with a pun or an absurd twist that still sounds almost possible",
+  "overconfident, built around one oddly specific made-up detail (not a date or a number)",
+  "short and blunt, like someone typing fast on their phone",
+  "a bit dramatic or gossipy, like passing on a juicy story",
+  "folksy, like a grandparent explaining it at the kitchen table",
+  "dry and slightly sarcastic",
+  "earnest and a little nerdy, like a hobbyist who loves the subject"
+];
 
-  let realAnswer = null;
-  try {
-    if (answerSource === 'generated' && answerId) {
-      const snap = await db.collection('balderlaugh_round_answers').doc(answerId).get();
-      if (snap.exists) realAnswer = snap.data().real;
-    } else if (answerSource === 'seed' && itemId) {
-      const snap = await db.collection('balderlaugh_items').doc(itemId).get();
-      if (snap.exists) realAnswer = snap.data().real;
-    }
-  } catch (err) {
-    console.error('generateBluff: could not fetch real answer for overlap-avoidance, continuing blind:', err);
-  }
-
-  const target = await drawTarget(gameId, roundIndex, "bluff", category);
-  const overlapRule = realAnswer
+function overlapRule(realAnswer, term){
+  return realAnswer
     ? `The REAL answer (for your reference only — never reveal or paraphrase it) is:
 "${realAnswer}"
 
-Your bluff must share ZERO of the same specific/content words as that real
+No bluff may share any of the same specific/content words as that real
 answer — no matching nouns, adjectives, numbers, or proper nouns. Common
 small words (a, the, of, who, is) don't count, and reusing the term "${term}"
 itself is fine since every player already sees it. But if the real answer
@@ -460,42 +457,62 @@ direction, not a close variant.`
     : `If you happen to already know anything genuinely true about "${term}" —
 nationality, era, actual profession, or any other real fact — do NOT
 include it, even accurately. Invent a different version of every detail.`;
+}
 
-  const prompt = `You're playing Balderlaugh, a Balderdash-style bluffing party
-game. The category is ${CATEGORY_BRIEF[category] || category}. The term is "${term}".
+exports.generateBotBluffs = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
+  const { term, category, answerSource, answerId, itemId, gameId, roundIndex, bots } = request.data || {};
+  const list = (Array.isArray(bots) ? bots : []).filter(b => b && typeof b.uid === "string").slice(0, 4);
+  if (!term || !category || !list.length) {
+    throw new HttpsError("invalid-argument", "term, category and bots are required.");
+  }
 
-Write a funny, plausible-SOUNDING but FALSE definition/bio/plot-summary for
-"${term}" — something that could genuinely trick other players into voting
-for it as the real answer. Go for actually funny, not just false — surprising
-and unexpected beats safe and generic.
+  let realAnswer = null;
+  try {
+    const ref = answerRefFor({ answerSource, answerId, itemId });
+    if (ref) { const snap = await ref.get(); if (snap.exists) realAnswer = snap.data().real; }
+  } catch (err) {
+    console.error("generateBotBluffs: could not fetch real answer for overlap-avoidance, continuing blind:", err);
+  }
 
-Write it like a person improvising a guess on the spot would, not like an
-encyclopedia entry — don't invent precise dates, exact durations, or named
+  // One at a time: the decks share a document, and parallel transactions on
+  // it would just retry each other.
+  const targets = [];
+  for (const b of list) targets.push(await drawTarget(gameId, roundIndex, `bluff_${b.uid}`, category));
+  const styles = shuffle(BOT_STYLES);
+  const players = list.map((b, i) => `Player ${i + 1}: style: ${styles[i % styles.length]}.
+  ${lengthInstruction(targets[i], category)}`).join("\n\n");
+
+  const prompt = `You're writing bluffs for ${list.length} different player${list.length === 1 ? "" : "s"} in
+Balderlaugh, a Balderdash-style bluffing party game. The category is
+${CATEGORY_BRIEF[category] || category}. The term is "${term}".
+
+Each player writes their own funny, plausible-SOUNDING but FALSE
+definition/bio/plot-summary for "${term}" — something that could genuinely
+trick other players into voting for it as the real answer. Go for actually
+funny, not just false — surprising and unexpected beats safe and generic.
+
+Write each one like a person improvising a guess on the spot would, not like
+an encyclopedia entry — don't invent precise dates, exact durations, or named
 mechanisms just to sound authoritative; those over-specific details are a
 tell that this was AI-generated, not a real human bluff.
 
-${overlapRule}
+${overlapRule(realAnswer, term)}
+${list.length > 1 ? `
+The bluffs must be clearly different from EACH OTHER too: different ideas,
+not variations of one joke, and no shared distinctive words.
+` : ""}
+${players}
 
-${lengthInstruction(target, category)}
+Reply with ONLY a JSON object, one bluff per player in the same order:
+{"bluffs": ["player 1's bluff"${list.length > 1 ? `, "player 2's bluff", ...` : ""}]}`;
 
-Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY.value(),
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }]
-    })
+  const { res, data } = await callClaude({
+    model: "claude-sonnet-5",
+    max_tokens: 300 * list.length,
+    messages: [{ role: "user", content: prompt }]
   });
-  const data = await res.json();
   if (!res.ok) {
-    console.error("generateBluff: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
+    console.error("generateBotBluffs: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
     throw new Error(`Anthropic API error (${res.status}): ${data?.error?.message || "unknown"}`);
   }
   const text = (data.content || []).map(b => b.text || "").join("");
@@ -504,17 +521,27 @@ Reply with ONLY a JSON object: {"bluff": "your fake definition here"}`;
   if (jsonMatch) {
     try { parsed = JSON.parse(jsonMatch[0]); } catch { /* falls through */ }
   }
-  if (!parsed || !parsed.bluff) {
-    console.error("generateBluff parse failure — raw text:", text.slice(0, 500));
-    throw new Error("Could not parse a bluff from the model response.");
+  const raw = parsed && Array.isArray(parsed.bluffs) ? parsed.bluffs : null;
+  if (!raw || !raw.some(t => typeof t === "string" && t.trim())) {
+    console.error("generateBotBluffs parse failure — raw text:", text.slice(0, 500));
+    throw new Error("Could not parse bluffs from the model response.");
   }
-  let bluff = plainPunct(await fitLength(parsed.bluff, target, false, category));
+
+  let rate = STYLE_PRIOR;
   try {
     const st = gameId ? await db.collection("balderlaugh_length_state").doc(String(gameId)).get() : null;
-    const recent = st && st.exists && st.data().style ? st.data().style.recent : [];
-    bluff = addSlips(bluff, slipRate(recent), termWordSet(term));
-  } catch (err) { console.error("generateBluff: style step skipped:", err); }
-  return { bluff };
+    rate = slipRate(st && st.exists && st.data().style ? st.data().style.recent : []);
+  } catch (err) { console.error("generateBotBluffs: style step skipped:", err); }
+
+  const out = {};
+  await Promise.all(list.map(async (b, i) => {
+    const t = typeof raw[i] === "string" ? raw[i].trim() : "";
+    if (!t) return; // that bot sits this round out rather than holding it up
+    let bluff = plainPunct(await fitLength(t, targets[i], false, category));
+    try { bluff = addSlips(bluff, rate, termWordSet(term)); } catch (err) { console.error("generateBotBluffs: slip skipped:", err); }
+    out[b.uid] = bluff;
+  }));
+  return { bluffs: out };
 });
 
 // ---- Answer lookup helpers (server-side only) -------------------------------
@@ -564,7 +591,9 @@ exports.startReading = onCall(async (request) => {
 
     const players = g.players || {};
     const subs = r.submissions || {};
-    const active = Object.keys(players).filter(u => !players[u].sittingOut);
+    // Humans only: a bot's bluff is written before the round opens (or not at
+    // all, if its call failed), so it's never something to wait for.
+    const active = Object.keys(players).filter(u => !players[u].sittingOut && !players[u].bot);
     const humanIn = Object.keys(subs).filter(u => active.includes(u)).length;
     const timeUp = typeof r.phaseEndsAt === "number" && Date.now() >= r.phaseEndsAt - CLOCK_GRACE_MS;
     if (!timeUp && !(active.length > 0 && humanIn >= active.length)) return { ok: false, reason: "not-ready" };
@@ -582,7 +611,7 @@ exports.startReading = onCall(async (request) => {
     let recent = (stSnap.exists && stSnap.data().style && stSnap.data().style.recent) || [];
     let styleOk = true;
     try {
-      const flags = Object.entries(subs).filter(([u, x]) => u !== "CLAUDE" && x && x.text)
+      const flags = Object.entries(subs).filter(([u, x]) => u !== "CLAUDE" && !(players[u] && players[u].bot) && x && x.text)
         .map(([, x]) => entryHasSlip(x.text, r.term) ? 1 : 0);
       recent = [...recent, ...flags].slice(-STYLE_WINDOW);
     } catch (err) { styleOk = false; console.error("startReading: style check skipped:", err); }
@@ -597,7 +626,7 @@ exports.startReading = onCall(async (request) => {
       "round.phaseEndsAt": Date.now() + secs * 1000,
       "round.shuffleOrder": finalOrder,
       "round.answerText": answerText,
-      "round.readerUid": players[readerUid] ? readerUid : (active[0] || null)
+      "round.readerUid": players[readerUid] && !players[readerUid].bot ? readerUid : (active[0] || null)
     };
     if (Array.isArray(readerQueue) && readerQueue.every(u => typeof u === "string")) update.readerQueue = readerQueue;
     tx.update(gameRef, update);
@@ -608,7 +637,7 @@ exports.startReading = onCall(async (request) => {
 
 // ---- CCC: mark any human bluff that's surprisingly close to the truth -----
 // Bragging rights only, no scoring — Claude reads the real answer and every
-// human bluff (never Claude's own, if Include Claude is on) and flags any
+// human bluff (never a Claude Bot's) and flags any
 // that landed close to actually correct, purely by luck or half-knowledge.
 exports.judgeCloseCalls = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
   const { term, realAnswer, submissions } = request.data; // submissions: [{id, text}]
@@ -665,55 +694,76 @@ the list above, or an empty array if none qualify>]}`;
   }
 });
 
-// ---- CSF: pick the funniest human-written bluff ----------------------------
-exports.judgeFunniest = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
-  const { term, submissions } = request.data; // submissions: [{id, text}]
-  if (!term || !Array.isArray(submissions) || submissions.length === 0) {
-    throw new Error("term and a non-empty submissions array are required.");
-  }
+// ---- Claude Bots: each bot's funniest vote ------------------------------------
+// One call for every bot. Each judge has its own (random) sense of humour and
+// can't pick its own entry; the real answer is just another entry here (by
+// voting time it's on every phone anyway) and is never labelled as real.
+// A pick that's missing, invalid or a bot's own comes back null and the page
+// falls back to a random pick.
+const BOT_TASTES = [
+  "loves puns and wordplay",
+  "loves the most absurd, ridiculous idea",
+  "loves dry understatement",
+  "loves anything that sounds like gossip or a scandal",
+  "loves a wholesome, sweet kind of funny",
+  "loves an oddly specific detail",
+  "loves a slightly dark twist",
+  "loves something so plausible it's funny that anyone would make it up"
+];
+exports.judgeBotFunniest = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
+  const { term, entries, bots } = request.data || {}; // entries: [{id, text}], bots: [uid]
+  const list = (Array.isArray(entries) ? entries : []).filter(e => e && e.id && e.text).slice(0, 13);
+  const judges = (Array.isArray(bots) ? bots : []).filter(u => typeof u === "string").slice(0, 4);
+  if (!term || list.length < 2 || !judges.length) return { picks: {} };
 
-  const list = submissions.map((s, i) => `${i + 1}. ${s.text}`).join("\n");
-  const prompt = `These are fake dictionary-style bluffs for the party game
-Balderlaugh, all written for the term "${term}":
+  const tastes = shuffle(BOT_TASTES);
+  const ownIdx = uid => list.findIndex(e => e.id === uid) + 1; // 0 = no entry this round
+  const judgeLines = judges.map((u, i) => {
+    const own = ownIdx(u);
+    return `Judge ${i + 1}: ${tastes[i % tastes.length]}.${own ? ` Can't pick #${own} (their own).` : ""}`;
+  }).join("\n");
+  const prompt = `These are answers for the party game Balderlaugh, all written for the
+term "${term}":
 
-${list}
+${list.map((e, i) => `${i + 1}. ${e.text}`).join("\n")}
 
-Pick the funniest one. If any entry crosses into content you shouldn't
-engage with (explicit sexual content, hate speech/slurs, or anything
-sexualizing minors), exclude it from consideration entirely — do not
-describe why, just leave it out. From what remains, reply with ONLY a JSON
-object: {"funniestIndex": <1-based number from the list above>, "reason":
-"one short sentence"}. If every entry must be excluded, reply
-{"funniestIndex": null, "reason": "none eligible"}.`;
+${judges.length} judge${judges.length === 1 ? "" : "s"} each pick the ONE answer they find funniest. They have
+different senses of humour, so they don't have to agree:
+${judgeLines}
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY.value(),
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 200,
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    console.error("judgeFunniest: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
-    return { winnerId: null, reason: "Judge call failed." };
-  }
-  const text = (data.content || []).map(b => b.text || "").join("");
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
+If any entry crosses into content you shouldn't engage with (explicit sexual
+content, hate speech/slurs, or anything sexualizing minors), no judge picks
+it — don't describe why, just leave it out. Each reason is one short, casual
+sentence in that judge's own voice.
+
+Reply with ONLY a JSON object:
+{"picks": [{"judge": 1, "pick": <1-based answer number, or null>, "reason": "..."}]}`;
+
   try {
-    if (!jsonMatch) throw new Error("no JSON in response");
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (parsed.funniestIndex == null) return { winnerId: null, reason: parsed.reason };
-    const winner = submissions[parsed.funniestIndex - 1];
-    return { winnerId: winner ? winner.id : null, reason: parsed.reason };
-  } catch {
-    return { winnerId: null, reason: "Could not parse judge response." };
+    const { res, data } = await callClaude({
+      model: "claude-sonnet-5",
+      max_tokens: 120 + 100 * judges.length,
+      messages: [{ role: "user", content: prompt }]
+    });
+    if (!res.ok) {
+      console.error("judgeBotFunniest: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
+      return { picks: {} };
+    }
+    const text = (data.content || []).map(b => b.text || "").join("");
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    const picks = {};
+    for (const p of (parsed && Array.isArray(parsed.picks) ? parsed.picks : [])) {
+      const uid = judges[Number(p.judge) - 1];
+      const n = Number(p.pick);
+      if (!uid || picks[uid] || !Number.isInteger(n) || n < 1 || n > list.length || n === ownIdx(uid)) continue;
+      picks[uid] = { id: list[n - 1].id, reason: p.reason ? String(p.reason).slice(0, 300) : null };
+    }
+    return { picks };
+  } catch (err) {
+    // Fail soft: the page picks at random instead.
+    console.error("judgeBotFunniest failed:", err);
+    return { picks: {} };
   }
 });
 

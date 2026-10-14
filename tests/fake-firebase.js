@@ -28,13 +28,21 @@ global.fetch = async (url, opts) => {
   const body = JSON.parse(opts.body); const p = body.messages[0].content;
   claude.calls.push(p);
   const m = p.match(/about (\d+)/); const t = m ? +m[1] : 12;
+  const sloppy = t => claude.mode === 'verbose' ? 26 : t + Math.round((Math.random()-0.5)*4); // +/-2 words
   let n;
   if (p.startsWith('Rewrite this')) n = claude.mode === 'badrewrite' ? t + 15 : t;
-  else if (claude.mode === 'verbose') n = 26;
-  else n = t + Math.round((Math.random()-0.5)*4); // +/-2 words
-  const text = p.includes('"bluff"') && !p.startsWith('Rewrite') ? JSON.stringify({ bluff: words(n) })
-    : p.startsWith('Rewrite') ? JSON.stringify({ text: words(n) })
-    : JSON.stringify({ term: 'The Moose Who Knew Too Much', real: words(n), source: 'test' });
+  else n = sloppy(t);
+  let text;
+  if (p.includes('{"bluffs"')) {
+    // one bluff per "aim for about N" (each bot has its own target)
+    const ts = [...p.matchAll(/aim for about (\d+)/g)].map(x => +x[1]);
+    text = JSON.stringify({ bluffs: ts.map(x => words(sloppy(x))) });
+  } else if (p.includes('{"picks"')) {
+    // every judge picks answer #1 (so a judge whose own entry is #1 is invalid)
+    const judges = [...p.matchAll(/^Judge (\d+):/gm)].map(x => +x[1]);
+    text = JSON.stringify({ picks: judges.map(j => ({ judge: j, pick: claude.pick || 1, reason: 'lol' })) });
+  } else if (p.startsWith('Rewrite')) text = JSON.stringify({ text: words(n) });
+  else text = JSON.stringify({ term: 'The Moose Who Knew Too Much', real: words(n), source: 'test' });
   return { ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text }], stop_reason: 'end_turn' }) };
 };
 process.env.BALDERLAUGH_TEST = '1';

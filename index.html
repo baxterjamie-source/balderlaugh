@@ -95,6 +95,9 @@
   .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.02em;}
   .badge.host{background:var(--gold);color:#3a2c00;}
   .badge.you{background:var(--ink-3);color:var(--text-light);}
+  .badge.bot{background:#64748B;color:#fff;}
+  .player-chip.bot-preview{opacity:.75;border:1px dashed var(--ink-3);}
+  .toggle-row select{width:auto;padding:8px 10px;font-size:14px;flex:0 0 auto;}
   .score{font-variant-numeric:tabular-nums;font-weight:600;color:var(--fox);}
 
   .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid var(--ink-3);}
@@ -134,7 +137,6 @@
   .flag.real{background:var(--moss);color:#fff;}
   .flag.votes{background:var(--ink-3);color:var(--text-light);}
   .flag.ccc{background:var(--gold);color:#3a2c00;}
-  .flag.csf{background:var(--fox);color:#fff;}
   .flag.funniest{background:#7A4FA0;color:#fff;}
   .vote-chips{display:flex;gap:8px;margin-top:10px;}
   .vote-chip{font-size:12px;font-weight:700;padding:7px 14px;border-radius:20px;border:2px solid var(--ink-3);background:transparent;cursor:pointer;font-family:inherit;}
@@ -178,18 +180,12 @@
   .flags{align-items:center;gap:6px;}
   .flag.author{font-size:11px;padding:3px 10px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18);}
   .laugh{font-size:18px;line-height:1;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}
-  /* Claude's funniest pick: the same 😂, tinted blue */
-  .laugh.claude{display:inline-flex;}
-  .laugh.claude .e{filter:hue-rotate(185deg) saturate(1.6);}
   .laugh-img{width:20px;height:20px;display:block;}
   .laugh.egg{cursor:pointer;}
   .egg-bubble{position:fixed;z-index:57;display:none;background:#fff;color:var(--text-dark);border:2px solid #AEB8C6;
     border-radius:14px;padding:10px 14px;font-size:15px;line-height:1.4;box-shadow:0 12px 30px rgba(0,0,0,.4);}
   .egg-bubble.open{display:block;animation:toastin .2s ease;}
   .egg-who{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748B;margin-bottom:3px;}
-  .csf-key .laugh-img{width:18px;height:18px;}
-  .csf-key{font-size:13px;color:var(--muted);margin:2px 0 4px;line-height:1.5;}
-  .csf-key .row-key{display:flex;align-items:center;gap:6px;margin-top:4px;}
   .leader-row.colored .rank{color:inherit;opacity:.7;}
   .leader-row.colored .score{color:inherit;}
   .leader-row.colored.first{border:2px solid var(--gold);box-shadow:0 0 0 2px rgba(212,160,23,.35);}
@@ -290,16 +286,23 @@
     -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:opacity .3s ease;}
   .intro.closing{opacity:0;}
   .intro[hidden]{display:none;}
-  .intro-x{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);right:14px;z-index:2;
-    width:44px;height:44px;border-radius:50%;border:none;background:var(--parchment);color:var(--ink);
-    font-size:22px;font-weight:700;line-height:1;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45);font-family:inherit;}
-  .intro-x:active{transform:scale(.94);}
   .intro-head{text-align:center;padding:30px 60px 0;}
   .intro-head .mark{font-family:'Fraunces',serif;font-size:40px;font-weight:700;color:var(--fox);line-height:1;}
   .intro-stage{position:relative;width:min(100%,440px);margin:0 auto;padding:44px 0 20px;}
-  .intro-foot{text-align:center;padding:0 16px 48px;}
-  .intro-how{display:inline-flex;align-items:center;gap:8px;background:transparent;border:2px solid var(--parchment);
-    color:var(--parchment);border-radius:24px;padding:10px 20px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;}
+  /* Try it now / Play / Rules stay on screen while the cards scroll behind */
+  .intro-foot{position:sticky;bottom:0;z-index:3;padding:26px 16px calc(env(safe-area-inset-bottom,0px) + 20px);
+    background:linear-gradient(rgba(10,12,18,0), rgba(10,12,18,.94) 32%);}
+  .intro-actions{max-width:380px;margin:0 auto;display:flex;flex-direction:column;gap:10px;}
+  .intro-try{flex-direction:column;gap:1px;font-size:19px;padding:13px 20px 11px;box-shadow:0 10px 26px rgba(193,82,28,.4);}
+  .intro-try small{font-size:12.5px;font-weight:600;opacity:.92;}
+  .intro-row{display:flex;gap:10px;}
+  .intro-row .btn{flex:1;background:transparent;border:2px solid var(--parchment);color:var(--parchment);}
+  .intro-name{display:flex;gap:8px;}
+  .intro-name[hidden]{display:none;}
+  .intro-name input{flex:1;min-width:0;}
+  .intro-name .btn{width:auto;flex:0 0 auto;}
+  .intro-err{color:#F0A49B;font-size:13px;text-align:center;min-height:0;}
+  .intro-err:empty{display:none;}
   .ishot{position:relative;width:212px;margin:0 auto;}
   .ishot + .ishot{margin-top:-4px;}
   .ishot.is1,.ishot.is3{left:-50px;}
@@ -412,7 +415,7 @@
   <!-- ============ HOME (name entry + open games) ============ -->
   <section class="screen" id="screen-home">
     <div class="brand"><span class="mark">Balderlaugh</span><span class="brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="26" cy="30" r="21" fill="#D4A017"/><path d="M15 23.5q4.5-5.5 9 0M28 23.5q4.5-5.5 9 0" stroke="#3a2c00" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M10.5 27.5q-3.5 5.5 0 8q3.5-2.5 0-8z" fill="#7DD3FC"/><path d="M13 32h24q-1.5 13-12 13q-10.5 0-12-13z" fill="#3a2c00"/><path d="M17.5 40.5q7.5-4.5 15 0q-3 4-7.5 4q-4.5 0-7.5-4z" fill="#E86A5A"/><g transform="rotate(16 49 43)"><rect x="39" y="26" width="19" height="32" rx="4.5" fill="#1B1F2A" stroke="#F2E9D8" stroke-width="2.6"/><rect x="42.5" y="30.5" width="12" height="20" rx="1.5" fill="#F2E9D8"/><path d="M45 35h7M45 39.5h5M45 44h7" stroke="#C1521C" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="tag">bluff, vote, laugh</span></div>
-    <div class="who-for">👥 2–8 players · same room · everyone on their own phone</div>
+    <div class="who-for">👥 2–8 players · same room · everyone on their own phone · 🤖 bots can fill in</div>
 
     <label for="input-name">Your name</label>
     <input type="text" id="input-name" placeholder="e.g. Jamie" maxlength="24" autocomplete="off">
@@ -507,16 +510,18 @@
         <label class="switch"><input type="checkbox" id="toggle-crowdFunny" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">CSF — Claude says funniest</div><div class="sub">Claude casts a funniest vote too</div></div>
-        <label class="switch"><input type="checkbox" id="toggle-csf"><span class="track"></span><span class="thumb"></span></label>
-      </div>
-      <div class="toggle-row">
         <div><div class="lbl">Points for funniest</div><div class="sub">+1 per funniest vote</div></div>
         <label class="switch"><input type="checkbox" id="toggle-funnyPoints"><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
-        <div><div class="lbl">Include Claude</div><div class="sub">Claude writes a bluff and scores</div></div>
-        <label class="switch"><input type="checkbox" id="toggle-includeClaude"><span class="track"></span><span class="thumb"></span></label>
+        <div><div class="lbl">Include Claude Bots 🤖</div><div class="sub" id="bots-sub">Pat, Quinn, Parker &amp; River bluff, vote and score</div></div>
+        <select id="setting-bots" aria-label="Include Claude Bots">
+          <option value="0" selected>None</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
       </div>
       <div class="toggle-row">
         <div><div class="lbl">Wander watch 👀</div><div class="sub">Leaving the screen gets noticed 👀</div></div>
@@ -659,7 +664,6 @@
     </div>
     <h3 style="font-size:16px;margin-bottom:8px;">Voting Results</h3>
     <div id="reveal-list"></div>
-    <div class="csf-key" id="csf-key" style="display:none;"></div>
 
     <div class="divider"></div>
     <h3 style="font-size:16px;">Standings</h3>
@@ -703,8 +707,8 @@
   </div>
 </div>
 
-<!-- Claude's funniest-vote easter egg -->
-<div class="egg-bubble" id="egg-bubble" role="dialog"><div class="egg-who">Claude says…</div><div id="egg-text"></div></div>
+<!-- A bot's funniest-vote easter egg -->
+<div class="egg-bubble" id="egg-bubble" role="dialog"><div class="egg-who" id="egg-who">Claude says…</div><div id="egg-text"></div></div>
 
 <!-- ⋯ menu for round screens -->
 <div class="menu-pop" id="menu-pop" role="menu">
@@ -730,8 +734,7 @@
 
 <!-- ============ INTRO SPLASH (shown on every fresh open, not on resume) ============ -->
 <div class="intro" id="intro" role="dialog" aria-modal="true" aria-label="Welcome to Balderlaugh" hidden>
-  <button class="intro-x" id="intro-x" type="button" aria-label="Close">✕</button>
-  <div class="intro-head"><div class="mark">Balderlaugh</div><div class="intro-who"><span class="nw">👥 A party game for 2–8 players</span><small>Same room · everyone on their own phone</small></div></div>
+  <div class="intro-head"><div class="mark">Balderlaugh</div><div class="intro-who"><span class="nw">👥 A party game for 2–8 players</span><small>Same room · everyone on their own phone · or solo with 🤖 bots</small></div></div>
   <div class="intro-stage">
     <div class="ishot is1"><div class="itilt"><div class="ipop"><div class="ifloat">
       <div class="istep"><small>1</small>Bluff</div>
@@ -772,7 +775,20 @@
       </div>
     </div></div></div></div>
   </div>
-  <div class="intro-foot"><button type="button" class="intro-how" data-rules>❓ How to play</button></div>
+  <div class="intro-foot">
+    <div class="intro-actions">
+      <div class="intro-name" id="intro-name-wrap" hidden>
+        <input type="text" id="intro-name" placeholder="Your name" maxlength="24" autocomplete="off" aria-label="Your name">
+        <button class="btn" type="button" id="btn-intro-go">Start</button>
+      </div>
+      <div class="intro-err" id="intro-err"></div>
+      <button class="btn intro-try" type="button" id="btn-try-now">Try it now<small>3 quick rounds vs Pat, Quinn &amp; Parker 🤖</small></button>
+      <div class="intro-row">
+        <button class="btn" type="button" id="btn-intro-play">Play</button>
+        <button class="btn" type="button" data-rules>Rules</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ============ HOW TO PLAY ============ -->
@@ -781,7 +797,8 @@
     <div class="sheet-head"><h2 style="margin:0;">How to play</h2><button class="x" type="button" id="btn-close-rules" aria-label="Close">✕</button></div>
 
     <div class="rules-sec">Setup</div>
-    <div class="rule"><div class="ic">👥</div><div><b>2 to 8 players.</b></div></div>
+    <div class="rule"><div class="ic">👥</div><div><b>2 to 8 players</b> (Claude Bots count as players).</div></div>
+    <div class="rule"><div class="ic">🤖</div><div><b>On your own?</b> Tap <b>Try it now</b> for a quick 3-round game against three Claude Bots.</div></div>
     <div class="rule"><div class="ic">🛋️</div><div><b>Play together in the same room.</b> Part of the fun is reading the answers out loud and watching faces.</div></div>
     <div class="rule"><div class="ic">📱</div><div><b>Everyone uses their own phone</b> (or laptop, tablet, etc.). There's no shared screen, and each person's bluff stays secret.</div></div>
     <div class="rule"><div class="ic">🏷️</div><div><b>Enter your name first.</b> One person taps <b>Start a new game</b>. Everyone else taps that game in the list, or types its code.</div></div>
@@ -801,7 +818,7 @@
     <div class="rule"><div class="ic">🚫</div><div>You can't vote for your own answer.</div></div>
     <div class="rule"><div class="ic">👀</div><div>No peeking at other apps. If you leave the game mid-round, everyone finds out.</div></div>
     <div class="rule"><div class="ic">🪑</div><div>Need a break? Tap <b>⋯</b> and choose <b>Sit out</b>.</div></div>
-    <div class="rule"><div class="ic">🤖</div><div>The host can let Claude play. Claude writes a bluff and can score, but never votes for the real answer.</div></div>
+    <div class="rule"><div class="ic">🤖</div><div>The host can add up to 4 Claude Bots: Pat, Quinn, Parker and River. They bluff, vote and score just like you, and they never read aloud. They're no smarter than you are about which answer is real.</div></div>
 
     <button class="btn" type="button" id="btn-rules-done" style="margin-top:18px;">Got it</button>
   </div>
@@ -865,9 +882,9 @@ const GAMES = "balderlaugh_games";
 //   balderlaugh_meta/itemIndex   — {category: [{id, term}, ...]}  (no answers)
 //   balderlaugh_items/{itemId}   — {category, term, real}
 const generateItemFn = httpsCallable(functionsClient, 'generateItem');
-const generateBluffFn = httpsCallable(functionsClient, 'generateBluff'); // Include Claude
+const generateBotBluffsFn = httpsCallable(functionsClient, 'generateBotBluffs'); // Claude Bots
 const judgeCloseCallsFn = httpsCallable(functionsClient, 'judgeCloseCalls'); // CCC
-const judgeFunniestFn = httpsCallable(functionsClient, 'judgeFunniest'); // CSF
+const judgeBotFunniestFn = httpsCallable(functionsClient, 'judgeBotFunniest'); // Claude Bots' 😂
 
 let itemIndexCache = null;
 async function getItemIndex(){
@@ -1021,13 +1038,14 @@ function tidy(s){
 // ---- Players: cap, reserved names, colours --------------------------------
 const MAX_PLAYERS = 8;
 const STALE_LOBBY_MS = 12*60*60*1000; // open games older than this drop off the list
-const RESERVED_NAMES = ['claude','claud'];
+const RESERVED_NAMES = ['claude','claud','pat','quinn','parker','river'];
 function isReservedName(n){
   return RESERVED_NAMES.includes((n||'').toLowerCase().replace(/[^a-z]/g,''));
 }
 // Eight player colours, deliberately avoiding the game's own meaning-colours:
 // fox orange (buttons / "Real" chip), moss green (real answer), gold
-// (host / leader) and purple (funniest). Claude gets its own slate.
+// (host / leader) and purple (funniest). Bots take seats (and colours) like
+// anyone else, so 8 colours cover every seat.
 const PLAYER_COLORS = [
   { bg:'#2563EB', fg:'#FFFFFF' }, // blue
   { bg:'#EC4899', fg:'#FFFFFF' }, // pink
@@ -1036,10 +1054,8 @@ const PLAYER_COLORS = [
   { bg:'#DC2626', fg:'#FFFFFF' }, // crimson
   { bg:'#7DD3FC', fg:'#0C2A3A' }, // sky
   { bg:'#8D6E63', fg:'#FFFFFF' }, // cocoa
-  { bg:'#8B5CF6', fg:'#FFFFFF' }, // violet (grey is Claude's)
+  { bg:'#8B5CF6', fg:'#FFFFFF' }, // violet
 ];
-const CLAUDE_COLOR = { bg:'#64748B', fg:'#FFFFFF' };
-const CLAUDE_LAUGH = '#AEB8C6'; // lighter grey for Claude's 😂 (the slate reads too dark on a face)
 function firstFreeColor(players, exceptUid){
   const used = new Set(Object.entries(players||{})
     .filter(([u]) => u !== exceptUid).map(([,p]) => p.color).filter(Number.isInteger));
@@ -1049,7 +1065,6 @@ function firstFreeColor(players, exceptUid){
 // uid -> palette entry. Uses each player's stored colour; anyone without
 // one (games started before colours existed) gets the next free slot.
 function playerColor(uid){
-  if(uid === 'CLAUDE') return CLAUDE_COLOR;
   const players = (game && game.players) || {};
   const used = new Set(); const map = {};
   Object.entries(players).forEach(([u,p]) => {
@@ -1059,6 +1074,61 @@ function playerColor(uid){
     if(map[u] === undefined){ let c = 0; while(used.has(c)) c++; map[u] = c; used.add(c); }
   });
   return PLAYER_COLORS[(map[uid] ?? 0) % PLAYER_COLORS.length];
+}
+
+// ---- Claude Bots --------------------------------------------------------------
+// Up to four bots sit in game.players like anyone else (bot:true), so scores,
+// colours, stats and standings just work. They're seated when the game starts
+// (or at the next round, if the host changes the number mid-game), take up
+// seats under the 8-player cap, never read aloud, never wander off and never
+// hold up the room.
+const BOTS = [
+  { uid:'BOT_PAT', name:'Pat' }, { uid:'BOT_QUINN', name:'Quinn' },
+  { uid:'BOT_PARKER', name:'Parker' }, { uid:'BOT_RIVER', name:'River' }
+];
+const BOT_REAL_CHANCE = 0.4; // how often a bot votes for the real answer
+function isBot(uid){ return !!(game && game.players && game.players[uid] && game.players[uid].bot); }
+// Field updates that seat `want` bots (fewer if the humans leave no room). A
+// bot dropped mid-game is parked as left, keeping its score on the board like
+// a person who left; bringing it back gives it its seat again.
+function botUpdates(players, want){
+  players = players || {};
+  const humans = Object.values(players).filter(p => !p.bot && !p.left).length;
+  const n = Math.max(0, Math.min(BOTS.length, Number(want) || 0, MAX_PLAYERS - humans));
+  const upd = {}, seated = { ...players };
+  BOTS.forEach((b, i) => {
+    const p = players[b.uid];
+    if(i < n){
+      if(!p){
+        seated[b.uid] = { name: b.name, score: 0, bot: true, color: firstFreeColor(seated, b.uid) };
+        upd[`players.${b.uid}`] = seated[b.uid];
+      } else if(p.left){ upd[`players.${b.uid}.left`] = false; upd[`players.${b.uid}.sittingOut`] = false; }
+    } else if(p && !p.left){ upd[`players.${b.uid}.left`] = true; upd[`players.${b.uid}.sittingOut`] = true; }
+  });
+  return upd;
+}
+// A bot's bluff or vote is written ahead of time with a moment (`at`) when it
+// "finishes", so no one phone has to drive the bots and every phone agrees on
+// who's in. Once every human is in, the bots still out follow within a few
+// seconds (`lag`) instead of making the room wait for their moment.
+function botEntry(at, lag){ return { bot: true, at: Math.round(at), lag: Math.round(lag) }; }
+// entries: round.submissions or round.votes. Bots with no entry (their bluff
+// call failed) aren't waited on.
+function phaseProgress(entries){
+  entries = entries || {};
+  const now = Date.now();
+  const active = activePlayerUids();
+  const humans = active.filter(u => !isBot(u));
+  const humansIn = humans.length > 0 && humans.every(u => entries[u]);
+  const humansDoneAt = humansIn ? Math.max(0, ...humans.map(u => entries[u].at || 0)) : Infinity;
+  const expected = active.filter(u => !isBot(u) || entries[u]);
+  const inCount = expected.filter(u => {
+    const e = entries[u];
+    if(!e) return false;
+    if(!e.bot) return true;
+    return now >= e.at || now >= humansDoneAt + (e.lag || 0);
+  }).length;
+  return { inCount, total: expected.length, all: expected.length > 0 && inCount >= expected.length };
 }
 class JoinError extends Error {}
 
@@ -1076,12 +1146,9 @@ function nudgeForName(){
   setTimeout(() => inp.focus(), 250);
 }
 
-// Everyone with a score: the players, plus Claude when it's in the game
-// (Include Claude on) or has already banked points.
+// Everyone with a score, bots included, best first.
 function scoreboard(){
   const rows = Object.entries((game && game.players) || {}).map(([uid,p]) => [uid, { name:p.name, score:p.score||0, stats:p.stats||null }]);
-  const cs = (game && game.claudeScore) || 0;
-  if((game && game.settings && game.settings.includeClaude) || cs > 0) rows.push(['CLAUDE', { name:'Claude', score:cs, stats:(game && game.claudeStats) || null }]);
   return rows.sort((a,b) => b[1].score - a[1].score);
 }
 
@@ -1112,7 +1179,7 @@ function initHome(){
       creatorName: name,
       status: 'lobby',
       createdAt: serverTimestamp(),
-      settings: { numRounds:6, categories:['oddWords','obscurePeople','movies'], crowdFunny:true, ccc:false, csf:false, includeClaude:false },
+      settings: { numRounds:6, categories:['oddWords','obscurePeople','movies'], crowdFunny:true, ccc:false, bots:0 },
       players: { [myUid]: { name, score:0, color:0 } },
       usedTerms: [],
       readerQueue: [],
@@ -1135,6 +1202,31 @@ function initHome(){
   };
 
   listenOpenGames();
+}
+
+// ---- Try it now: a private solo game against three bots ---------------------
+// Skips the lobby: one human + Pat, Quinn and Parker, straight into round 1.
+// Private games stay out of Open games, and out of In progress for everyone
+// but the person playing.
+const TRY_IT_SETTINGS = { numRounds:3, writingSeconds:180, votingSeconds:180, categories:['oddWords','obscurePeople','movies'],
+  crowdFunny:true, ccc:false, funnyPoints:true, wanderWatch:false, bots:3 };
+async function startTryItNow(name){
+  const code = genCode();
+  const players = { [myUid]: { name, score:0, color:0 } };
+  Object.entries(botUpdates(players, TRY_IT_SETTINGS.bots)).forEach(([k, seat]) => { players[k.replace('players.', '')] = seat; });
+  const data = {
+    hostUid: myUid, hostName: name, creatorUid: myUid, creatorName: name,
+    status: 'playing', private: true, createdAt: serverTimestamp(),
+    settings: { ...TRY_IT_SETTINGS }, players, usedTerms: [], readerQueue: [], categoryQueue: [], round: null
+  };
+  await setDoc(doc(db, GAMES, code), data);
+  currentGameCode = code;
+  game = { ...data, createdAt: Date.now() }; // beginRound reads it before the first snapshot lands
+  attachGameListener(code);
+  showScreen('screen-loading');
+  // Not awaited: the loading screen takes over from here (with Try again /
+  // End if generation stalls, as in any game).
+  beginRound(0, TRY_IT_SETTINGS.categories, []).catch(err => console.error('Could not start round 1:', err));
 }
 // Open games untouched for 12h+ are deleted outright (not just hidden), by
 // whichever device next opens the home screen — once per page load.
@@ -1201,7 +1293,9 @@ function gameTitle(g){
   // "Fitz's Game (now hosted by JJ)" once hosting has passed to someone else
   return g.creatorUid && g.hostUid && g.hostUid !== g.creatorUid && g.hostName ? `${base} (now hosted by ${g.hostName})` : base;
 }
+// Seats taken (bots count toward the cap) vs people actually playing.
 function seatedPlayers(g){ return Object.values(g.players||{}).filter(p => !p.left); }
+function seatedHumans(g){ return seatedPlayers(g).filter(p => !p.bot); }
 
 let unsubInProgress = null;
 function listenOpenGames(){
@@ -1215,7 +1309,7 @@ function listenOpenGames(){
   const u1 = onSnapshot(qOpen, snap => {
     const list = $('open-games-list');
     list.innerHTML = '';
-    const docs = []; snap.forEach(d => { if(fresh(d)) docs.push(d); });
+    const docs = []; snap.forEach(d => { if(fresh(d) && !d.data().private) docs.push(d); });
     $('open-games-count').textContent = docs.length;
     $('no-games-note').style.display = docs.length ? 'none' : 'block';
     docs.forEach(d => {
@@ -1228,7 +1322,8 @@ function listenOpenGames(){
 
   // Games already under way — so anyone who left (or dropped off) can
   // get back in without needing the code. Rejoining keeps your score.
-  const qPlay = query(collection(db, GAMES), where('status','==','playing'), orderBy('createdAt','desc'), limit(15));
+  // (A higher limit than Open games: private Try-it-now games take up rows here too.)
+  const qPlay = query(collection(db, GAMES), where('status','==','playing'), orderBy('createdAt','desc'), limit(30));
   const u2 = onSnapshot(qPlay, snap => {
     const list = $('inprog-list');
     list.innerHTML = '';
@@ -1237,7 +1332,8 @@ function listenOpenGames(){
     const docs = []; snap.forEach(d => {
       const g = d.data();
       const mine = !!(g.players && (g.players[myUid] || Object.values(g.players).some(p => p.left && (p.name||'').trim().toLowerCase() === myName.trim().toLowerCase())));
-      if(fresh(d) && (seatedPlayers(g).length || mine)) docs.push(d);
+      if(g.private && !(g.players && g.players[myUid])) return; // someone else's solo game
+      if(fresh(d) && (seatedHumans(g).length || mine)) docs.push(d);
     });
     $('inprog-count').textContent = docs.length;
     $('inprog-wrap').style.display = docs.length ? 'block' : 'none';
@@ -1247,9 +1343,10 @@ function listenOpenGames(){
       const idx = g.round ? g.round.index + 1 : 1;
       const roundTxt = n && idx > n ? `Bonus round ${idx - n}` : `Round ${idx} of ${n}`;
       const mine = !!(g.players && g.players[myUid]);
-      const count = seatedPlayers(g).length;
-      const full = !mine && count >= MAX_PLAYERS;
-      list.appendChild(gameListItem(d.id, g, `${roundTxt} · ${count} playing · code ${d.id}${full ? ' · full' : ''}`,
+      const count = seatedHumans(g).length, bots = seatedPlayers(g).length - count;
+      const full = !mine && count + bots >= MAX_PLAYERS;
+      const who = `${count} playing${bots ? ` + ${bots} bot${bots === 1 ? '' : 's'}` : ''}`;
+      list.appendChild(gameListItem(d.id, g, `${roundTxt} · ${who} · code ${d.id}${full ? ' · full' : ''}`,
         mine ? 'Rejoin &rarr;' : 'Join &rarr;', full));
     });
   }, err => { console.error(err); });
@@ -1379,7 +1476,7 @@ async function leaveGame(){
   if(!currentGameCode || !game){ leaveToHome(); return; }
   const wasHost = isHost();
   const midGame = game.status === 'playing';
-  const remaining = Object.keys(game.players||{}).filter(uid => uid !== myUid && !game.players[uid].left);
+  const remaining = Object.keys(game.players||{}).filter(uid => uid !== myUid && !game.players[uid].left && !game.players[uid].bot);
   try{
     // Mid-game you're parked as "left" (score + colour kept, nobody waits on
     // you) so you can rejoin from "In progress"; from the lobby you're removed.
@@ -1459,7 +1556,10 @@ function renderLobby(){
   $('lobby-code').textContent = currentGameCode;
   const players = game.players || {};
   const uids = Object.keys(players);
-  $('lobby-player-count').textContent = `${uids.length}/${MAX_PLAYERS}`;
+  // Bots aren't seated until Start, but everyone sees who's coming.
+  const botsComing = BOTS.slice(0, Math.max(0, Math.min(Number(game.settings && game.settings.bots) || 0, MAX_PLAYERS - uids.length)));
+  $('lobby-player-count').textContent = `${uids.length + botsComing.length}/${MAX_PLAYERS}`;
+  if(isHost() && !$('settings-sheet').classList.contains('open')) $('setting-bots').value = String((game.settings && game.settings.bots) || 0);
 
   const list = $('lobby-player-list');
   list.innerHTML = '';
@@ -1472,13 +1572,21 @@ function renderLobby(){
     if(uid === myUid) badges += `<span class="badge you">YOU</span>`;
     const col = playerColor(uid);
     chip.innerHTML = `<div class="who"><span class="pdot" style="background:${col.bg}"></span><span>${escapeHtml(p.name)}</span>${badges}</div>`;
-    if(isHost() && uid !== myUid){
+    if(isHost() && uid !== myUid && !p.bot){
       const btn = document.createElement('button');
       btn.className = 'btn ghost small';
       btn.textContent = 'Make host';
       btn.onclick = () => updateDoc(doc(db, GAMES, currentGameCode), { hostUid: uid });
       chip.appendChild(btn);
     }
+    list.appendChild(chip);
+  });
+  const freeSeats = { ...players };
+  botsComing.forEach(b => {
+    freeSeats[b.uid] = { color: firstFreeColor(freeSeats, b.uid) };
+    const chip = document.createElement('div');
+    chip.className = 'player-chip bot-preview';
+    chip.innerHTML = `<div class="who"><span class="pdot" style="background:${PLAYER_COLORS[freeSeats[b.uid].color].bg}"></span><span>${b.name}</span><span class="badge bot">🤖 BOT</span></div>`;
     list.appendChild(chip);
   });
 
@@ -1496,13 +1604,14 @@ function renderLobby(){
 }
 
 // ---- Settings form (shared by the lobby and the mid-game ⚙ sheet) --------
-const TOGGLES = ['crowdFunny','csf','funnyPoints','includeClaude','wanderWatch'];
+const TOGGLES = ['crowdFunny','funnyPoints','wanderWatch'];
 function readSettingsForm(){
   return {
     numRounds: parseInt($('setting-rounds').value, 10),
     writingSeconds: parseInt($('setting-writing-seconds').value, 10),
     votingSeconds: parseInt($('setting-voting-seconds').value, 10),
     categories: ['oddWords','obscurePeople','movies'].filter(c => $(`cat-${c}`).checked),
+    bots: parseInt($('setting-bots').value, 10) || 0,
     ...Object.fromEntries(TOGGLES.map(k => [k, $(`toggle-${k}`).checked]))
   };
 }
@@ -1510,6 +1619,7 @@ function fillSettingsForm(st){
   $('setting-rounds').value = String(st.numRounds);
   $('setting-writing-seconds').value = String(st.writingSeconds || 180);
   $('setting-voting-seconds').value = String(st.votingSeconds || 180);
+  $('setting-bots').value = String(st.bots || 0);
   ['oddWords','obscurePeople','movies'].forEach(c => $(`cat-${c}`).checked = (st.categories||[]).includes(c));
   TOGGLES.forEach(k => $(`toggle-${k}`).checked = !!st[k]);
 }
@@ -1546,6 +1656,13 @@ function closeSettingsSheet(){
   $('settings-sheet').classList.remove('open');
 }
 $('btn-close-settings').onclick = closeSettingsSheet;
+// In the lobby the bot count is saved straight away so everyone sees who's
+// coming; mid-game it waits for Save like every other setting.
+$('setting-bots').addEventListener('change', () => {
+  if(!game || game.status !== 'lobby' || !isHost()) return;
+  updateDoc(doc(db, GAMES, currentGameCode), { 'settings.bots': parseInt($('setting-bots').value, 10) || 0 })
+    .catch(err => console.error('Could not save bot count:', err));
+});
 
 // ---- ⋯ menu (Sit out / Settings / Leave) --------------------------------------
 // The original per-screen buttons still exist (hidden) and keep all their
@@ -1586,9 +1703,10 @@ $('btn-save-settings').onclick = async () => {
 async function startGame(){
   const settings = readSettingsForm();
   if(settings.categories.length === 0){ $('lobby-err').textContent = 'Pick at least one category.'; return; }
-  if(Object.keys(game.players||{}).length < 2){ $('lobby-err').textContent = 'Need at least 2 players.'; return; }
+  const seatBots = botUpdates(game.players, settings.bots);
+  if(Object.keys(game.players||{}).length + Object.keys(seatBots).length < 2){ $('lobby-err').textContent = 'Need at least 2 players. On your own? Add a Claude Bot or two.'; return; }
   const categories = settings.categories;
-  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing', claudeScore: 0, claudeStats: null, tiebreak: false, pendingSettings: deleteField() });
+  await updateDoc(doc(db, GAMES, currentGameCode), { settings, status: 'playing', ...seatBots, tiebreak: false, pendingSettings: deleteField() });
   await beginRound(0, categories, []);
 }
 
@@ -1619,13 +1737,16 @@ async function beginRound(index, categories, usedTerms, extra = {}, attempt = 1)
   categories = settings.categories && settings.categories.length ? settings.categories : categories;
   const { cat, remainingQueue: categoryQueue } = pickNextCategory(game.categoryQueue, categories);
 
+  // A changed bot count (from the ⚙) seats or parks bots now, between rounds.
+  if(hadPending) extra = { ...extra, ...botUpdates(game.players, settings.bots) };
+
   // Reading the room: log how long the humans' bluffs were in the round
-  // that just finished (never Claude's). The server's length decks for the
-  // real answer and Claude's bluff are re-dealt from this every 3 rounds.
+  // that just finished (never the bots'). The server's length decks for the
+  // real answer and the bots' bluffs are re-dealt from this every 3 rounds.
   // Word counts only — nothing secret — and only the most recent 40 kept.
   const prev = game.round;
   const newLengths = (prev && prev.index !== index && prev.phase !== 'generating' && prev.phase !== 'writing')
-    ? Object.entries(prev.submissions||{}).filter(([uid]) => uid !== 'CLAUDE')
+    ? Object.entries(prev.submissions||{}).filter(([uid, s]) => uid !== 'CLAUDE' && !s.bot)
         .map(([, s]) => (s.text||'').trim().split(/\s+/).filter(Boolean).length).filter(n => n > 0)
     : [];
   if(newLengths.length) extra = { ...extra, bluffLengths: [...(game.bluffLengths||[]), ...newLengths].slice(-40) };
@@ -1699,24 +1820,22 @@ async function beginRound(index, categories, usedTerms, extra = {}, attempt = 1)
   await startWritingPhase({ index, attempt, cat, term, itemId, answerSource, answerId, settings, usedTerms });
 }
 
-// Shared by a normal round start and a golden-oldie replay: Claude's bluff
-// (if on), cooldown bookkeeping, then open the round for writing.
+// Shared by a normal round start and a golden-oldie replay: the bots'
+// bluffs (if any), cooldown bookkeeping, then open the round for writing.
 async function startWritingPhase({ index, attempt, cat, term, itemId, answerSource, answerId, settings, usedTerms }){
-  // Include Claude: get its bluff now, alongside the term — it needs the
-  // real answer for overlap-avoidance (see generateBluff), so this can't
-  // run in parallel with the term fetch above; it genuinely has to wait
-  // for it.
-  const submissions = {};
-  if(settings.includeClaude){
+  // Claude Bots: all their bluffs in one call, once the term is known — the
+  // call needs the real answer for overlap-avoidance (see generateBotBluffs),
+  // so it genuinely has to wait for the term fetch above.
+  let botBluffs = {};
+  const bots = activePlayerUids().filter(isBot);
+  if(bots.length){
     try{
-      const bluffResult = await generateBluffFn({ term, category: cat, answerSource, answerId, itemId, gameId: currentGameCode, roundIndex: index });
-      if(bluffResult.data && bluffResult.data.bluff){
-        submissions['CLAUDE'] = { text: bluffResult.data.bluff, author: 'CLAUDE' };
-      }
+      const res = await generateBotBluffsFn({ term, category: cat, answerSource, answerId, itemId, gameId: currentGameCode,
+        roundIndex: attempt > 1 ? `${index}-${attempt}` : index, bots: bots.map(uid => ({ uid })) });
+      botBluffs = (res.data && res.data.bluffs) || {};
     } catch(err){
-      // Skip Claude's entry this round rather than blocking it — Include
-      // Claude is a nice-to-have, not core to the round happening.
-      console.error('generateBluff failed, continuing without Claude this round:', err);
+      // The bots sit this round out rather than blocking it.
+      console.error('generateBotBluffs failed, bots skip this round:', err);
     }
   }
 
@@ -1728,10 +1847,20 @@ async function startWritingPhase({ index, attempt, cat, term, itemId, answerSour
   // Bookkeeping only — don't make players wait on this write.
   markTermUsed(term, cat, { answerSource, answerId, itemId }).catch(err => console.error('Could not record term as used:', err));
 
-  // The timer starts NOW — after everything (term + Claude's bluff, if
+  // The timer starts NOW — after everything (term + the bots' bluffs, if
   // any) is actually ready — not earlier, or players lose real time to
   // network/generation latency before they can even see the prompt.
-  const phaseEndsAt = Date.now() + settings.writingSeconds*1000;
+  const now = Date.now(), writeMs = settings.writingSeconds*1000;
+  const phaseEndsAt = now + writeMs;
+
+  // Each bot "finishes writing" somewhere between a quarter and three
+  // quarters of the way through the clock (sooner if the humans beat it).
+  const submissions = {};
+  Object.entries(botBluffs).forEach(([uid, text]) => {
+    if(bots.includes(uid) && typeof text === 'string' && text.trim()){
+      submissions[uid] = { text, author: uid, ...botEntry(now + writeMs*(0.25 + Math.random()*0.5), 1500 + Math.random()*4500) };
+    }
+  });
 
   await updateDoc(doc(db, GAMES, currentGameCode), {
     usedTerms: [...usedTerms, term],
@@ -1872,14 +2001,15 @@ function renderWriting(isNew){
   $('btn-sitout-writing').onclick = toggleSitOut;
   $('btn-jointhisround-writing').onclick = toggleSitOut;
 
-  const activeUids = activePlayerUids();
-  // Claude's own entry (Include Claude) is pre-seeded into submissions at
-  // round start, but it isn't a player — it must not count toward "has
-  // everyone submitted," or a single real player finishing could satisfy
-  // the threshold and kick everyone else into voting early.
-  const submittedCount = Object.keys(r.submissions||{}).filter(uid => activeUids.includes(uid)).length;
-  const playerCount = activeUids.length; // sitting-out players don't count toward "everyone's in"
-  $('writing-count').textContent = `${submittedCount} / ${playerCount}`;
+  // The bots' bluffs are already on the round, but each only counts as "in"
+  // once its moment comes (see phaseProgress). Sitting-out players don't
+  // count toward "everyone's in".
+  const showCount = () => {
+    const p = phaseProgress(r.submissions);
+    $('writing-count').textContent = `${p.inCount} / ${p.total}`;
+    return p;
+  };
+  const progress = showCount();
 
   $('writing-sitting-out').style.display = sittingOut ? 'block' : 'none';
   if(sittingOut){
@@ -1897,21 +2027,27 @@ function renderWriting(isNew){
       const text = $('writing-textarea').value.trim();
       if(!text) return;
       await updateDoc(doc(db, GAMES, currentGameCode), {
-        [`round.submissions.${myUid}`]: { text, author: myUid }
+        [`round.submissions.${myUid}`]: { text, author: myUid, at: Date.now() }
       });
     };
   }
 
-  runTimer('writing-timer', r.phaseEndsAt, () => {
-    maybeAdvanceFromWriting();
-  });
-
   // Auto-advance the moment every ACTIVE (not sitting-out) player's in —
   // any client can trigger this, so a locked/backgrounded host phone
-  // can't stall the room.
-  if(submittedCount >= playerCount && playerCount > 0){
+  // can't stall the room. Re-checked every tick, since a bot comes in on
+  // the clock rather than with a new snapshot.
+  runTimer('writing-timer', r.phaseEndsAt, () => {
     maybeAdvanceFromWriting();
-  }
+  }, () => { if(showCount().all && tickAdvanceDue()) maybeAdvanceFromWriting(); });
+  if(progress.all) maybeAdvanceFromWriting();
+}
+// The per-tick checks nudge the round on at most every 2.5s, so a failing
+// call isn't retried four times a second.
+let lastTickAdvance = 0;
+function tickAdvanceDue(){
+  if(Date.now() - lastTickAdvance < 2500) return false;
+  lastTickAdvance = Date.now();
+  return true;
 }
 let advancing = false;
 async function maybeAdvanceFromWriting(){
@@ -1926,8 +2062,9 @@ async function maybeAdvanceFromWriting(){
     const order = randomShuffle([...ids, 'REAL']);
 
     // Reader: pick who gets the table's spotlight this round, drawing
-    // from a no-repeat-until-exhausted queue of active players.
-    const { readerUid, remainingQueue } = pickNextReader(game.readerQueue, activePlayerUids());
+    // from a no-repeat-until-exhausted queue of active players (people only —
+    // bots can't read aloud).
+    const { readerUid, remainingQueue } = pickNextReader(game.readerQueue, activePlayerUids().filter(uid => !isBot(uid)));
 
     // The server makes the move to reading AND attaches the real answer in
     // one step — the answer never reaches any browser before that. It also
@@ -1960,11 +2097,33 @@ async function maybeAdvanceFromReading(){
   try{
     const r = game.round;
     if(r.phase !== 'reading') return;
-    await updateDoc(doc(db, GAMES, currentGameCode), {
-      'round.phase':'voting',
-      'round.phaseEndsAt': Date.now() + game.settings.votingSeconds*1000
+    // A transaction, so the bots' votes are cast exactly once even if the
+    // Reader's tap and the 8-minute cap land together on two phones.
+    const ref = doc(db, GAMES, currentGameCode);
+    await runTransaction(db, async tx => {
+      const snap = await tx.get(ref);
+      const g = snap.exists() ? snap.data() : null;
+      if(!g || !g.round || g.round.index !== r.index || g.round.phase !== 'reading') return;
+      const now = Date.now(), voteMs = g.settings.votingSeconds*1000;
+      const upd = { 'round.phase':'voting', 'round.phaseEndsAt': now + voteMs };
+      // Each bot votes somewhere in the first ~half of the clock (sooner if
+      // the humans finish first). Their 😂 votes come at reveal.
+      Object.entries(g.players||{}).filter(([,p]) => p.bot && !p.sittingOut).forEach(([uid]) => {
+        upd[`round.votes.${uid}`] = { real: botRealPick(uid, g.round.shuffleOrder||[]),
+          ...botEntry(now + voteMs*(0.12 + Math.random()*0.45), 1500 + Math.random()*4500) };
+      });
+      tx.update(ref, upd);
     });
+  } catch(err){
+    console.error('Could not move on to voting:', err);
   } finally { advancing = false; }
+}
+// A bot spots the real answer BOT_REAL_CHANCE of the time; otherwise it's
+// fooled by any entry but its own (people's and other bots' alike).
+function botRealPick(uid, order){
+  const others = order.filter(id => id !== 'REAL' && id !== uid);
+  if(!others.length || Math.random() < BOT_REAL_CHANCE) return 'REAL';
+  return others[Math.floor(Math.random()*others.length)];
 }
 
 // ---- 9b. READING ---------------------------------------------------------
@@ -2076,9 +2235,14 @@ function renderVoting(isNew){
     });
   }
 
-  const votedCount = Object.keys(r.votes||{}).length;
-  const playerCount = activePlayerUids().length; // sitting-out players don't count toward "everyone's in"
-  $('voting-count').textContent = `${votedCount} / ${playerCount}`;
+  // Bots' votes are on the round already but come "in" on the clock, same as
+  // their bluffs. Sitting-out players don't count toward "everyone's in".
+  const showCount = () => {
+    const p = phaseProgress(r.votes);
+    $('voting-count').textContent = `${p.inCount} / ${p.total}`;
+    return p;
+  };
+  const progress = showCount();
 
   $('voting-sitting-out').style.display = sittingOut ? 'block' : 'none';
   if(sittingOut){
@@ -2099,7 +2263,7 @@ function renderVoting(isNew){
     $('voting-waiting').style.display = already ? 'block' : 'none';
 
     $('btn-submit-votes').onclick = async () => {
-      const payload = { real: selectedReal };
+      const payload = { real: selectedReal, at: Date.now() };
       if(game.settings.crowdFunny) payload.funny = selectedFunny;
       await updateDoc(doc(db, GAMES, currentGameCode), { [`round.votes.${myUid}`]: payload });
     };
@@ -2107,10 +2271,8 @@ function renderVoting(isNew){
 
   runTimer('voting-timer', r.phaseEndsAt, () => {
     maybeAdvanceFromVoting();
-  });
-  if(votedCount >= playerCount && playerCount > 0){
-    maybeAdvanceFromVoting();
-  }
+  }, () => { if(showCount().all && tickAdvanceDue()) maybeAdvanceFromVoting(); });
+  if(progress.all) maybeAdvanceFromVoting();
 }
 
 async function maybeAdvanceFromVoting(){
@@ -2127,40 +2289,44 @@ async function maybeAdvanceFromVoting(){
     // silently updated mid-calculation is how a round's points got
     // applied twice.
     const playersBaseline = game.players;
-    const claudeBaseline = game.claudeScore || 0;
-    const claudeStatsBaseline = game.claudeStats || null;
 
-    // CSF: Claude casts one funniest vote of its own, HUMAN bluffs only
-    // (Claude's own entry, if Include Claude is on, is excluded — this is
-    // Claude judging others, not itself). Folded directly into the same
-    // funny-vote tally as everyone else's.
-    let csfWinnerId = null, csfReason = null;
     const humanSubs = Object.entries(r.submissions||{})
-      .filter(([id]) => id !== 'CLAUDE')
+      .filter(([id, s]) => id !== 'CLAUDE' && !s.bot)
       .map(([id, s]) => ({ id, text: s.text }));
-    if(game.settings.csf && humanSubs.length){
-      try{
-        const res = await judgeFunniestFn({ term: r.term, submissions: humanSubs });
-        csfWinnerId = res.data.winnerId || null;
-        csfReason = (csfWinnerId && res.data.reason) ? String(res.data.reason).slice(0, 300) : null;
-      } catch(err){
-        console.error('judgeFunniest failed:', err);
-      }
-    }
 
     // CCC: mark any human bluff Claude judges as surprisingly close to the
     // real answer — bragging rights only, no scoring impact.
-    let cccCloseIds = [];
-    if(humanSubs.length){
-      try{
-        const res = await judgeCloseCallsFn({ term: r.term, realAnswer: r.answerText, submissions: humanSubs });
-        cccCloseIds = res.data.closeIds || [];
-      } catch(err){
-        console.error('judgeCloseCalls failed:', err);
-      }
+    const cccCall = humanSubs.length
+      ? judgeCloseCallsFn({ term: r.term, realAnswer: r.answerText, submissions: humanSubs })
+          .then(res => res.data.closeIds || [])
+          .catch(err => { console.error('judgeCloseCalls failed:', err); return []; })
+      : Promise.resolve([]);
+
+    // The bots' funniest votes (with crowd funniest on): one call picks for
+    // every bot, each with its own taste and never its own entry. Anyone it
+    // couldn't pick for gets a random pick instead.
+    const voters = Object.entries(r.votes||{}).filter(([uid, v]) => v.bot && isBot(uid)).map(([uid]) => uid);
+    const entries = (r.shuffleOrder||[]).map(id => ({ id, text: id === 'REAL' ? r.answerText : (r.submissions[id] && r.submissions[id].text) })).filter(e => e.text);
+    const funnyCall = game.settings.crowdFunny && voters.length && entries.length > 1
+      ? judgeBotFunniestFn({ term: r.term, entries, bots: voters })
+          .then(res => (res.data && res.data.picks) || {})
+          .catch(err => { console.error('judgeBotFunniest failed:', err); return {}; })
+      : Promise.resolve(null);
+
+    const [cccCloseIds, botPicks] = await Promise.all([cccCall, funnyCall]);
+    const votes = JSON.parse(JSON.stringify(r.votes || {}));
+    const botReasons = {};
+    if(botPicks){
+      voters.forEach(uid => {
+        const pick = botPicks[uid];
+        const options = entries.filter(e => e.id !== uid);
+        const id = pick && options.some(e => e.id === pick.id) ? pick.id
+          : options.length ? options[Math.floor(Math.random()*options.length)].id : null;
+        if(id){ votes[uid].funny = id; if(pick && pick.id === id && pick.reason) botReasons[uid] = pick.reason; }
+      });
     }
 
-    const scored = computeScores(r, playersBaseline, csfWinnerId, claudeBaseline, claudeStatsBaseline);
+    const scored = computeScores({ ...r, votes }, playersBaseline);
 
     // Another client may have already finished this exact transition while
     // we were awaiting the judge calls above — if so, back out instead of
@@ -2171,13 +2337,11 @@ async function maybeAdvanceFromVoting(){
       'round.phase':'reveal',
       'round.scored': true,
       players: scored.players,
-      claudeScore: scored.claudeScore,
-      claudeStats: scored.claudeStats || null,
+      'round.votes': votes,                 // now with the bots' 😂 picks
       [`round.scoreDeltas`]: scored.deltas,
       [`round.funnyTally`]: scored.funnyTally,
       [`round.cccCloseIds`]: cccCloseIds,
-      'round.csfPick': csfWinnerId || null, // which funniest vote was Claude's (grey 😂)
-      'round.csfReason': csfReason,          // Claude's one-liner on why — the easter egg
+      'round.botReasons': botReasons,       // each bot's one-liner on its 😂 — the easter egg
       'round.revealedAt': Date.now() // lets clients show the splash only on a live reveal, not a reload
     });
   } finally { advancing = false; }
@@ -2192,14 +2356,10 @@ function bumpStat(p, key, n = 1){
   p.stats = p.stats || { correct:0, fooled:0, funny:0 };
   p.stats[key] = (p.stats[key] || 0) + n;
 }
-function computeScores(r, players, csfWinnerId, claudeScore = 0, claudeStats = null){
+// Bots are players here like anyone else: +2 for spotting the real one, +1
+// per player (or bot) their bluff fools, and funniest points if that's on.
+function computeScores(r, players){
   const updated = JSON.parse(JSON.stringify(players));
-  // Claude plays as a bluffer (Include Claude): it scores for fooling people
-  // and, with Points for funniest, for laughs — but never guesses the real
-  // answer (its bluff call has already seen it). Its score lives outside
-  // game.players so it never counts as someone the room is waiting on.
-  const claudeIn = !!(r.submissions && r.submissions.CLAUDE);
-  if(claudeIn) updated.CLAUDE = { name: 'Claude', score: claudeScore, stats: claudeStats ? { ...claudeStats } : { correct:0, fooled:0, funny:0 } };
   const deltas = {};
   Object.keys(updated).forEach(uid => deltas[uid] = 0);
 
@@ -2221,22 +2381,20 @@ function computeScores(r, players, csfWinnerId, claudeScore = 0, claudeStats = n
     }
   });
 
-  // Full per-submission funny-vote tally — every vote (crowd or Claude's
-  // CSF pick) shows as one 😂 against that response on reveal, rather than
-  // singling out a "winner." No scoring impact either way.
+  // Full per-submission funny-vote tally — every vote (people's and bots')
+  // shows as one 😂 against that response on reveal, rather than singling
+  // out a "winner."
   const funnyTally = {};
   Object.entries(r.votes||{}).forEach(([voterUid, v]) => {
     if(v.funny && v.funny !== voterUid){ funnyTally[v.funny] = (funnyTally[v.funny]||0)+1; }
   });
-  if(csfWinnerId){ funnyTally[csfWinnerId] = (funnyTally[csfWinnerId]||0)+1; }
   Object.entries(funnyTally).forEach(([subId, n]) => {
     const authorUid = r.submissions[subId] && r.submissions[subId].author;
     bumpStat(updated[authorUid], 'funny', n);
   });
 
   // Points for funniest (host setting): +1 to a bluff's author for every
-  // funniest vote it got — players' and Claude's (CSF) alike. Claude's own
-  // bluff counts too — Claude's a contender.
+  // funniest vote it got — people's and bots' alike.
   if(game.settings && game.settings.funnyPoints){
     Object.entries(funnyTally).forEach(([subId, n]) => {
       const authorUid = r.submissions[subId] && r.submissions[subId].author;
@@ -2247,14 +2405,11 @@ function computeScores(r, players, csfWinnerId, claudeScore = 0, claudeStats = n
     });
   }
 
-  let newClaude = claudeScore, newClaudeStats = claudeStats;
-  if(claudeIn){ newClaude = updated.CLAUDE.score; newClaudeStats = updated.CLAUDE.stats; delete updated.CLAUDE; }
-  return { players: updated, deltas, funnyTally, claudeScore: newClaude, claudeStats: newClaudeStats };
+  return { players: updated, deltas, funnyTally };
 }
 
 // ---- Coloured laughs ---------------------------------------------------------
-// Each 😂 on the results is painted in the colour of whoever laughed (Claude's
-// in grey). Emojis can't be recoloured with CSS, so the device's own emoji is
+// Each 😂 on the results is painted in the colour of whoever laughed. Emojis can't be recoloured with CSS, so the device's own emoji is
 // drawn to a canvas and recoloured there — keeping its shading, teeth and
 // tears — then cached per colour. Falls back to the plain emoji if the
 // device can't draw a colour emoji onto a canvas.
@@ -2312,10 +2467,11 @@ function laughHtml(hex, who, egg){
   return src ? `<span class="${cls}" title="${t}"${eggAttr}><img class="laugh-img" src="${src}" alt="😂"></span>` : `<span class="${cls}" title="${t}"${eggAttr}>😂</span>`;
 }
 
-// Easter egg: tap Claude's grey 😂 to see why Claude found that bluff funniest.
+// Easter egg: tap a bot's 😂 to see why it found that bluff funniest.
 // No hint anywhere — just there for whoever's curious enough to poke it.
 function showEgg(el){
   const bub = $('egg-bubble');
+  $('egg-who').textContent = `${el.title || 'Claude'} says…`;
   $('egg-text').textContent = el.dataset.egg;
   bub.classList.add('open');
   const r = el.getBoundingClientRect();
@@ -2349,15 +2505,10 @@ function renderReveal(isNew){
 
   const list = $('reveal-list');
   list.innerHTML = '';
-  // Only Claude's grey vote needs a key — player colours speak for themselves.
-  const claudeLaughed = !!(r.csfPick && r.funnyTally && r.funnyTally[r.csfPick]);
-  $('csf-key').style.display = claudeLaughed ? 'block' : 'none';
-  $('csf-key').innerHTML = claudeLaughed ? `<div class="row-key">${laughHtml(CLAUDE_LAUGH, 'Claude')}<span>Claude's funniest vote</span></div>` : '';
   order.forEach((id) => {
     const isReal = id === 'REAL';
-    const isClaude = id === 'CLAUDE';
     const text = isReal ? r.answerText : (r.submissions[id] ? r.submissions[id].text : '');
-    const authorName = isReal ? null : (isClaude ? 'Claude' : (game.players[r.submissions[id]?.author]?.name || '—'));
+    const authorName = isReal ? null : (game.players[r.submissions[id]?.author]?.name || '—');
     const div = document.createElement('div');
     // Full-opacity, plain parchment — the reveal list is already clearly
     // non-interactive from context (no chips, no click handlers), so it
@@ -2368,8 +2519,7 @@ function renderReveal(isNew){
     const flags = document.createElement('div'); flags.className='flags';
     if(isReal) flags.innerHTML += `<span class="flag real">REAL ANSWER</span>`;
     else {
-      const authorUid = isClaude ? 'CLAUDE' : r.submissions[id]?.author;
-      const col = playerColor(authorUid);
+      const col = playerColor(r.submissions[id]?.author);
       flags.innerHTML += `<span class="flag author" style="background:${col.bg};color:${col.fg};">${escapeHtml(authorName)}</span>`;
     }
     const votes = voteTally[id] || 0;
@@ -2377,18 +2527,15 @@ function renderReveal(isNew){
     if(r.cccCloseIds && r.cccCloseIds.includes(id)) flags.innerHTML += `<span class="flag ccc">🎯 close call</span>`;
     // Laughs sit on the same line as author + votes; each emoji is its own
     // flex item so a big pile just wraps onto the next line.
-    // Each laugh in the colour of who laughed — Claude's (grey) first, then
-    // players in standings order.
+    // Each laugh in the colour of who laughed, players in seat order. A
+    // bot's 😂 hides its one-liner on why (tap it).
     const laughers = [];
-    if(r.csfPick === id) laughers.push('CLAUDE');
     Object.entries(r.votes||{}).forEach(([voter, v]) => { if(v.funny === id && voter !== id) laughers.push(voter); });
     const order = Object.keys(game.players||{});
-    laughers.sort((a,b) => (a==='CLAUDE'?-1:order.indexOf(a)) - (b==='CLAUDE'?-1:order.indexOf(b)));
+    laughers.sort((a,b) => order.indexOf(a) - order.indexOf(b));
     laughers.forEach(uid => {
-      const who = uid === 'CLAUDE' ? 'Claude' : (game.players[uid] ? game.players[uid].name : '');
-      flags.innerHTML += uid === 'CLAUDE'
-        ? laughHtml(CLAUDE_LAUGH, who, r.csfReason)
-        : laughHtml(playerColor(uid).bg, who);
+      const who = game.players[uid] ? game.players[uid].name : '';
+      flags.innerHTML += laughHtml(playerColor(uid).bg, who, r.botReasons && r.botReasons[uid]);
     });
     div.appendChild(flags);
     list.appendChild(div);
@@ -2679,15 +2826,13 @@ function renderWanderSummary(r){
   }).join('');
 }
 
-// A tiebreaker is only on offer when two or more PLAYERS share first place
-// and Claude isn't up there with them (a tie involving Claude is a shared win).
+// A tiebreaker is on offer when two or more players share first place —
+// bots included, since they play by the same rules.
 function breakableTieAtTop(){
   const board = scoreboard();
   if(!board.length) return false;
   const top = Math.max(...board.map(([,p]) => p.score));
-  const humansAtTop = board.filter(([uid,p]) => p.score === top && uid !== 'CLAUDE').length;
-  const claudeAtTop = board.some(([uid,p]) => uid === 'CLAUDE' && p.score === top);
-  return humansAtTop > 1 && !claudeAtTop;
+  return board.filter(([,p]) => p.score === top).length > 1;
 }
 
 // ---- 12. GAME OVER ---------------------------------------------------------
@@ -2707,7 +2852,7 @@ function renderGameOver(){
     row.style.background = col.bg; row.style.color = col.fg;
     const st = p.stats || {};
     const stat = (icon, n, label) => `<span class="gs-stat${n ? '' : ' zero'}" title="${label}"><span class="emo">${icon}</span><b>${n||0}</b></span>`;
-    const stats = (uid === 'CLAUDE' ? '' : stat('✅', st.correct, 'Spotted the real one'))
+    const stats = stat('✅', st.correct, 'Spotted the real one')
       + stat(CARDS_ICON, st.fooled, 'Fooled someone') + stat('😂', st.funny, 'Funniest votes');
     row.innerHTML = `<span class="rank">${i+1}</span><span class="gs-name">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="gs-stats">${stats}</span><span class="score">${p.score}</span>`;
     standings.appendChild(row);
@@ -2723,15 +2868,17 @@ function renderGameOver(){
   $('btn-play-again').style.display = isHost() ? 'block' : 'none';
   $('btn-play-again-note').style.display = isHost() ? 'none' : 'block';
   $('btn-play-again').onclick = async () => {
+    // Bots leave with the old scores and are seated again at Start.
     const resetPlayers = {};
-    Object.entries(game.players).filter(([,p]) => !p.left).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0, color: Number.isInteger(p.color) ? p.color : firstFreeColor(resetPlayers, uid) }; });
-    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], claudeScore: 0, claudeStats: null, tiebreak: false, createdAt: serverTimestamp(), settings: effectiveSettings(), pendingSettings: deleteField() });
+    Object.entries(game.players).filter(([,p]) => !p.left && !p.bot).forEach(([uid,p]) => { resetPlayers[uid] = { name: p.name, score: 0, color: Number.isInteger(p.color) ? p.color : firstFreeColor(resetPlayers, uid) }; });
+    await updateDoc(doc(db, GAMES, currentGameCode), { status:'lobby', players: resetPlayers, round: null, usedTerms: [], readerQueue: [], categoryQueue: [], tiebreak: false, createdAt: serverTimestamp(), settings: effectiveSettings(), pendingSettings: deleteField() });
   };
   $('btn-gameover-home').onclick = leaveToHome;
 }
 
 // ---- 13. TIMER --------------------------------------------------------------
-function runTimer(elId, endsAt, onExpire){
+// onTick (optional) runs on every tick while time remains.
+function runTimer(elId, endsAt, onExpire, onTick){
   clearInterval(timerInterval);
   const el = $(elId);
   function tick(){
@@ -2741,7 +2888,7 @@ function runTimer(elId, endsAt, onExpire){
     if(remaining <= 0){
       clearInterval(timerInterval);
       onExpire();
-    }
+    } else if(onTick) onTick();
   }
   tick();
   timerInterval = setInterval(tick, 250);
@@ -2808,7 +2955,38 @@ function closeIntro(){
 }
 function openRules(){ closeIntro(); closeMenu(); $('rules-sheet').classList.add('open'); $('rules-sheet').scrollTop = 0; }
 function closeRules(){ $('rules-sheet').classList.remove('open'); }
-$('intro-x').onclick = closeIntro;
+$('btn-intro-play').onclick = closeIntro;
+
+// Try it now: straight in with a saved name, otherwise ask for one first.
+async function tryItNow(){
+  const asking = !$('intro-name-wrap').hidden;
+  const name = (asking ? $('intro-name').value : myName).trim();
+  const err = $('intro-err');
+  if(!name || isReservedName(name)){
+    $('intro-name-wrap').hidden = false;
+    $('intro-name').value = name;
+    err.textContent = !name ? (asking ? "What's your name?" : '') : 'That name belongs to a bot (or Claude) — pick another.';
+    $('intro-name').focus();
+    return;
+  }
+  err.textContent = '';
+  myName = name;
+  localStorage.setItem('balderlaugh_name', name);
+  $('input-name').value = name;
+  $('btn-try-now').disabled = true; $('btn-intro-go').disabled = true;
+  try{
+    await startTryItNow(name);
+    closeIntro();
+  } catch(e){
+    console.error('Try it now failed:', e);
+    err.textContent = 'Could not start a game — check your connection and try again.';
+  } finally {
+    $('btn-try-now').disabled = false; $('btn-intro-go').disabled = false;
+  }
+}
+$('btn-try-now').onclick = tryItNow;
+$('btn-intro-go').onclick = tryItNow;
+$('intro-name').addEventListener('keydown', e => { if(e.key === 'Enter') tryItNow(); });
 $('btn-close-rules').onclick = closeRules;
 $('btn-rules-done').onclick = closeRules;
 $('menu-rules').onclick = (e) => { e.stopPropagation(); openRules(); };

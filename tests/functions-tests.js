@@ -47,12 +47,33 @@ const call = (fn, data) => fns[fn]({ data });
   claude.mode = 'good';
   check(`rewrite path returns a sane answer (${wc(store.get('balderlaugh_round_answers/'+w.answerId).real)} words)`, wc(store.get('balderlaugh_round_answers/'+w.answerId).real) > 0);
 
-  console.log('\n[4] generateBluff');
-  const b = await call('generateBluff', { term:'The Moose', category:'movies', answerSource:'generated', answerId:'TEST_0', gameId:'TEST', roundIndex:0 });
-  check(`bluff with game info: ${wc(b.bluff)} words, own deck`, wc(b.bluff) >= 6 && store.get('balderlaugh_length_state/TEST').bluff);
+  console.log('\n[4] generateBotBluffs');
+  claude.calls.length = 0;
+  const bots = [{ uid:'BOT_PAT' }, { uid:'BOT_QUINN' }, { uid:'BOT_PARKER' }];
+  const b = await call('generateBotBluffs', { term:'The Moose', category:'movies', answerSource:'generated', answerId:'TEST_0', gameId:'TEST', roundIndex:0, bots });
+  const bl = b.bluffs || {};
+  check(`one call for three bots: ${claude.calls.filter(p => p.includes('{"bluffs"')).length}`, claude.calls.filter(p => p.includes('{"bluffs"')).length === 1);
+  check(`a bluff each: ${Object.values(bl).map(wc)} words`, bots.every(x => typeof bl[x.uid] === 'string' && wc(bl[x.uid]) >= 6));
+  const lst = store.get('balderlaugh_length_state/TEST');
+  check('each bot has its own length deck', bots.every(x => lst[`bluff_${x.uid}`] && Number.isFinite(lst[`bluff_${x.uid}`].target)));
   check('bluff prompt includes the real answer for overlap-avoidance', claude.calls.some(p => p.includes('The REAL answer')));
-  const old = await call('generateBluff', { term:'The Moose', category:'movies' });
-  check('old-style call (no game info) still works', typeof old.bluff === 'string' && wc(old.bluff) > 0);
+  check('bluff prompt asks for three different styles', (claude.calls.find(p => p.includes('{"bluffs"')).match(/style: /g) || []).length === 3);
+  const again = await call('generateBotBluffs', { term:'The Moose', category:'movies', answerSource:'generated', answerId:'TEST_0', gameId:'TEST', roundIndex:0, bots });
+  check('a "Try again" on the same round keeps each bot\'s target', bots.every(x => store.get('balderlaugh_length_state/TEST')[`bluff_${x.uid}`].target === lst[`bluff_${x.uid}`].target) && Object.keys(again.bluffs).length === 3);
+  const solo = await call('generateBotBluffs', { term:'The Moose', category:'movies', bots:[{ uid:'BOT_RIVER' }] });
+  check('no game info, one bot: still works', typeof solo.bluffs.BOT_RIVER === 'string');
+  let threw = false; try { await call('generateBotBluffs', { term:'The Moose', category:'movies', bots:[] }); } catch { threw = true; }
+  check('no bots -> rejected', threw);
+
+  console.log('\n[4b] judgeBotFunniest');
+  const entries = [{ id:'BOT_PAT', text:'pat one' }, { id:'h1', text:'human one' }, { id:'REAL', text:'the real one' }, { id:'BOT_QUINN', text:'quinn one' }];
+  let jf = await call('judgeBotFunniest', { term:'Moose', entries, bots:['BOT_PAT', 'BOT_QUINN', 'BOT_RIVER'] });
+  check(`own entry can't be picked: Pat ${JSON.stringify(jf.picks.BOT_PAT)}`, !jf.picks.BOT_PAT);
+  check('others get their pick + reason (a bot with no entry can still judge)', jf.picks.BOT_QUINN && jf.picks.BOT_QUINN.id === 'BOT_PAT' && jf.picks.BOT_QUINN.reason === 'lol' && jf.picks.BOT_RIVER.id === 'BOT_PAT');
+  claude.pick = 99; jf = await call('judgeBotFunniest', { term:'Moose', entries, bots:['BOT_QUINN'] }); claude.pick = 0;
+  check('out-of-range pick dropped', !jf.picks.BOT_QUINN);
+  jf = await call('judgeBotFunniest', { term:'Moose', entries: entries.slice(0, 1), bots:['BOT_QUINN'] });
+  check('fewer than 2 entries -> no picks, no call', JSON.stringify(jf.picks) === '{}');
 
   console.log('\n[5] checkAnswers');
   store.set('balderlaugh_items/seed1', { term:'x', real:'a real thing' });
@@ -96,8 +117,21 @@ const call = (fn, data) => fns[fn]({ data });
   store.set('balderlaugh_games/G', base());
   r = await call('startReading', { gameId:'G', roundIndex:1, order:['a','REAL'] });
   check('wrong round number ignored', r.ok === false);
-  let threw = false; try { await call('startReading', { gameId:'G' }); } catch { threw = true; }
+  threw = false; try { await call('startReading', { gameId:'G' }); } catch { threw = true; }
   check('bad request rejected', threw);
+
+  // Solo game: one human + bots. A bot whose bluff failed (no entry) is never waited on.
+  store.set('balderlaugh_games/B', { players: { h:{name:'Me'}, BOT_PAT:{name:'Pat', bot:true}, BOT_QUINN:{name:'Quinn', bot:true} },
+    round: { index:0, phase:'writing', phaseEndsAt: Date.now() + 60000, answerSource:'seed', itemId:'seed1',
+      submissions: { BOT_PAT:{ text:'bot words', bot:true } }, answerText:null } });
+  r = await call('startReading', { gameId:'B', roundIndex:0, order:['BOT_PAT','REAL'], readerUid:'BOT_PAT' });
+  check('solo: waits for the human, not the bots', r.ok === false && r.reason === 'not-ready');
+  store.get('balderlaugh_games/B').round.submissions.h = { text:'my words' };
+  r = await call('startReading', { gameId:'B', roundIndex:0, order:['BOT_PAT','h','REAL'], readerUid:'BOT_PAT' });
+  g = store.get('balderlaugh_games/B');
+  check('solo: moves once the human is in (Quinn had no bluff)', r.ok && g.round.phase === 'reading');
+  check(`a bot can't be the Reader: ${g.round.readerUid}`, g.round.readerUid === 'h');
+  check('bot entries not counted as the table\'s slips', JSON.stringify(store.get('balderlaugh_length_state/B').style.recent) === '[0]');
 
   console.log('\n[7] room steers from round 2');
   store.set('balderlaugh_games/R2', { players:{} });

@@ -192,17 +192,52 @@ Selecting a chip on one row deselects it everywhere else (still
 single-select per vote type) — the same submission's row can hold both
 selections at once.
 
-## Include Claude's bluff quality
-`generateBluff` now sees the real answer server-side (never sent to any
-browser) specifically so it can avoid reusing the real answer's specific
-words — testing showed staying fully blind still produced accidental
-overlap (e.g. both a real and fake definition of an "yesterday"-related
-word using the word "yesterday"), since Claude's own general knowledge of
-well-documented terms tends to converge with the truth even without being
-told it. Length is also now hard-capped (30 words, at most one specific
-number/date total) rather than softly suggested, after a test round
-produced a real answer with five stacked statistics in one sentence
-despite an earlier, softer instruction against exactly that.
+## Claude Bots (replaces Include Claude and CSF)
+Lobby setting **Include Claude Bots 🤖** (None, 1-4): Pat, Quinn, Parker and
+River, in that order. They're real seats in `game.players` (`bot: true`,
+uids `BOT_PAT` etc.), so scoring, colours, stats, standings and tiebreakers
+treat them like anyone else. They count toward the 8-seat cap, and the
+names are reserved.
+- **Seating:** in the lobby the count is saved straight to `settings.bots`
+  so everyone sees who's coming (dashed 🤖 BOT chips). Bots are seated at
+  Start. A mid-game change through ⚙ applies at the next round; dropped
+  bots are parked as `left` (score kept), and Play again removes them until
+  the next Start.
+- **Bluffs:** `generateBotBluffs` writes every bot's bluff in ONE call, so
+  they can't land on the same joke. Each bot gets a random style per round
+  (no learnable personalities) and its own length deck
+  (`balderlaugh_length_state.bluff_<uid>`), plus the same table-matched
+  slips. Like the old Claude bluff, it sees the real answer server-side so
+  it can avoid its words, and it's hard-capped at 30 words / one number. If
+  the call fails, the bots sit that round out.
+- **Real vote:** cast when voting opens (inside a transaction): 40% the
+  real answer (`BOT_REAL_CHANCE`), otherwise any entry but its own.
+- **Funniest:** only with Crowd funniest on. At reveal, `judgeBotFunniest`
+  picks for every bot in one call, each with a random taste and never its
+  own entry. Tapping a bot's 😂 shows its one-liner (the old CSF easter
+  egg). A missing or invalid pick falls back to random.
+- **Staggered timing:** each bot's bluff/vote is written ahead of time
+  with an `at` moment (bluffs 25-75% through the clock, votes 12-57%).
+  Every phone works out who's "in" from that, so no one phone drives the
+  bots. Once every human is in, the bots still out follow within 1.5-6s
+  (`lag`) rather than making the room wait. Human entries now carry `at`
+  too.
+- **Never:** Reader (the rotation and `startReading` are people-only),
+  host, Wander watch, or a reason to wait (`startReading` waits on humans
+  only, and the table's slip rate ignores bot entries).
+
+**Try it now** (splash): asks for a name if none is saved, then creates a
+`private: true` game (hidden from Open games, and from In progress for
+everyone but its player) with you + Pat, Quinn and Parker. It runs 3
+rounds with funniest points on and Wander watch off, and goes straight to
+round 1 (no lobby).
+
+The splash's ✕ is replaced by **Try it now / Play / Rules** (Esc still
+closes it, like Play).
+
+**Deploying this change:** `firebase deploy --only functions` will offer
+to delete `generateBluff` and `judgeFunniest`, which are no longer used.
+Say yes.
 
 ## Sept 24 batch
 - No item numbers anywhere players see them.
@@ -236,10 +271,8 @@ can't misfire; lastTrip covers phones that freeze before the leave is sent.
   (or on Play again), never mid-round. Rounds can't drop below the current one.
 - No paste / drop into the bluff box (stops cross-device clipboard lookups).
 - Points for funniest (toggle): +1 to a bluff's author per funniest vote,
-  crowd and CSF alike.
-- Include Claude makes Claude a scoring contender: +1 per player fooled and
-  funniest points, never guesses the real answer. Score lives in
-  `game.claudeScore` (outside `players`, so it never holds up the room).
+  people's and bots' alike.
+- (Include Claude / `game.claudeScore` is gone: see Claude Bots.)
 
 ## Open-games housekeeping
 - Host-only delete: the 🗑 shows only on games whose `hostUid` matches this
@@ -268,9 +301,8 @@ denied) get a 5s Wander grace instead of 3s (`round.away.{uid}.graceMs`).
 
 ## Coloured funniest votes
 Each funniest vote (😂) on the results is recoloured (canvas) to the colour of
-the player who cast it; Claude's funniest vote is grey and shown first. Player colour slot 8
-changed from silver to violet so grey stays Claude's. Falls back to the plain
-emoji where a device can't draw colour emoji to a canvas.
+the player (or bot) who cast it. Falls back to the plain emoji where a
+device can't draw colour emoji to a canvas.
 
 ## In progress list & rejoin
 Home shows "In progress" games under Open games (hidden after 12h; abandoned
@@ -345,5 +377,6 @@ on 2026-10-30.
 ## Offline tests
 `node tests/functions-tests.js` runs the real `functions/index.js` against a
 fake Firestore and a fake Claude (no Firebase login or API key needed):
-length decks, retries, rewrites, checkAnswers and startReading. Run it after
+length decks, retries, rewrites, generateBotBluffs, judgeBotFunniest,
+checkAnswers and startReading (including solo games with bots). Run it after
 any change to the functions, before deploying.
