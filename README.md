@@ -380,3 +380,9 @@ fake Firestore and a fake Claude (no Firebase login or API key needed):
 length decks, retries, rewrites, generateBotBluffs, judgeBotFunniest,
 checkAnswers and startReading (including solo games with bots). Run it after
 any change to the functions, before deploying.
+
+## To do
+- [ ] Lobby: a button to go back to the splash screen (the intro with
+  Try it now / Play / Rules).
+- [ ] Lobby: a **Try it now** button at the bottom, for starting a solo game
+  against the bots from there.
