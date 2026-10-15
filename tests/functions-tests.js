@@ -199,5 +199,24 @@ const call = (fn, data) => fns[fn]({ data });
   const at = store.get('balderlaugh_games/SR').round.answerText;
   check(`answer has phone punctuation: "${at}"`, !/[\u2014;]/.test(at) && at.includes('documentary'));
 
+  console.log('\n[11] with bots, the real answer slips no more than a bot does');
+  const realText = 'A Swedish documentary that follows a young moose on its long migration across Lapland';
+  store.set('balderlaugh_items/s11', { real: realText });
+  const slipsOver = async (players, n = 300) => {
+    let slipped = 0;
+    for (let i = 0; i < n; i++) {
+      store.set('balderlaugh_length_state/SL', { style: { recent: Array(40).fill(1) } }); // very sloppy table
+      store.set('balderlaugh_games/SL', { players, round: { index:0, phase:'writing', phaseEndsAt: Date.now()-1, term:'The Moose', answerSource:'seed', itemId:'s11',
+        submissions: { h:{ text:'dont know thay moose' } } } });
+      await call('startReading', { gameId:'SL', roundIndex:0, order:['h','REAL'], readerUid:'h' });
+      if (store.get('balderlaugh_games/SL').round.answerText !== realText) slipped++;
+    }
+    return slipped / n;
+  };
+  const withBots = await slipsOver({ h:{ name:'Me' }, BOT_PAT:{ name:'Pat', bot:true } });
+  const noBots = await slipsOver({ h:{ name:'Me' }, h2:{ name:'You' } });
+  check(`sloppy table + bots: real answer slips ~20% like a bot (${Math.round(withBots*100)}%)`, withBots > 0.1 && withBots < 0.3);
+  check(`sloppy table, no bots: still matches the humans (${Math.round(noBots*100)}%)`, noBots > 0.55);
+
   console.log(`\n${pass} passed, ${fail} failed`);
 })();

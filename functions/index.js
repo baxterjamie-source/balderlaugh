@@ -166,6 +166,8 @@ function lengthInstruction(target, category){
 // readable.
 const STYLE_WINDOW = 40, STYLE_PRIOR = 0.1, STYLE_PRIOR_WEIGHT = 4;
 const BOT_SLIP_MAX = 0.2; // a single bot's chance of a slip, however sloppy the table
+// A bot's slip chance — and, with bots at the table, the real answer's too.
+function botSlipRate(tableRate){ return Math.min(BOT_SLIP_MAX, tableRate * 0.5); }
 const EXTRA_OK = ["ok","okay","lol","selfie","emoji","wifi","covid","app","apps","online","email","emails","vs","etc","tv","dvd","internet","website","smartphone","hashtag","blog","podcast"];
 const TXT_SPEAK = new Set(["u","ur","b4","bc","thx","pls","plz","idk","tho","cuz","ppl","tbh","srsly","w/",
   // contractions typed without the apostrophe (some are also dictionary words, e.g. "cant")
@@ -566,7 +568,7 @@ Reply with ONLY a JSON object, one bluff per player in the same order:
     const st = gameId ? await db.collection("balderlaugh_length_state").doc(String(gameId)).get() : null;
     rate = slipRate(st && st.exists && st.data().style ? st.data().style.recent : []);
   } catch (err) { console.error("generateBotBluffs: style step skipped:", err); }
-  const botRate = Math.min(BOT_SLIP_MAX, rate * 0.5);
+  const botRate = botSlipRate(rate);
 
   const out = {};
   let slipped = false;
@@ -657,8 +659,13 @@ exports.startReading = onCall(async (request) => {
       recent = [...recent, ...flags].slice(-STYLE_WINDOW);
     } catch (err) { styleOk = false; console.error("startReading: style check skipped:", err); }
     const realText = aSnap && aSnap.exists && aSnap.data().real ? aSnap.data().real : null;
+    // With bots at the table the real answer slips exactly as often as one
+    // bot does (half the table's rate, max 20%) — at the full table rate it
+    // was the entry most likely to have a typo, which gave it away.
+    const hasBots = Object.values(players).some(p => p && p.bot && !p.left);
+    const realRate = hasBots ? botSlipRate(slipRate(recent)) : slipRate(recent);
     const answerText = realText
-      ? (styleOk ? addSlips(plainPunct(realText), slipRate(recent), termWordSet(r.term)) : plainPunct(realText))
+      ? (styleOk ? addSlips(plainPunct(realText), realRate, termWordSet(r.term)) : plainPunct(realText))
       : "(answer unavailable)";
 
     const secs = Math.min(READING_MAX_S, Math.max(READING_MIN_S, Number(readingSeconds) || 480));

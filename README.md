@@ -309,6 +309,21 @@ now also stores where each answer lives (answerSource / answerId / itemId);
 older generated records lack this and can't be replayed. If nothing
 qualifies, the host only gets "End the game".
 
+## Stat crowns on the Game summary
+Each of the three stats (✅ spotted the real one, 🃏 fooled someone,
+😂 funniest votes) crowns its CLEAR leader: that stat's icon with a little
+👑 askew on top, in the dark space to the right of their row. A tie at the
+top, or nobody above zero, means no crown for that stat. One player can
+hold all three, and bots can win them. The crown column is only as wide
+as the most crowns any one player holds, so a game with no crowns looks
+as it did before. (`statAwards` / `STAT_CROWNS` in `index.html`.)
+
+## Typos on the real answer (with bots)
+With bots at the table, the real answer slips exactly as often as one bot
+does (half the table's rate, max 20%; `botSlipRate`). At the full table
+rate it had become the entry most likely to have a typo, which was a tell.
+Without bots it still matches the humans' rate.
+
 ## Something to read while the item loads
 Under the stopwatch, while an item generates, one line at a time:
 fake dictionary definitions ("Waitomancy (n.) The ancient art of staring

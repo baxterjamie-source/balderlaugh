@@ -196,6 +196,19 @@
   .emo{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}
   .gs-stat b{font-weight:700;font-variant-numeric:tabular-nums;}
   .gs-stat.zero{opacity:.5;}
+  /* Stat crowns, in the dark space right of each summary row */
+  .gs-line{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+  .gs-line .leader-row{flex:1;min-width:0;margin-bottom:0;padding:12px 10px;}
+  .gs-line .gs-name{padding:0 6px;}
+  .gs-line .gs-stats{gap:7px;margin-right:8px;}
+  .gs-awards{flex:0 0 auto;display:flex;align-items:center;}
+  .award{position:relative;width:30px;height:32px;display:inline-flex;align-items:flex-end;justify-content:center;
+    font-size:21px;line-height:1;animation:awardpop .5s cubic-bezier(.2,1.5,.35,1) both;}
+  .award .cards-ico{width:25px;height:23px;}
+  .award .crown{position:absolute;top:-5px;left:50%;font-size:14px;transform:translateX(-25%) rotate(22deg);
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.5));}
+  .award + .award{animation-delay:.12s;} .award + .award + .award{animation-delay:.24s;}
+  @keyframes awardpop{from{opacity:0;transform:scale(.3) rotate(-20deg);}to{opacity:1;transform:none;}}
   .leader-row .delta{font-size:12px;font-weight:700;background:rgba(0,0,0,.28);color:#fff;padding:2px 7px;border-radius:10px;margin-left:6px;}
 
   /* ---- Round-leader "mic drop" splash ---- */
@@ -423,7 +436,7 @@
   @media (prefers-reduced-motion: reduce){
     .shake{animation:none;}
     .tryit-card,.tryit-bots span,.tryit.poof,.tryit.poof .tryit-card,.tryit.poof .tryit-smoke i{animation:none !important;}
-    .gen-quip .qtext,.gen-quip.poof .qtext,.gen-quip .qsmoke i,.gen-quip .qa{animation:none !important;}
+    .gen-quip .qtext,.gen-quip.poof .qtext,.gen-quip .qsmoke i,.gen-quip .qa,.award{animation:none !important;}
     .ipop,.ifloat,.m-caret,.m-tap{animation:none !important;}
   }
 </style>
@@ -738,7 +751,7 @@
       <div class="note" id="gameover-tie-note" style="display:none;color:var(--gold);">👑 It's a tie!</div>
     </div>
     <div id="gameover-standings"></div>
-    <div class="note center" style="margin-top:4px;"><span class="emo">✅</span> spotted the real one · <span id="legend-cards"></span> fooled someone · <span class="emo">😂</span> funniest votes</div>
+    <div class="note center" style="margin-top:4px;"><span class="emo">✅</span> spotted the real one · <span id="legend-cards"></span> fooled someone · <span class="emo">😂</span> funniest votes<br><span class="emo">👑</span> next to a row: the clear leader in that one</div>
     <div class="footer-actions">
       <button class="btn" id="btn-tiebreak" style="display:none;background:var(--gold);color:#3a2c00;margin-bottom:10px;">⚔️ Tiebreaker — play until someone pulls ahead</button>
       <div class="note center" id="tiebreak-note" style="display:none;margin:0 0 10px;">Tied at the top — the host can call a tiebreaker.</div>
@@ -3076,6 +3089,26 @@ function breakableTieAtTop(){
 }
 
 // ---- 12. GAME OVER ---------------------------------------------------------
+// One crown per stat, for its clear leader only: a tie at the top (or
+// nobody above zero) means no crown for that stat. Returns { uid: [keys] }.
+const STAT_CROWNS = {
+  correct: { label: 'Spotted the most real answers', html: t => statCrown('<span class="emo">✅</span>', t) },
+  fooled:  { label: 'Fooled the most players',       html: t => statCrown(CARDS_ICON, t) },
+  funny:   { label: 'Most funniest votes',            html: t => statCrown('<span class="emo">😂</span>', t) }
+};
+function statCrown(icon, title){
+  return `<span class="award" title="${title}" aria-label="${title}">${icon}<span class="crown emo" aria-hidden="true">👑</span></span>`;
+}
+function statAwards(board){
+  const out = {};
+  Object.keys(STAT_CROWNS).forEach(k => {
+    const vals = board.map(([uid, p]) => [uid, (p.stats && p.stats[k]) || 0]);
+    const top = Math.max(0, ...vals.map(([, n]) => n));
+    const leaders = vals.filter(([, n]) => n === top);
+    if(top > 0 && leaders.length === 1) (out[leaders[0][0]] = out[leaders[0][0]] || []).push(k);
+  });
+  return out;
+}
 function renderGameOver(){
   const standings = $('gameover-standings');
   standings.innerHTML = '';
@@ -3084,8 +3117,15 @@ function renderGameOver(){
   const winnerCount = sorted.filter(([,p]) => p.score === topScore).length;
   $('legend-cards').innerHTML = CARDS_ICON;
   $('gameover-tie-note').style.display = winnerCount > 1 ? 'block' : 'none';
+  // Stat crowns: the CLEAR leader (no tie, more than zero) in each of the
+  // three stats gets that stat's icon with a little crown askew on top,
+  // shown in the dark space to the right of their row. Bots can win them.
+  const awards = statAwards(sorted);
+  const maxAwards = Math.max(0, ...Object.values(awards).map(a => a.length));
   sorted.forEach(([uid,p], i) => {
     const isWinner = p.score === topScore; // ties all get the crown, not just whoever sorted first
+    const line = document.createElement('div');
+    line.className = 'gs-line';
     const row = document.createElement('div');
     row.className = 'leader-row colored' + (isWinner ? ' first':'');
     const col = playerColor(uid);
@@ -3095,7 +3135,16 @@ function renderGameOver(){
     const stats = stat('✅', st.correct, 'Spotted the real one')
       + stat(CARDS_ICON, st.fooled, 'Fooled someone') + stat('😂', st.funny, 'Funniest votes');
     row.innerHTML = `<span class="rank">${i+1}</span><span class="gs-name">${escapeHtml(p.name)}${isWinner?' 👑':''}</span><span class="gs-stats">${stats}</span><span class="score">${p.score}</span>`;
-    standings.appendChild(row);
+    line.appendChild(row);
+    if(maxAwards){
+      // Only as wide as the most crowns any one player holds.
+      const box = document.createElement('div');
+      box.className = 'gs-awards';
+      box.style.width = `${maxAwards * 30}px`;
+      box.innerHTML = (awards[uid] || []).map(k => STAT_CROWNS[k].html(STAT_CROWNS[k].label)).join('');
+      line.appendChild(box);
+    }
+    standings.appendChild(line);
   });
   const canBreak = breakableTieAtTop();
   $('btn-tiebreak').style.display = canBreak && isHost() ? 'block' : 'none';
