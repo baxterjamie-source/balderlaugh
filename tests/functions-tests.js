@@ -76,6 +76,16 @@ const call = (fn, data) => fns[fn]({ data });
   let threw = false; try { await call('generateBotBluffs', { term:'The Moose', category:'movies', bots:[] }); } catch { threw = true; }
   check('no bots -> rejected', threw);
 
+  const bb = claude.bodies.find(x => x.messages[0].content.includes('{"bluffs"'));
+  check('bluff call: thinking off + structured output (JSON can\'t be cut off by thinking)', bb.thinking && bb.thinking.type === 'disabled' && bb.output_config && bb.output_config.format.type === 'json_schema' && bb.max_tokens >= 1000);
+  claude.fail429 = 2;
+  const rl = await call('generateBotBluffs', { term:'The Moose', category:'movies', bots:[{ uid:'BOT_PAT' }] });
+  check('two rate-limit errors in a row are retried through', typeof rl.bluffs.BOT_PAT === 'string' && claude.fail429 === 0);
+  claude.fail429 = 3;
+  threw = null; try { await call('generateBotBluffs', { term:'The Moose', category:'movies', bots:[{ uid:'BOT_PAT' }] }); } catch (e) { threw = e; }
+  check(`still rate-limited after 3 tries -> clear error: ${threw && threw.message}`, threw && /429/.test(threw.message));
+  claude.fail429 = 0;
+
   console.log('\n[4b] judgeBotFunniest');
   const entries = [{ id:'BOT_PAT', text:'pat one' }, { id:'h1', text:'human one' }, { id:'REAL', text:'the real one' }, { id:'BOT_QUINN', text:'quinn one' }];
   let jf = await call('judgeBotFunniest', { term:'Moose', entries, bots:['BOT_PAT', 'BOT_QUINN', 'BOT_RIVER'] });
@@ -83,6 +93,12 @@ const call = (fn, data) => fns[fn]({ data });
   check('others get their pick + reason (a bot with no entry can still judge)', jf.picks.BOT_QUINN && jf.picks.BOT_QUINN.id === 'BOT_PAT' && jf.picks.BOT_QUINN.reason === 'lol' && jf.picks.BOT_RIVER.id === 'BOT_PAT');
   claude.pick = 99; jf = await call('judgeBotFunniest', { term:'Moose', entries, bots:['BOT_QUINN'] }); claude.pick = 0;
   check('out-of-range pick dropped', !jf.picks.BOT_QUINN);
+  const jb = claude.bodies[claude.bodies.length - 1];
+  check('judge call: thinking off + structured output + room for reasons', jb.thinking.type === 'disabled' && jb.output_config.format.type === 'json_schema' && jb.max_tokens >= 600);
+  claude.fail429 = 1; jf = await call('judgeBotFunniest', { term:'Moose', entries, bots:['BOT_QUINN'] });
+  check('one rate-limit error retried -> reasons still come back', jf.picks.BOT_QUINN && jf.picks.BOT_QUINN.reason === 'lol');
+  claude.fail429 = 3; jf = await call('judgeBotFunniest', { term:'Moose', entries, bots:['BOT_QUINN'] }); claude.fail429 = 0;
+  check(`gave up -> says why: "${jf.issue}"`, jf.issue === 'API 429' && JSON.stringify(jf.picks) === '{}');
   jf = await call('judgeBotFunniest', { term:'Moose', entries: entries.slice(0, 1), bots:['BOT_QUINN'] });
   check('fewer than 2 entries -> no picks, no call', JSON.stringify(jf.picks) === '{}');
 

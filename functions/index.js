@@ -277,18 +277,57 @@ function addSlips(text, rate, protectWords){
   return out;
 }
 
-async function callClaude(body){
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY.value(),
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify(body)
+// Rate limits (429), overload (529) and server hiccups (5xx) are retried,
+// waiting as long as the API's retry-after asks (capped at 10s). A burst of
+// web-searched items can use up a minute's token allowance, and the bot calls
+// right after it were simply failing.
+const RETRYABLE = new Set([429, 500, 502, 503, 504, 529]);
+const sleep = ms => new Promise(ok => setTimeout(ok, ms));
+async function callClaude(body, attempts = 3){
+  for (let i = 1; ; i++) {
+    let res, data;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY.value(),
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify(body)
+      });
+      data = await res.json();
+    } catch (err) {
+      if (i >= attempts) throw err;
+      await sleep(1000 * i);
+      continue;
+    }
+    if (res.ok || !RETRYABLE.has(res.status) || i >= attempts) return { res, data };
+    const ra = Number(res.headers && res.headers.get ? res.headers.get("retry-after") : NaN);
+    const wait = Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 10000) : 1500 * i;
+    console.warn(`Claude API ${res.status} (${data?.error?.type || "error"}), retry ${i} in ${wait}ms`);
+    await sleep(wait);
+  }
+}
+// Short, schema-shaped answers (bot bluffs, bot laughs, length rewrites):
+// thinking off — on Sonnet 5 leaving it out turns adaptive thinking on, and
+// its tokens come out of max_tokens, which was cutting replies off mid-JSON
+// — plus structured outputs, so the reply is always valid JSON.
+function jsonCall(prompt, schema, maxTokens){
+  return callClaude({
+    model: "claude-sonnet-5",
+    max_tokens: maxTokens,
+    thinking: { type: "disabled" },
+    output_config: { format: { type: "json_schema", schema } },
+    messages: [{ role: "user", content: prompt }]
   });
-  const data = await res.json();
-  return { res, data };
+}
+function replyText(data){ return (data.content || []).filter(b => b.type === "text").map(b => b.text).join(""); }
+function parseReply(data){
+  const text = replyText(data);
+  try { return JSON.parse(text); } catch { /* fall back to the first {...} in it */ }
+  const m = text.match(/\{[\s\S]*\}/);
+  try { return m ? JSON.parse(m[0]) : null; } catch { return null; }
 }
 
 // If the text missed its band badly, one cheap rewrite (no web search).
@@ -303,19 +342,15 @@ async function fitLength(text, target, isReal, category){
     ? "Keep it TRUE: do not add any new facts, names, numbers or dates. To lengthen, only add general description of what is already there; to shorten, drop detail."
     : "Keep it the same joke and the same (false) content — don't make it more accurate.";
   try {
-    const { res, data } = await callClaude({
-      model: "claude-sonnet-5",
-      max_tokens: 200,
-      messages: [{ role: "user", content: `Rewrite this so it is between ${lo} and ${hi} words (about ${target}). ${rule} Keep the same casual tone.
+    const { res, data } = await jsonCall(`Rewrite this so it is between ${lo} and ${hi} words (about ${target}). ${rule} Keep the same casual tone.
 
 "${text}"
 
-Reply with ONLY a JSON object: {"text": "the rewritten version"}` }]
-    });
+Reply with ONLY a JSON object: {"text": "the rewritten version"}`,
+      { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false }, 600);
     if (!res.ok) return text;
-    const raw = (data.content || []).map(b => b.text || "").join("");
-    const m = raw.match(/\{[\s\S]*\}/);
-    const out = m ? JSON.parse(m[0]).text : null;
+    const parsed = parseReply(data);
+    const out = parsed && typeof parsed.text === "string" ? parsed.text : null;
     if (!out) return text;
     // Only keep the rewrite if it actually landed closer.
     const dist = x => Math.abs(wordCount(x) - target);
@@ -460,7 +495,7 @@ nationality, era, actual profession, or any other real fact — do NOT
 include it, even accurately. Invent a different version of every detail.`;
 }
 
-exports.generateBotBluffs = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
+exports.generateBotBluffs = onCall({ secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120 }, async (request) => {
   const { term, category, answerSource, answerId, itemId, gameId, roundIndex, bots } = request.data || {};
   const list = (Array.isArray(bots) ? bots : []).filter(b => b && typeof b.uid === "string").slice(0, 4);
   if (!term || !category || !list.length) {
@@ -507,25 +542,20 @@ ${players}
 Reply with ONLY a JSON object, one bluff per player in the same order:
 {"bluffs": ["player 1's bluff"${list.length > 1 ? `, "player 2's bluff", ...` : ""}]}`;
 
-  const { res, data } = await callClaude({
-    model: "claude-sonnet-5",
-    max_tokens: 300 * list.length,
-    messages: [{ role: "user", content: prompt }]
-  });
+  const { res, data } = await jsonCall(prompt, {
+    type: "object",
+    properties: { bluffs: { type: "array", items: { type: "string" } } },
+    required: ["bluffs"], additionalProperties: false
+  }, 400 + 300 * list.length);
   if (!res.ok) {
     console.error("generateBotBluffs: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
-    throw new Error(`Anthropic API error (${res.status}): ${data?.error?.message || "unknown"}`);
+    throw new HttpsError("unavailable", `Anthropic API error (${res.status}): ${data?.error?.message || "unknown"}`);
   }
-  const text = (data.content || []).map(b => b.text || "").join("");
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  let parsed;
-  if (jsonMatch) {
-    try { parsed = JSON.parse(jsonMatch[0]); } catch { /* falls through */ }
-  }
+  const parsed = parseReply(data);
   const raw = parsed && Array.isArray(parsed.bluffs) ? parsed.bluffs : null;
   if (!raw || !raw.some(t => typeof t === "string" && t.trim())) {
-    console.error("generateBotBluffs parse failure — raw text:", text.slice(0, 500));
-    throw new Error("Could not parse bluffs from the model response.");
+    console.error("generateBotBluffs parse failure — stop_reason:", data.stop_reason, "| raw text:", replyText(data).slice(0, 500));
+    throw new HttpsError("internal", `No bluffs in the reply (stop_reason ${data.stop_reason}).`);
   }
 
   // Slips, but sparingly: at a table's own rate, three or four bots made
@@ -673,30 +703,17 @@ generous. Most rounds should have zero.
 Reply with ONLY a JSON object: {"closeIndexes": [<1-based numbers from
 the list above, or an empty array if none qualify>]}`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY.value(),
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    console.error("judgeCloseCalls: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
-    return { closeIds: [] };
-  }
-  const text = (data.content || []).map(b => b.text || "").join("");
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
   try {
-    if (!jsonMatch) throw new Error("no JSON in response");
-    const parsed = JSON.parse(jsonMatch[0]);
-    const indexes = Array.isArray(parsed.closeIndexes) ? parsed.closeIndexes : [];
+    const { res, data } = await jsonCall(prompt, {
+      type: "object", properties: { closeIndexes: { type: "array", items: { type: "integer" } } },
+      required: ["closeIndexes"], additionalProperties: false
+    }, 400);
+    if (!res.ok) {
+      console.error("judgeCloseCalls: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
+      return { closeIds: [] };
+    }
+    const parsed = parseReply(data);
+    const indexes = parsed && Array.isArray(parsed.closeIndexes) ? parsed.closeIndexes : [];
     const closeIds = indexes.map(n => submissions[n - 1]).filter(Boolean).map(s => s.id);
     return { closeIds };
   } catch {
@@ -721,7 +738,7 @@ const BOT_TASTES = [
   "loves a slightly dark twist",
   "loves something so plausible it's funny that anyone would make it up"
 ];
-exports.judgeBotFunniest = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
+exports.judgeBotFunniest = onCall({ secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120 }, async (request) => {
   const { term, entries, bots } = request.data || {}; // entries: [{id, text}], bots: [uid]
   const list = (Array.isArray(entries) ? entries : []).filter(e => e && e.id && e.text).slice(0, 13);
   const judges = (Array.isArray(bots) ? bots : []).filter(u => typeof u === "string").slice(0, 4);
@@ -750,21 +767,29 @@ sentence in that judge's own voice.
 Reply with ONLY a JSON object:
 {"picks": [{"judge": 1, "pick": <1-based answer number, or null>, "reason": "..."}]}`;
 
+  // `issue` (a few words on what went wrong) goes back to the page so a
+  // reveal without reasons can say why in the game record.
   try {
-    const { res, data } = await callClaude({
-      model: "claude-sonnet-5",
-      max_tokens: 120 + 100 * judges.length,
-      messages: [{ role: "user", content: prompt }]
-    });
+    const { res, data } = await jsonCall(prompt, {
+      type: "object",
+      properties: { picks: { type: "array", items: {
+        type: "object",
+        properties: { judge: { type: "integer" }, pick: { anyOf: [{ type: "integer" }, { type: "null" }] }, reason: { type: "string" } },
+        required: ["judge", "pick", "reason"], additionalProperties: false
+      } } },
+      required: ["picks"], additionalProperties: false
+    }, 400 + 200 * judges.length);
     if (!res.ok) {
       console.error("judgeBotFunniest: Anthropic API returned an error — status:", res.status, "| body:", JSON.stringify(data).slice(0, 1000));
-      return { picks: {} };
+      return { picks: {}, issue: `API ${res.status}` };
     }
-    const text = (data.content || []).map(b => b.text || "").join("");
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    const parsed = parseReply(data);
+    if (!parsed || !Array.isArray(parsed.picks)) {
+      console.error("judgeBotFunniest parse failure — stop_reason:", data.stop_reason, "| raw text:", replyText(data).slice(0, 500));
+      return { picks: {}, issue: `unreadable reply (stop_reason ${data.stop_reason})` };
+    }
     const picks = {};
-    for (const p of (parsed && Array.isArray(parsed.picks) ? parsed.picks : [])) {
+    for (const p of parsed.picks) {
       const uid = judges[Number(p.judge) - 1];
       const n = Number(p.pick);
       if (!uid || picks[uid] || !Number.isInteger(n) || n < 1 || n > list.length || n === ownIdx(uid)) continue;
@@ -774,7 +799,7 @@ Reply with ONLY a JSON object:
   } catch (err) {
     // Fail soft: the page picks at random instead.
     console.error("judgeBotFunniest failed:", err);
-    return { picks: {} };
+    return { picks: {}, issue: String(err && err.message || err).slice(0, 120) };
   }
 });
 

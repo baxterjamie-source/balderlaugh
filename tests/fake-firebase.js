@@ -22,11 +22,17 @@ const origLoad = Module._load;
 Module._load = function(req, ...rest){ return fakes[req] || origLoad.call(this, req, ...rest); };
 
 // Fake Claude: obeys "aim for about N" with some sloppiness, configurable.
-const claude = { calls: [], mode: 'good' };
+// fail429: answer the next N calls with a rate-limit error (retry-after 10ms).
+const claude = { calls: [], bodies: [], mode: 'good', fail429: 0 };
 const words = n => Array.from({length:n}, (_,i) => ['moose','wanders','across','snowy','hills','slowly','while','people','watch','quietly'][i%10]).join(' ');
 global.fetch = async (url, opts) => {
   const body = JSON.parse(opts.body); const p = body.messages[0].content;
-  claude.calls.push(p);
+  claude.calls.push(p); claude.bodies.push(body);
+  if (claude.fail429 > 0) {
+    claude.fail429--;
+    return { ok: false, status: 429, headers: { get: h => h === 'retry-after' ? '0.01' : null },
+      json: async () => ({ type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } }) };
+  }
   const m = p.match(/about (\d+)/); const t = m ? +m[1] : 12;
   const sloppy = t => claude.mode === 'verbose' ? 26 : t + Math.round((Math.random()-0.5)*4); // +/-2 words
   let n;

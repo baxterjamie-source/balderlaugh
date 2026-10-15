@@ -396,6 +396,25 @@ original lengths.
   typo that would form another real word is skipped.
 - Word list: `an-array-of-english-words` (MIT), loaded server-side only.
 
+## Bot calls: reliability (Oct 15)
+Bots were sometimes missing bluffs, and their 😂 reasons were hit and miss.
+The game records showed the bluff and judge calls failing outright (empty
+`botReasons`, bluff fetch giving up). Two fixes:
+- **Thinking off + structured outputs** for every short JSON call
+  (`jsonCall` in `functions/index.js`: bot bluffs, bot 😂 judge, close
+  calls, length rewrites). On Sonnet 5, leaving `thinking` out turns
+  adaptive thinking ON, and its tokens come out of `max_tokens`. The judge
+  had only ~420 tokens, so longer think-y replies were cut off mid-JSON and
+  silently dropped. `output_config.format` (json_schema) guarantees
+  parseable JSON, and the token limits are now generous.
+- **Retries** in `callClaude` for 429 / 5xx / 529, honouring `retry-after`
+  (max 10s, 3 tries). The bot functions get a 120s timeout (page: 130s),
+  and the page's own bluff retries wait 4s/8s to clear a rate-limit window.
+
+If it still happens, the game record says why: `round.botIssue` (bluffs)
+and `round.botFunnyIssue` (reasons). The Firebase CLI log is unreliable
+for this project.
+
 ## Server runtime
 Functions run on Node 22 (`functions/package.json`); Google retires Node 20
 on 2026-10-30.

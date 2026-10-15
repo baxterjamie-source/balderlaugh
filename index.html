@@ -933,9 +933,11 @@ const GAMES = "balderlaugh_games";
 //   balderlaugh_meta/itemIndex   — {category: [{id, term}, ...]}  (no answers)
 //   balderlaugh_items/{itemId}   — {category, term, real}
 const generateItemFn = httpsCallable(functionsClient, 'generateItem');
-const generateBotBluffsFn = httpsCallable(functionsClient, 'generateBotBluffs'); // Claude Bots
+// The bot functions retry rate limits server-side, so give them longer than
+// the default 70s before the page gives up on a call.
+const generateBotBluffsFn = httpsCallable(functionsClient, 'generateBotBluffs', { timeout: 130000 }); // Claude Bots
 const judgeCloseCallsFn = httpsCallable(functionsClient, 'judgeCloseCalls'); // CCC
-const judgeBotFunniestFn = httpsCallable(functionsClient, 'judgeBotFunniest'); // Claude Bots' 😂
+const judgeBotFunniestFn = httpsCallable(functionsClient, 'judgeBotFunniest', { timeout: 130000 }); // Claude Bots' 😂
 
 let itemIndexCache = null;
 async function getItemIndex(){
@@ -1189,7 +1191,7 @@ function botLag(){ return soloTable() ? 400 + Math.random()*1200 : 1500 + Math.r
 // The bots' bluffs are fetched in the background once writing opens
 // (round.botsPending = { uids, since }); until they land those bots are
 // waited on, unless the fetch has clearly died (the phone running it closed).
-const BOTS_PENDING_MAX_MS = 100000;
+const BOTS_PENDING_MAX_MS = 150000;
 function pendingBots(r){
   const p = r && r.botsPending;
   return p && Array.isArray(p.uids) && Date.now() - (p.since || 0) < BOTS_PENDING_MAX_MS ? p.uids : [];
@@ -1991,7 +1993,7 @@ async function startWritingPhase({ index, attempt, cat, term, itemId, answerSour
 // can't leave them behind.
 async function fetchBotBluffs({ code, index, attempt, cat, term, itemId, answerSource, answerId, bots, writeStart, writeMs }){
   const stillWriting = g => !!(g && g.round && g.round.index === index && g.round.term === term && g.round.phase === 'writing');
-  let bluffs = null;
+  let bluffs = null, issue = null;
   for(let tryNo = 1; tryNo <= 3 && !bluffs; tryNo++){
     if(currentGameCode !== code || !stillWriting(game)) return;
     try{
@@ -2002,7 +2004,8 @@ async function fetchBotBluffs({ code, index, attempt, cat, term, itemId, answerS
       bluffs = b;
     } catch(err){
       console.error(`generateBotBluffs try ${tryNo} failed:`, err);
-      if(tryNo < 3) await new Promise(ok => setTimeout(ok, 1500 * tryNo));
+      issue = `${err && err.code ? err.code + ': ' : ''}${err && err.message || err}`.slice(0, 200);
+      if(tryNo < 3) await new Promise(ok => setTimeout(ok, 4000 * tryNo)); // past a rate-limit window
     }
   }
   // Each bot "finishes writing" somewhere between a quarter and three
@@ -2015,6 +2018,7 @@ async function fetchBotBluffs({ code, index, attempt, cat, term, itemId, answerS
     if(!stillWriting(g)) return;
     const now = Date.now(), have = g.round.submissions || {};
     const upd = { 'round.botsPending': null };
+    if(!bluffs) upd['round.botIssue'] = issue || 'unknown'; // why the bots sat out (for debugging)
     Object.entries(bluffs || {}).forEach(([uid, text]) => {
       if(!bots.includes(uid) || have[uid] || typeof text !== 'string' || !text.trim()) return;
       const at = Math.max(now + 800, writeStart + writeMs*(0.25 + Math.random()*0.5));
@@ -2462,10 +2466,11 @@ async function maybeAdvanceFromVoting(){
     // couldn't pick for gets a random pick instead.
     const voters = Object.entries(r.votes||{}).filter(([uid, v]) => v.bot && isBot(uid)).map(([uid]) => uid);
     const entries = (r.shuffleOrder||[]).map(id => ({ id, text: id === 'REAL' ? r.answerText : (r.submissions[id] && r.submissions[id].text) })).filter(e => e.text);
+    let funnyIssue = null; // why the bots' reasons are missing, if they are (for debugging)
     const funnyCall = game.settings.crowdFunny && voters.length && entries.length > 1
       ? judgeBotFunniestFn({ term: r.term, entries, bots: voters })
-          .then(res => (res.data && res.data.picks) || {})
-          .catch(err => { console.error('judgeBotFunniest failed:', err); return {}; })
+          .then(res => { funnyIssue = (res.data && res.data.issue) || null; return (res.data && res.data.picks) || {}; })
+          .catch(err => { console.error('judgeBotFunniest failed:', err); funnyIssue = String(err && err.message || err).slice(0, 200); return {}; })
       : Promise.resolve(null);
 
     const [cccCloseIds, botPicks] = await Promise.all([cccCall, funnyCall]);
@@ -2497,6 +2502,7 @@ async function maybeAdvanceFromVoting(){
       [`round.funnyTally`]: scored.funnyTally,
       [`round.cccCloseIds`]: cccCloseIds,
       'round.botReasons': botReasons,       // each bot's one-liner on its 😂 — the easter egg
+      'round.botFunnyIssue': funnyIssue,
       'round.revealedAt': Date.now() // lets clients show the splash only on a live reveal, not a reload
     });
   } finally { advancing = false; }
