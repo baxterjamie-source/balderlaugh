@@ -62,6 +62,17 @@ const call = (fn, data) => fns[fn]({ data });
   check('a "Try again" on the same round keeps each bot\'s target', bots.every(x => store.get('balderlaugh_length_state/TEST')[`bluff_${x.uid}`].target === lst[`bluff_${x.uid}`].target) && Object.keys(again.bluffs).length === 3);
   const solo = await call('generateBotBluffs', { term:'The Moose', category:'movies', bots:[{ uid:'BOT_RIVER' }] });
   check('no game info, one bot: still works', typeof solo.bluffs.BOT_RIVER === 'string');
+  // Bots slip far less than the table: never more than one per round.
+  const vocab = new Set(['moose','wanders','across','snowy','hills','slowly','while','people','watch','quietly']);
+  store.set('balderlaugh_length_state/SLOPPY', { style: { recent: Array(40).fill(1) } }); // every human entry had a slip
+  let roundsWithSlip = 0, maxPerRound = 0;
+  for (let i = 0; i < 60; i++) {
+    const res = await call('generateBotBluffs', { term:'The Moose', category:'movies', gameId:'SLOPPY', roundIndex:i,
+      bots:[{ uid:'BOT_PAT' }, { uid:'BOT_QUINN' }, { uid:'BOT_PARKER' }, { uid:'BOT_RIVER' }] });
+    const n = Object.values(res.bluffs).filter(t => t.toLowerCase().split(/\s+/).some(w => !vocab.has(w))).length;
+    if (n) roundsWithSlip++; maxPerRound = Math.max(maxPerRound, n);
+  }
+  check(`sloppy table, 4 bots: at most one slip a round (max ${maxPerRound}), slips in ${roundsWithSlip}/60 rounds`, maxPerRound <= 1 && roundsWithSlip < 45);
   let threw = false; try { await call('generateBotBluffs', { term:'The Moose', category:'movies', bots:[] }); } catch { threw = true; }
   check('no bots -> rejected', threw);
 

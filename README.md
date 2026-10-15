@@ -206,10 +206,17 @@ names are reserved.
 - **Bluffs:** `generateBotBluffs` writes every bot's bluff in ONE call, so
   they can't land on the same joke. Each bot gets a random style per round
   (no learnable personalities) and its own length deck
-  (`balderlaugh_length_state.bluff_<uid>`), plus the same table-matched
-  slips. Like the old Claude bluff, it sees the real answer server-side so
-  it can avoid its words, and it's hard-capped at 30 words / one number. If
-  the call fails, the bots sit that round out.
+  (`balderlaugh_length_state.bluff_<uid>`). Slips are rarer than a
+  human's: half the table's rate (max 20%) and at most one bot per round
+  (`BOT_SLIP_MAX`). Like the old Claude bluff, it sees the real answer
+  server-side so it can avoid its words, and it's hard-capped at 30 words /
+  one number.
+- **Fetched while you write:** the round opens as soon as the term is ready.
+  The phone that started the round fetches the bots' bluffs in the
+  background (up to 3 tries) and writes them in with a transaction. Until
+  then `round.botsPending` = { uids, since } makes every phone wait for
+  those bots. If all tries fail, the bots sit the round out. If the
+  fetching phone vanishes, the hold expires after 100s.
 - **Real vote:** cast when voting opens (inside a transaction): 40% the
   real answer (`BOT_REAL_CHANCE`), otherwise any entry but its own.
 - **Funniest:** only with Crowd funniest on. At reveal, `judgeBotFunniest`
@@ -220,8 +227,9 @@ names are reserved.
   with an `at` moment (bluffs 25-75% through the clock, votes 12-57%).
   Every phone works out who's "in" from that, so no one phone drives the
   bots. Once every human is in, the bots still out follow within 1.5-6s
-  (`lag`) rather than making the room wait. Human entries now carry `at`
-  too.
+  (`lag`) rather than making the room wait; with only one person at the
+  table there's nobody to fool, so it's 0.4-1.6s. Human entries now carry
+  `at` too.
 - **Never:** Reader (the rotation and `startReading` are people-only),
   host, Wander watch, or a reason to wait (`startReading` waits on humans
   only, and the table's slip rate ignores bot entries).
@@ -382,7 +390,14 @@ checkAnswers and startReading (including solo games with bots). Run it after
 any change to the functions, before deploying.
 
 ## To do
-- [ ] Lobby: a button to go back to the splash screen (the intro with
-  Try it now / Play / Rules).
-- [ ] Lobby: a **Try it now** button at the bottom, for starting a solo game
-  against the bots from there.
+- [x] Home screen: **✨ Back to intro** link (next to How to play) reopens
+  the splash.
+- [x] Home screen: **🤖 Try it now** button at the bottom (uses the name box).
+- [x] Bots sometimes missing from a round. Partly because the first games
+  ran before the functions were deployed. Now the bluffs are fetched in
+  the background with up to 3 tries, and the round waits for them (see
+  Claude Bots).
+- [x] Try it now waiting on the clock. With one person at the table, the
+  bots follow within about a second of you, for bluffs and votes alike.
+- [x] Bots misspelling too often: at most one bot slip per round, at half
+  the table's rate (max 20% per bot).

@@ -376,6 +376,8 @@
   .rule .pts{display:inline-block;font-weight:800;font-variant-numeric:tabular-nums;color:var(--gold);min-width:2.2em;}
   .how-link{display:block;text-align:center;font-size:14px;color:var(--muted);margin-top:12px;cursor:pointer;background:none;border:none;font-family:inherit;width:100%;}
   .how-link span{color:var(--fox);text-decoration:underline;}
+  .home-links{display:flex;justify-content:center;gap:18px;}
+  .home-links .how-link{width:auto;}
 
   @media (prefers-reduced-motion: reduce){
     .shake{animation:none;}
@@ -443,7 +445,11 @@
         <input type="text" id="input-joincode" placeholder="Click a game above or enter code" maxlength="6" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" style="text-transform:uppercase;">
         <button class="btn secondary small" id="btn-join-code">Join</button>
       </div>
-      <button type="button" class="how-link" data-rules>❓ <span>How to play</span></button>
+      <button class="btn secondary" id="btn-home-try">🤖 Try it now <span class="note" style="font-size:13px;">· solo vs 3 bots</span></button>
+      <div class="home-links">
+        <button type="button" class="how-link" data-rules>❓ <span>How to play</span></button>
+        <button type="button" class="how-link" id="btn-home-intro">✨ <span>Back to intro</span></button>
+      </div>
     </div>
     <div class="err" id="home-err"></div>
   </section>
@@ -1112,16 +1118,28 @@ function botUpdates(players, want){
 // who's in. Once every human is in, the bots still out follow within a few
 // seconds (`lag`) instead of making the room wait for their moment.
 function botEntry(at, lag){ return { bot: true, at: Math.round(at), lag: Math.round(lag) }; }
+// With only one person at the table there's nobody to fool about who's a
+// bot, so the bots keep pace with them instead of dawdling.
+function soloTable(){ return activePlayerUids().filter(u => !isBot(u)).length <= 1; }
+function botLag(){ return soloTable() ? 400 + Math.random()*1200 : 1500 + Math.random()*4500; }
+// The bots' bluffs are fetched in the background once writing opens
+// (round.botsPending = { uids, since }); until they land those bots are
+// waited on, unless the fetch has clearly died (the phone running it closed).
+const BOTS_PENDING_MAX_MS = 100000;
+function pendingBots(r){
+  const p = r && r.botsPending;
+  return p && Array.isArray(p.uids) && Date.now() - (p.since || 0) < BOTS_PENDING_MAX_MS ? p.uids : [];
+}
 // entries: round.submissions or round.votes. Bots with no entry (their bluff
-// call failed) aren't waited on.
-function phaseProgress(entries){
+// call failed) aren't waited on; `pending` bots are, though they aren't in yet.
+function phaseProgress(entries, pending = []){
   entries = entries || {};
   const now = Date.now();
   const active = activePlayerUids();
   const humans = active.filter(u => !isBot(u));
   const humansIn = humans.length > 0 && humans.every(u => entries[u]);
   const humansDoneAt = humansIn ? Math.max(0, ...humans.map(u => entries[u].at || 0)) : Infinity;
-  const expected = active.filter(u => !isBot(u) || entries[u]);
+  const expected = active.filter(u => !isBot(u) || entries[u] || pending.includes(u));
   const inCount = expected.filter(u => {
     const e = entries[u];
     if(!e) return false;
@@ -1194,6 +1212,19 @@ function initHome(){
     const clean = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
     if(clean !== e.target.value) e.target.value = clean;
   });
+
+  // Try it now from home uses the name box above (same checks as Start).
+  $('btn-home-try').onclick = async () => {
+    const name = myName.trim();
+    if(!name){ nudgeForName(); return; }
+    if(isReservedName(name)){ $('home-err').textContent = "Nice try — that name is reserved. Pick another."; return; }
+    $('home-err').textContent = '';
+    $('btn-home-try').disabled = true;
+    try{ await startTryItNow(name); }
+    catch(err){ console.error('Try it now failed:', err); $('home-err').textContent = 'Could not start a game — try again.'; }
+    finally{ $('btn-home-try').disabled = false; }
+  };
+  $('btn-home-intro').onclick = openIntro;
 
   $('btn-join-code').onclick = () => {
     const code = $('input-joincode').value.trim().toUpperCase();
@@ -1820,25 +1851,9 @@ async function beginRound(index, categories, usedTerms, extra = {}, attempt = 1)
   await startWritingPhase({ index, attempt, cat, term, itemId, answerSource, answerId, settings, usedTerms });
 }
 
-// Shared by a normal round start and a golden-oldie replay: the bots'
-// bluffs (if any), cooldown bookkeeping, then open the round for writing.
+// Shared by a normal round start and a golden-oldie replay: cooldown
+// bookkeeping, open the round for writing, then fetch the bots' bluffs.
 async function startWritingPhase({ index, attempt, cat, term, itemId, answerSource, answerId, settings, usedTerms }){
-  // Claude Bots: all their bluffs in one call, once the term is known — the
-  // call needs the real answer for overlap-avoidance (see generateBotBluffs),
-  // so it genuinely has to wait for the term fetch above.
-  let botBluffs = {};
-  const bots = activePlayerUids().filter(isBot);
-  if(bots.length){
-    try{
-      const res = await generateBotBluffsFn({ term, category: cat, answerSource, answerId, itemId, gameId: currentGameCode,
-        roundIndex: attempt > 1 ? `${index}-${attempt}` : index, bots: bots.map(uid => ({ uid })) });
-      botBluffs = (res.data && res.data.bluffs) || {};
-    } catch(err){
-      // The bots sit this round out rather than blocking it.
-      console.error('generateBotBluffs failed, bots skip this round:', err);
-    }
-  }
-
   // A "Try again" (or a game ending) may have happened while we waited —
   // only the attempt the room's still waiting on gets to start the round.
   if(!isCurrentAttempt(index, attempt)) return;
@@ -1847,28 +1862,62 @@ async function startWritingPhase({ index, attempt, cat, term, itemId, answerSour
   // Bookkeeping only — don't make players wait on this write.
   markTermUsed(term, cat, { answerSource, answerId, itemId }).catch(err => console.error('Could not record term as used:', err));
 
-  // The timer starts NOW — after everything (term + the bots' bluffs, if
-  // any) is actually ready — not earlier, or players lose real time to
-  // network/generation latency before they can even see the prompt.
+  // The timer starts NOW — once the term is actually ready — not earlier,
+  // or players lose real time to network/generation latency before they can
+  // even see the prompt.
   const now = Date.now(), writeMs = settings.writingSeconds*1000;
-  const phaseEndsAt = now + writeMs;
-
-  // Each bot "finishes writing" somewhere between a quarter and three
-  // quarters of the way through the clock (sooner if the humans beat it).
-  const submissions = {};
-  Object.entries(botBluffs).forEach(([uid, text]) => {
-    if(bots.includes(uid) && typeof text === 'string' && text.trim()){
-      submissions[uid] = { text, author: uid, ...botEntry(now + writeMs*(0.25 + Math.random()*0.5), 1500 + Math.random()*4500) };
-    }
-  });
-
+  const bots = activePlayerUids().filter(isBot);
   await updateDoc(doc(db, GAMES, currentGameCode), {
     usedTerms: [...usedTerms, term],
     round: {
       index, category: cat, term, itemId, answerSource, answerId,
-      phase: 'writing', phaseEndsAt,
-      submissions, votes: {}, shuffleOrder: null, answerText: null, scored: false
+      phase: 'writing', phaseEndsAt: now + writeMs,
+      submissions: {}, votes: {}, shuffleOrder: null, answerText: null, scored: false,
+      botsPending: bots.length ? { uids: bots, since: now } : null
     }
+  });
+  if(bots.length){
+    fetchBotBluffs({ code: currentGameCode, index, attempt, cat, term, itemId, answerSource, answerId, bots, writeStart: now, writeMs })
+      .catch(err => console.error('Bot bluffs failed, bots skip this round:', err));
+  }
+}
+
+// Claude Bots: all their bluffs in one call, while the humans write (the
+// round doesn't wait for it). Up to 3 tries; until the bluffs land (or every
+// try fails) the bots are "pending" and still waited on, so a fast human
+// can't leave them behind.
+async function fetchBotBluffs({ code, index, attempt, cat, term, itemId, answerSource, answerId, bots, writeStart, writeMs }){
+  const stillWriting = g => !!(g && g.round && g.round.index === index && g.round.term === term && g.round.phase === 'writing');
+  let bluffs = null;
+  for(let tryNo = 1; tryNo <= 3 && !bluffs; tryNo++){
+    if(currentGameCode !== code || !stillWriting(game)) return;
+    try{
+      const res = await generateBotBluffsFn({ term, category: cat, answerSource, answerId, itemId, gameId: code,
+        roundIndex: attempt > 1 ? `${index}-${attempt}` : index, bots: bots.map(uid => ({ uid })) });
+      const b = res.data && res.data.bluffs;
+      if(!b || !Object.keys(b).length) throw new Error('no bluffs returned');
+      bluffs = b;
+    } catch(err){
+      console.error(`generateBotBluffs try ${tryNo} failed:`, err);
+      if(tryNo < 3) await new Promise(ok => setTimeout(ok, 1500 * tryNo));
+    }
+  }
+  // Each bot "finishes writing" somewhere between a quarter and three
+  // quarters of the way through the clock, never before its bluff exists
+  // (and sooner if the humans beat it). No bluffs: the bots sit this one out.
+  const ref = doc(db, GAMES, code);
+  await runTransaction(db, async tx => {
+    const snap = await tx.get(ref);
+    const g = snap.exists() ? snap.data() : null;
+    if(!stillWriting(g)) return;
+    const now = Date.now(), have = g.round.submissions || {};
+    const upd = { 'round.botsPending': null };
+    Object.entries(bluffs || {}).forEach(([uid, text]) => {
+      if(!bots.includes(uid) || have[uid] || typeof text !== 'string' || !text.trim()) return;
+      const at = Math.max(now + 800, writeStart + writeMs*(0.25 + Math.random()*0.5));
+      upd[`round.submissions.${uid}`] = { text, author: uid, ...botEntry(at, botLag()) };
+    });
+    tx.update(ref, upd);
   });
 }
 
@@ -2001,11 +2050,11 @@ function renderWriting(isNew){
   $('btn-sitout-writing').onclick = toggleSitOut;
   $('btn-jointhisround-writing').onclick = toggleSitOut;
 
-  // The bots' bluffs are already on the round, but each only counts as "in"
-  // once its moment comes (see phaseProgress). Sitting-out players don't
-  // count toward "everyone's in".
+  // A bot's bluff only counts as "in" once its moment comes, and bots whose
+  // bluffs are still being fetched are waited on (see phaseProgress).
+  // Sitting-out players don't count toward "everyone's in".
   const showCount = () => {
-    const p = phaseProgress(r.submissions);
+    const p = phaseProgress(r.submissions, pendingBots(r));
     $('writing-count').textContent = `${p.inCount} / ${p.total}`;
     return p;
   };
@@ -2110,7 +2159,7 @@ async function maybeAdvanceFromReading(){
       // the humans finish first). Their 😂 votes come at reveal.
       Object.entries(g.players||{}).filter(([,p]) => p.bot && !p.sittingOut).forEach(([uid]) => {
         upd[`round.votes.${uid}`] = { real: botRealPick(uid, g.round.shuffleOrder||[]),
-          ...botEntry(now + voteMs*(0.12 + Math.random()*0.45), 1500 + Math.random()*4500) };
+          ...botEntry(now + voteMs*(0.12 + Math.random()*0.45), botLag()) };
       });
       tx.update(ref, upd);
     });

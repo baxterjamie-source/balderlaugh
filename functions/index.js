@@ -165,6 +165,7 @@ function lengthInstruction(target, category){
 // or the answer's two longest words, so the real answer stays true and
 // readable.
 const STYLE_WINDOW = 40, STYLE_PRIOR = 0.1, STYLE_PRIOR_WEIGHT = 4;
+const BOT_SLIP_MAX = 0.2; // a single bot's chance of a slip, however sloppy the table
 const EXTRA_OK = ["ok","okay","lol","selfie","emoji","wifi","covid","app","apps","online","email","emails","vs","etc","tv","dvd","internet","website","smartphone","hashtag","blog","podcast"];
 const TXT_SPEAK = new Set(["u","ur","b4","bc","thx","pls","plz","idk","tho","cuz","ppl","tbh","srsly","w/",
   // contractions typed without the apostrophe (some are also dictionary words, e.g. "cant")
@@ -527,18 +528,28 @@ Reply with ONLY a JSON object, one bluff per player in the same order:
     throw new Error("Could not parse bluffs from the model response.");
   }
 
+  // Slips, but sparingly: at a table's own rate, three or four bots made
+  // typos so often it became the tell. Each bot gets half the table's
+  // chance (capped at 20%), and at most one bot slips per round.
   let rate = STYLE_PRIOR;
   try {
     const st = gameId ? await db.collection("balderlaugh_length_state").doc(String(gameId)).get() : null;
     rate = slipRate(st && st.exists && st.data().style ? st.data().style.recent : []);
   } catch (err) { console.error("generateBotBluffs: style step skipped:", err); }
+  const botRate = Math.min(BOT_SLIP_MAX, rate * 0.5);
 
   const out = {};
+  let slipped = false;
   await Promise.all(list.map(async (b, i) => {
     const t = typeof raw[i] === "string" ? raw[i].trim() : "";
     if (!t) return; // that bot sits this round out rather than holding it up
     let bluff = plainPunct(await fitLength(t, targets[i], false, category));
-    try { bluff = addSlips(bluff, rate, termWordSet(term)); } catch (err) { console.error("generateBotBluffs: slip skipped:", err); }
+    if (!slipped) {
+      try {
+        const s = addSlips(bluff, botRate, termWordSet(term));
+        if (s !== bluff) { slipped = true; bluff = s; }
+      } catch (err) { console.error("generateBotBluffs: slip skipped:", err); }
+    }
     out[b.uid] = bluff;
   }));
   return { bluffs: out };
