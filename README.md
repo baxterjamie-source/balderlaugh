@@ -240,6 +240,14 @@ everyone but its player) with you + Pat, Quinn and Parker. It runs 3
 rounds with funniest points on and Wander watch off, and goes straight to
 round 1 (no lobby).
 
+Pressing either Try it now button first asks for round 1's item, then
+shows a welcome over the loading screen to look at while it loads:
+"Jamie, setting up a game with you, Pat, Quinn and Parker. Watch out,
+they've been practising 😉" (bot names in their colours). It stays about
+10s, then goes up in a puff of smoke to reveal the loading screen. If the
+round is already open for writing it goes sooner (after at least 3s), so
+it never eats into writing time. Tap or Esc skips it.
+
 The splash's ✕ is replaced by **Try it now / Play / Rules** (Esc still
 closes it, like Play).
 
