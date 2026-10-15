@@ -751,7 +751,7 @@
       <div class="note" id="gameover-tie-note" style="display:none;color:var(--gold);">👑 It's a tie!</div>
     </div>
     <div id="gameover-standings"></div>
-    <div class="note center" style="margin-top:4px;"><span class="emo">✅</span> spotted the real one · <span id="legend-cards"></span> fooled someone · <span class="emo">😂</span> funniest votes<br><span class="emo">👑</span> next to a row: the clear leader in that one</div>
+    <div class="note center" style="margin-top:4px;"><span class="emo">✅</span> spotted the real one (2 pts) · <span id="legend-cards"></span> fooled someone (1 pt) · <span class="emo">😂</span> funniest votes <span id="legend-funny-pts">(1 pt)</span><br><span class="emo">👑</span> next to a row: the clear leader in that one</div>
     <div class="footer-actions">
       <button class="btn" id="btn-tiebreak" style="display:none;background:var(--gold);color:#3a2c00;margin-bottom:10px;">⚔️ Tiebreaker — play until someone pulls ahead</button>
       <div class="note center" id="tiebreak-note" style="display:none;margin:0 0 10px;">Tied at the top — the host can call a tiebreaker.</div>
@@ -3116,6 +3116,8 @@ function renderGameOver(){
   const topScore = sorted.length ? sorted[0][1].score : 0;
   const winnerCount = sorted.filter(([,p]) => p.score === topScore).length;
   $('legend-cards').innerHTML = CARDS_ICON;
+  // Funniest votes only score when the host turned "Points for funniest" on.
+  $('legend-funny-pts').textContent = game.settings && game.settings.funnyPoints ? '(1 pt)' : '(no pts this game)';
   $('gameover-tie-note').style.display = winnerCount > 1 ? 'block' : 'none';
   // Stat crowns: the CLEAR leader (no tie, more than zero) in each of the
   // three stats gets that stat's icon with a little crown askew on top,
