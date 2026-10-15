@@ -250,6 +250,19 @@
   .stopwatch .hand{transform-origin:50px 56px;animation:sweep 2.4s linear infinite;}
   @keyframes sweep{to{transform:rotate(360deg);}}
   .gen-elapsed{font-family:'Fraunces',serif;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted);}
+  /* Jokes, riddles and fake definitions while the item loads */
+  .gen-quip{position:relative;max-width:340px;margin:22px auto 0;min-height:5.4em;font-size:16px;line-height:1.45;color:var(--parchment);}
+  .gen-quip:empty{min-height:0;margin:0;}
+  .gen-quip .qtext{display:block;animation:fadein .4s ease;}
+  /* Each line goes up in a puff of smoke (the house style) */
+  .gen-quip.poof .qtext{animation:trypoof .45s ease-in forwards;}
+  .gen-quip .qsmoke{position:absolute;left:50%;top:40%;width:0;height:0;pointer-events:none;}
+  .gen-quip .qsmoke i{position:absolute;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;opacity:0;
+    background:radial-gradient(circle, rgba(242,233,216,.85) 0%, rgba(200,196,188,.45) 40%, rgba(200,196,188,0) 70%);
+    animation:puff .8s ease-out forwards;}
+  .gen-quip .qsmoke i:nth-child(even){animation-delay:.06s;}
+  .gen-quip .qa{display:block;margin-top:6px;color:var(--gold);font-weight:700;animation:fadein .4s ease;}
+  .gen-quip .term{font-family:'Fraunces',serif;font-weight:700;color:var(--fox);}
 
   /* ---- Host settings gear + sheet ---- */
   .gear{width:36px;height:36px;padding:0;font-size:18px;line-height:1;}
@@ -410,6 +423,7 @@
   @media (prefers-reduced-motion: reduce){
     .shake{animation:none;}
     .tryit-card,.tryit-bots span,.tryit.poof,.tryit.poof .tryit-card,.tryit.poof .tryit-smoke i{animation:none !important;}
+    .gen-quip .qtext,.gen-quip.poof .qtext,.gen-quip .qsmoke i,.gen-quip .qa{animation:none !important;}
     .ipop,.ifloat,.m-caret,.m-tap{animation:none !important;}
   }
 </style>
@@ -433,6 +447,7 @@
       <div class="gen-elapsed" id="gen-elapsed" style="display:none;">0:00</div>
       <div class="load-main"><span id="loading-message">Reconnecting&hellip;</span><span class="load-dots" id="load-dots" style="display:none;"><i></i><i></i><i></i></span></div>
       <div class="load-sub" id="loading-sub" style="display:none;"></div>
+      <div class="gen-quip" id="gen-quip" aria-live="polite"></div>
       <div id="gen-controls" style="display:none;margin-top:18px;">
         <div class="note" id="gen-note" style="margin-bottom:12px;"></div>
         <button class="btn" id="btn-gen-retry" style="display:none;">Try again</button>
@@ -1044,7 +1059,7 @@ const $ = (id) => document.getElementById(id);
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(id).classList.add('active');
-  if(id === 'screen-loading') armLoadingExit(); else $('btn-load-leave').style.display = 'none';
+  if(id === 'screen-loading') armLoadingExit(); else { $('btn-load-leave').style.display = 'none'; stopQuips(); }
 }
 // A way out of the loading screen, so nobody is ever stuck on it: always
 // there while an item generates, and after 8s on any other wait (a hung
@@ -2083,7 +2098,70 @@ function resetLoadingScreen(){
   $('loading-sub').style.display = 'none';
   $('load-dots').style.display = 'none';
   $('btn-load-leave').style.display = 'none';
+  stopQuips();
 }
+// ---- Something to read while the item loads ----------------------------------
+// Fake definitions (very on-brand), quips and riddles — the riddle's answer
+// pops in a few seconds after the question. Shuffled, no repeats until the
+// bag is empty. { d: term, t: text } is a definition, { t, a } a riddle.
+const QUIPS = [
+  { t: 'Quality takes time. Bluffing takes nerve.' },
+  { t: 'Triple-checking that this word actually exists…' },
+  { t: 'Somewhere, a librarian is being asked a very strange question.' },
+  { t: 'Rummaging through the dusty end of the dictionary…' },
+  { t: 'Practising our poker faces while you wait.' },
+  { t: 'Fact-checking the facts, so you can make up better ones.' },
+  { t: 'Tip: confidence sells a bluff. Correct spelling is optional.' },
+  { t: 'Tip: the real answer is often the strangest one. Often.' },
+  { t: 'Tip: a bluff that sounds a little boring is surprisingly hard to spot.' },
+  { t: 'Warming up the fake-answer machine. Please stand clear of the doors.' },
+  { d: 'Waitomancy', t: '(n.) The ancient art of staring at a loading screen until it finishes.' },
+  { d: 'Bluffington', t: '(n.) A small village where nobody has ever told the truth.' },
+  { d: 'Gigglesnort', t: '(n.) The noise you make when your own bluff is read out loud.' },
+  { d: 'Stopwatchery', t: '(n.) The belief that watching the clock makes it go faster. It does not.' },
+  { d: 'Pondersome', t: '(adj.) Taking a very long time to find a very short word.' },
+  { d: 'Fibbleworth', t: '(n.) The exact moment a bluff becomes more believable than the truth.' },
+  { d: 'Smugglefoot', t: '(n.) The little dance of someone whose bluff just fooled everyone.' },
+  { d: 'Nodwhistle', t: '(v.) To nod along as if you knew that word all along.' },
+  { t: "I'm made up, but I sound true. The better I am, the more points for you. What am I?", a: 'A good bluff.' },
+  { t: "Why don't obscure movies ever win awards?", a: 'Nobody can prove they were released.' },
+  { t: 'What did the real answer say to the bluff?', a: '"Nice try. I\'ve been in the dictionary since 1847."' },
+  { t: "What's an obscure person's favourite game?", a: 'Hide and never get found.' },
+  { t: 'Why was the loading screen so calm?', a: 'It had all the time in the world. Sadly, so do you.' },
+  { t: 'How do you always spot the real answer?', a: "Easy. It's the one you didn't vote for." },
+  { t: 'Why did the dictionary refuse to play Balderlaugh?', a: 'It knew all the answers and nobody would believe it.' },
+  { t: 'What do you call a bluff that fools absolutely everyone?', a: 'Retired. You can never top it.' }
+];
+const QUIP_MS = 6500, RIDDLE_MS = 9500, RIDDLE_ANSWER_MS = 4000;
+let quipBag = [], quipTimer = null, quipAnswerTimer = null;
+function drawQuip(){
+  if(!quipBag.length) quipBag = randomShuffle(QUIPS);
+  return quipBag.pop();
+}
+// The outgoing line goes up in a puff of smoke, then the next one fades in.
+const QUIP_SMOKE = [[-70,-30],[60,-40],[-40,30],[80,20],[0,-55],[20,40]];
+function showQuip(){
+  const el = $('gen-quip'), q = drawQuip();
+  clearTimeout(quipAnswerTimer);
+  const put = () => {
+    if(!quipTimer) return; // stopped while the smoke cleared
+    el.classList.remove('poof');
+    const body = q.d ? `<span class="term">${escapeHtml(q.d)}</span> ${escapeHtml(q.t)}` : escapeHtml(q.t);
+    el.innerHTML = `<span class="qtext">${body}</span>`;
+    if(q.a) quipAnswerTimer = setTimeout(() => el.querySelector('.qtext') && el.querySelector('.qtext').insertAdjacentHTML('beforeend', `<span class="qa">${escapeHtml(q.a)}</span>`), RIDDLE_ANSWER_MS);
+  };
+  quipTimer = setTimeout(showQuip, q.a ? RIDDLE_MS : QUIP_MS);
+  if(!el.textContent){ put(); return; }
+  el.classList.add('poof');
+  el.insertAdjacentHTML('beforeend', `<span class="qsmoke" aria-hidden="true">${QUIP_SMOKE.map(([x, y]) => `<i style="--x:${x}px;--y:${y}px"></i>`).join('')}</span>`);
+  setTimeout(put, 650);
+}
+function startQuips(){ if(!quipTimer) showQuip(); }
+function stopQuips(){
+  clearTimeout(quipTimer); clearTimeout(quipAnswerTimer); quipTimer = null;
+  $('gen-quip').textContent = '';
+}
+
 let oldieState = null; // { key, loading, pick } for the current out-of-retries screen
 function renderGenerating(){
   const r = game.round;
@@ -2114,6 +2192,7 @@ function renderGenerating(){
     const stuck = !!r.genFailed || waited > GEN_TRY_AGAIN_MS;
     const msg = $('loading-message'), sub = $('loading-sub');
     msg.textContent = r.genFailed ? "Couldn't find a fresh item" : stuck ? 'Still hunting for a fresh one' : 'Generating an item';
+    if(r.genFailed) stopQuips(); else startQuips();
     $('load-dots').style.display = r.genFailed ? 'none' : 'inline-flex';
     sub.style.display = 'block';
     sub.textContent = r.genFailed ? "Nothing new that hasn't been played recently." : stuck ? 'Good ones take a moment.' : 'This can take a few seconds.';

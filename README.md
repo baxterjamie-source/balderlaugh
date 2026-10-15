@@ -309,6 +309,16 @@ now also stores where each answer lives (answerSource / answerId / itemId);
 older generated records lack this and can't be replayed. If nothing
 qualifies, the host only gets "End the game".
 
+## Something to read while the item loads
+Under the stopwatch, while an item generates, one line at a time:
+fake dictionary definitions ("Waitomancy (n.) The ancient art of staring
+at a loading screen until it finishes."), quips/tips, and riddles whose
+answer pops in after 4s. Lines change every 6.5s (riddles 9.5s), shuffled
+with no repeats until all 26 have shown. Each one leaves in a puff of
+smoke, the house style, same as the Try it now welcome. Add more to
+`QUIPS` in `index.html`: `{ d, t }` is a definition, `{ t, a }` a riddle,
+`{ t }` a plain line.
+
 ## Never stuck on the loading screen
 The stopwatch screen always has **Leave this game** while an item is
 generating, for everyone and not just the host. That way nobody is stuck if
