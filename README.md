@@ -309,6 +309,16 @@ now also stores where each answer lives (answerSource / answerId / itemId);
 older generated records lack this and can't be replayed. If nothing
 qualifies, the host only gets "End the game".
 
+## Never stuck on the loading screen
+The stopwatch screen always has **Leave this game** while an item is
+generating, for everyone and not just the host. That way nobody is stuck if
+the phone that was fetching the item closed. Leaving parks you as left, so
+you can rejoin from In progress, and passes host on as usual. On any other
+loading wait (a reconnect that hangs on start-up, a round that never got
+going) a button appears after 8s: **Go to the home screen** if you aren't
+in a game yet, otherwise **Leave this game**. A reconnect that finally
+answers after you've tapped it is ignored.
+
 ## Keep-awake
 During generating/writing/reading/voting the page holds a Screen Wake Lock
 so short auto-lock timers don't trip Wander watch; released on results,

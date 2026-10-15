@@ -439,6 +439,7 @@
         <button class="btn" id="btn-gen-oldie" style="display:none;background:var(--gold);color:#3a2c00;">🕰 Replay a golden oldie</button>
         <button class="btn ghost" id="btn-gen-end" style="display:none;margin-top:10px;">End the game here</button>
       </div>
+      <button class="btn ghost small" id="btn-load-leave" type="button" style="display:none;margin:22px auto 0;">Leave this game</button>
     </div>
     <div class="spacer"></div>
   </section>
@@ -1041,7 +1042,26 @@ const $ = (id) => document.getElementById(id);
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(id).classList.add('active');
+  if(id === 'screen-loading') armLoadingExit(); else $('btn-load-leave').style.display = 'none';
 }
+// A way out of the loading screen, so nobody is ever stuck on it: always
+// there while an item generates, and after 8s on any other wait (a hung
+// reconnect on start-up, a round that never got going).
+const LOADING_EXIT_MS = 8000;
+let loadExitTimer = null, bootGaveUp = false;
+function armLoadingExit(){
+  clearTimeout(loadExitTimer);
+  loadExitTimer = setTimeout(() => {
+    if(!$('screen-loading').classList.contains('active')) return;
+    $('btn-load-leave').textContent = currentGameCode ? 'Leave this game' : 'Go to the home screen';
+    $('btn-load-leave').style.display = 'block';
+  }, LOADING_EXIT_MS);
+}
+$('btn-load-leave').onclick = () => {
+  bootGaveUp = true; // a reconnect that finally answers after this is ignored
+  if(currentGameCode && game) leaveGame(); else leaveToHome();
+};
+armLoadingExit(); // the page opens on the loading screen
 function genCode(){
   // Letters only (no I/O to avoid 1/0 confusion) — no keyboard switching on phones.
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -1630,6 +1650,7 @@ async function tryResume(){
   if(!savedCode) return false;
   try{
     const snap = await getDoc(doc(db, GAMES, savedCode));
+    if(bootGaveUp) return false; // they already tapped "Go to the home screen"
     if(!snap.exists() || !snap.data().players || !snap.data().players[myUid]){
       localStorage.removeItem('balderlaugh_current_game');
       return false;
@@ -2057,6 +2078,7 @@ function resetLoadingScreen(){
   $('gen-elapsed').style.display = 'none';
   $('loading-sub').style.display = 'none';
   $('load-dots').style.display = 'none';
+  $('btn-load-leave').style.display = 'none';
 }
 let oldieState = null; // { key, loading, pick } for the current out-of-retries screen
 function renderGenerating(){
@@ -2064,6 +2086,8 @@ function renderGenerating(){
   const attempt = r.genAttempt || 1;
   const left = GEN_MAX_ATTEMPTS - attempt;
   $('gen-controls').style.display = 'block';
+  $('btn-load-leave').textContent = 'Leave this game';
+  $('btn-load-leave').style.display = 'block';
   const retryBtn = $('btn-gen-retry'), endBtn = $('btn-gen-end'), oldieBtn = $('btn-gen-oldie');
   retryBtn.disabled = false; endBtn.disabled = false; oldieBtn.disabled = false;
   oldieBtn.onclick = async () => {
@@ -3130,7 +3154,7 @@ document.addEventListener('keydown', e => {
 
 (async () => {
   const resumed = await tryResume();
-  if(!resumed){
+  if(!resumed && !bootGaveUp){
     initHome();
     showScreen('screen-home');
     openIntro(); // every fresh open — but never when a refresh drops you back into a game
