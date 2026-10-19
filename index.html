@@ -6,6 +6,8 @@
 <title>Balderlaugh</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- QR codes for "scan to join" (host's 📱 button) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -285,6 +287,14 @@
   .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
   .sheet-head .x{width:40px;height:40px;border-radius:50%;border:none;background:var(--parchment);color:var(--ink);font-size:20px;font-weight:700;cursor:pointer;}
   .paste-note{font-size:13px;color:var(--gold);min-height:1em;margin-top:6px;}
+  /* Scan-to-join QR (white card so any phone camera reads it) */
+  .qr-sheet{z-index:59;background:rgba(10,12,18,.94);}
+  .qr-card{background:#fff;color:var(--ink);border-radius:20px;padding:18px 18px 16px;text-align:center;box-shadow:var(--shadow);}
+  .qr-title{font-family:'Fraunces',serif;font-size:20px;font-weight:700;margin-bottom:8px;}
+  .qr-img svg{display:block;width:min(78vw,380px);height:auto;margin:0 auto;}
+  .qr-img .qr-fallback{padding:30px 10px;color:var(--danger);font-size:15px;}
+  .qr-code{font-family:'Fraunces',serif;font-size:18px;color:#555;margin-top:6px;letter-spacing:.06em;}
+  .qr-code b{font-size:30px;color:var(--ink);letter-spacing:.12em;}
 
   /* ---- Wander watch toasts ---- */
   .toasts{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;z-index:60;
@@ -526,6 +536,8 @@
       <div class="row" style="margin-bottom:8px;"><strong>Players</strong><span class="roundpill" id="lobby-player-count">0</span></div>
       <div id="lobby-player-list" class="stack"></div>
     </div>
+
+    <button class="btn secondary" id="btn-show-qr" type="button" style="display:none;margin-bottom:12px;">📱 Show QR code so others can join</button>
 
     <div class="card" id="host-settings-card">
       <strong>Game settings</strong>
@@ -771,6 +783,32 @@
   </div>
 </div>
 
+<!-- Host's "scan to join" QR code -->
+<div class="sheet qr-sheet" id="qr-sheet" role="dialog" aria-modal="true" aria-label="Scan to join">
+  <div class="sheet-inner">
+    <div class="sheet-head"><h2 style="margin:0;">📱 Scan to join</h2><button class="x" type="button" id="btn-close-qr" aria-label="Close">✕</button></div>
+    <div class="qr-card">
+      <div class="qr-title" id="qr-title"></div>
+      <div class="qr-img" id="qr-img"></div>
+      <div class="qr-code">CODE <b id="qr-code"></b></div>
+    </div>
+    <div class="note center" style="margin-top:12px;font-size:14px;">Point a phone camera at it. Or type the code on the home screen.</div>
+  </div>
+</div>
+
+<!-- Arrived from a QR code / join link: confirm your name, then in -->
+<div class="sheet" id="join-sheet" role="dialog" aria-modal="true" aria-label="Join a game">
+  <div class="sheet-inner">
+    <div class="card" style="margin-top:12vh;">
+      <div class="sheet-head"><h2 style="margin:0;" id="join-title">Join the game</h2><button class="x" type="button" id="btn-join-close" aria-label="Close">✕</button></div>
+      <label for="join-name" style="margin-top:6px;">Your name</label>
+      <input type="text" id="join-name" placeholder="e.g. Jamie" maxlength="24" autocomplete="off">
+      <button class="btn" type="button" id="btn-join-go" style="margin-top:14px;">Join</button>
+      <div class="err" id="join-err"></div>
+    </div>
+  </div>
+</div>
+
 <!-- A bot's funniest-vote easter egg -->
 <div class="egg-bubble" id="egg-bubble" role="dialog"><div class="egg-who" id="egg-who">Claude says…</div><div id="egg-text"></div></div>
 
@@ -778,6 +816,7 @@
 <div class="menu-pop" id="menu-pop" role="menu">
   <button type="button" id="menu-sitout">Sit out</button>
   <button type="button" id="menu-settings">⚙ Settings</button>
+  <button type="button" id="menu-qr">📱 QR code to join</button>
   <button type="button" id="menu-rules">❓ How to play</button>
   <button type="button" id="menu-leave" class="danger">Leave for now</button>
 </div>
@@ -880,7 +919,7 @@
     <div class="rule"><div class="ic">🤖</div><div><b>On your own?</b> Tap <b>Try it now</b> for a quick 3-round game against three Claude Bots.</div></div>
     <div class="rule"><div class="ic">🛋️</div><div><b>Play together in the same room.</b> Part of the fun is reading the answers out loud and watching faces.</div></div>
     <div class="rule"><div class="ic">📱</div><div><b>Everyone uses their own phone</b> (or laptop, tablet, etc.). There's no shared screen, and each person's bluff stays secret.</div></div>
-    <div class="rule"><div class="ic">🏷️</div><div><b>Enter your name first.</b> One person taps <b>Start a new game</b>. Everyone else taps that game in the list, or types its code.</div></div>
+    <div class="rule"><div class="ic">🏷️</div><div><b>Enter your name first.</b> One person taps <b>Start a new game</b>. Everyone else taps that game in the list, or types its code, or scans the host's <b>📱 QR code</b>.</div></div>
 
     <div class="rules-sec">Each round</div>
     <div class="rule"><div class="ic">✍️</div><div><b>Bluff.</b> You get a strange word, person or movie. Write a fake answer that sounds real.</div></div>
@@ -1757,6 +1796,7 @@ function renderLobby(){
   if($('settings-sheet').classList.contains('open')) closeSettingsSheet();
   const hostCard = $('host-settings-card');
   hostCard.style.display = isHost() ? 'block' : 'none';
+  $('btn-show-qr').style.display = isHost() ? 'block' : 'none';
   $('btn-start-game').style.display = isHost() ? 'block' : 'none';
   $('lobby-wait-note').style.display = isHost() ? 'none' : 'block';
 
@@ -1842,6 +1882,7 @@ document.querySelectorAll('.menu-btn').forEach(btn => btn.onclick = (e) => {
   $('menu-sitout').style.display = sit ? 'block' : 'none';
   if(sit) $('menu-sitout').textContent = sit.textContent;
   $('menu-settings').style.display = isHost() ? 'block' : 'none';
+  $('menu-qr').style.display = isHost() ? 'block' : 'none';
   const r = btn.getBoundingClientRect();
   pop.style.top = `${r.bottom + 6}px`;
   pop.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
@@ -1849,6 +1890,7 @@ document.querySelectorAll('.menu-btn').forEach(btn => btn.onclick = (e) => {
 });
 $('menu-sitout').onclick = () => { const b = $(`btn-sitout-${menuScreen}`); closeMenu(); if(b) b.click(); };
 $('menu-settings').onclick = () => { closeMenu(); openSettingsSheet(); };
+$('menu-qr').onclick = (e) => { e.stopPropagation(); closeMenu(); openQr(); };
 $('menu-leave').onclick = () => { const b = $(`btn-leave-${menuScreen}`); closeMenu(); if(b) b.click(); };
 document.addEventListener('click', (e) => { if(!e.target.closest('#menu-pop')) closeMenu(); });
 document.querySelectorAll('.host-gear').forEach(b => b.onclick = openSettingsSheet);
@@ -3285,12 +3327,99 @@ document.querySelectorAll('[data-rules]').forEach(b => b.onclick = openRules);
 document.addEventListener('keydown', e => {
   if(e.key !== 'Escape') return;
   if(!$('tryit').hidden) poofTryItWelcome();
+  else if($('qr-sheet').classList.contains('open')) closeQr();
+  else if($('join-sheet').classList.contains('open')) closeJoinPrompt();
   else if($('rules-sheet').classList.contains('open')) closeRules(); else closeIntro();
 });
 
+// ---- Scan to join (QR) --------------------------------------------------------
+// The host's 📱 shows a big QR code of this page's address + ?join=CODE.
+// Scanning it opens the game with a "your name?" pop-up (saved name filled
+// in, so a shared phone can change it), one tap and they're in.
+function joinLink(code){ return `${location.origin}${location.pathname}?join=${encodeURIComponent(code)}`; }
+function openQr(){
+  if(!currentGameCode || !game) return;
+  $('qr-title').textContent = gameTitle(game);
+  $('qr-code').textContent = currentGameCode;
+  const box = $('qr-img');
+  try{
+    const qr = qrcode(0, 'M'); // window.qrcode, from the qrcode-generator script in <head>
+    qr.addData(joinLink(currentGameCode));
+    qr.make();
+    box.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
+  }catch(err){
+    console.error('QR code failed:', err);
+    box.innerHTML = `<div class="qr-fallback">Couldn't draw the QR code. Use the code below instead.</div>`;
+  }
+  $('qr-sheet').classList.add('open');
+}
+function closeQr(){ $('qr-sheet').classList.remove('open'); }
+$('btn-show-qr').onclick = openQr;
+$('btn-close-qr').onclick = closeQr;
+$('qr-sheet').onclick = (e) => { if(e.target === $('qr-sheet')) closeQr(); };
+
+// ?join=CODE on the address: take it (and tidy the address, so a refresh
+// doesn't ask again).
+function takeJoinParam(){
+  const params = new URLSearchParams(location.search);
+  const code = (params.get('join') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
+  if(params.has('join')){
+    params.delete('join');
+    const q = params.toString();
+    history.replaceState(null, '', location.pathname + (q ? `?${q}` : '') + location.hash);
+  }
+  return code || null;
+}
+let joinPromptCode = null;
+async function openJoinPrompt(code){
+  joinPromptCode = code;
+  $('join-title').textContent = 'Join the game';
+  $('join-name').value = myName;
+  $('join-err').textContent = '';
+  $('btn-join-go').disabled = false;
+  $('join-sheet').classList.add('open');
+  setTimeout(() => $('join-name').focus(), 150);
+  try{
+    const snap = await getDoc(doc(db, GAMES, code));
+    if(joinPromptCode !== code) return;
+    if(!snap.exists()){
+      $('join-title').textContent = 'Game not found';
+      $('join-err').textContent = `No game with code ${code}. It may have ended.`;
+      $('btn-join-go').disabled = true;
+      return;
+    }
+    $('join-title').textContent = `Join ${gameTitle(snap.data())}`;
+  }catch(err){ console.error('Could not look up that game:', err); }
+}
+function closeJoinPrompt(){ joinPromptCode = null; $('join-sheet').classList.remove('open'); }
+async function joinFromPrompt(){
+  const code = joinPromptCode;
+  const name = $('join-name').value.trim();
+  if(!code) return;
+  if(!name){ $('join-err').textContent = "What's your name?"; $('join-name').focus(); return; }
+  if(isReservedName(name)){ $('join-err').textContent = 'That name is reserved — pick another.'; return; }
+  myName = name;
+  localStorage.setItem('balderlaugh_name', name);
+  $('input-name').value = name;
+  $('join-err').textContent = '';
+  $('btn-join-go').disabled = true;
+  await joinGame(code); // reports problems (name taken, game full) in home-err
+  $('btn-join-go').disabled = false;
+  if(currentGameCode === code) closeJoinPrompt();
+  else $('join-err').textContent = $('home-err').textContent || 'Could not join — try again.';
+}
+$('btn-join-go').onclick = joinFromPrompt;
+$('btn-join-close').onclick = closeJoinPrompt;
+$('join-name').addEventListener('keydown', e => { if(e.key === 'Enter') joinFromPrompt(); });
+
 (async () => {
+  const joinCode = takeJoinParam();
   const resumed = await tryResume();
-  if(!resumed && !bootGaveUp){
+  if(joinCode && !(resumed && currentGameCode === joinCode)){
+    // Arrived from a QR code / join link: skip the intro, ask for a name.
+    if(!resumed){ initHome(); showScreen('screen-home'); }
+    openJoinPrompt(joinCode);
+  } else if(!resumed && !bootGaveUp){
     initHome();
     showScreen('screen-home');
     openIntro(); // every fresh open — but never when a refresh drops you back into a game

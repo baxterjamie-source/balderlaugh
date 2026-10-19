@@ -309,6 +309,18 @@ now also stores where each answer lives (answerSource / answerId / itemId);
 older generated records lack this and can't be replayed. If nothing
 qualifies, the host only gets "End the game".
 
+## Scan to join (QR)
+The host gets **📱 Show QR code so others can join** in the lobby, and
+**📱 QR code to join** in the ⋯ menu during play (for latecomers). It
+shows a large QR of the page's address + `?join=CODE`, with the game name
+and code underneath. Scanning it opens the game straight to a "Join
+<game>" pop-up with the saved name filled in (so a shared phone can change
+it), skipping the intro. One tap joins. The `?join=` is then removed from
+the address so a refresh doesn't ask again. If the game no longer exists,
+the pop-up says so. QR drawing: `qrcode-generator` 1.4.4 from cdnjs
+(script tag in `<head>`); if it fails to load, the sheet shows the code
+instead.
+
 ## Stat crowns on the Game summary
 Each of the three stats (✅ spotted the real one, 🃏 fooled someone,
 😂 funniest votes) crowns its CLEAR leader: that stat's icon with a little
