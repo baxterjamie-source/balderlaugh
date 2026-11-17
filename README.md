@@ -177,9 +177,19 @@ Reasonably trustworthy, not guaranteed.
 A new phase sits between writing and voting: one player each round is
 assigned Reader (a shuffled, no-repeat-until-exhausted rotation of active
 players — `game.readerQueue`, rebuilt whenever it empties out). Only the
-Reader sees the full shuffled list, real answer marked, no authors shown
-— same blind-to-authorship rule as the reveal screen always had. Everyone
-else just sees who's reading and waits. The Reader has an 8-minute cap
+Reader sees the shuffled list, no authors and no mark on the real answer.
+Everyone else just sees who's reading and waits.
+
+**One at a time (Nov 17):** the Reader starts with an empty list and a
+**Show first** button, then **Next** for each entry. Entries already read
+stay on screen, dimmed (by colour, not opacity, so the text keeps its
+contrast), with the current one highlighted. There's no Back button. Once
+the last entry is showing, Next becomes **Show Group**. How many are
+showing is `round.readPos` on the game record (the Reader's phone sets it;
+a refresh picks up where they were). The Big Screen runs one behind: an
+entry appears there when the Reader taps Next after reading it, so the room
+hears it first; the last one appears with the rest at Show Group.
+Players' phones still get nothing until Show Group. The Reader has an 8-minute cap
 (`READING_SECONDS`) before it auto-advances for the whole table, same
 any-client-can-trigger resilience pattern as the writing/voting timers —
 but pressing "Show Group" is what actually starts the voting clock,
@@ -254,6 +264,32 @@ closes it, like Play).
 **Deploying this change:** `firebase deploy --only functions` will offer
 to delete `generateBluff` and `judgeFunniest`, which are no longer used.
 Say yes.
+
+## The Big Screen (Nov 17)
+A view-only display for a TV or computer, like Howlertown's Town Crier. On
+that device's home screen, enter the game code under **📺 The Big Screen**,
+or bookmark `?screen=CODE`. A refresh stays on the Big Screen (sessionStorage);
+**Leave Big Screen** (bottom right) goes back home.
+- **Not a player:** takes no seat, never writes to the game record, never
+  moves a phase on, isn't subject to Wander watch, and holds a wake lock the
+  whole time. Safe to open in a player's own browser (another tab).
+- **What it shows:** lobby (big QR code, the code, players and bots coming);
+  loading (stopwatch, elapsed time, its own quips); writing (prompt, timer,
+  who's in, never what anyone wrote); reading (only the entries the Reader
+  has revealed, following `round.readPos`); voting (the shared list as every
+  phone sees it, plus who has voted); reveal (authors, real answer, votes,
+  laughs, standings, plus the round leader's mic drop); final scores with
+  stat crowns.
+- **Secrets:** screen-level. It never displays authors or which entry is real
+  before the reveal. It reads the same open game record the phones do, so it
+  adds no new leak (see Known limitation).
+- Long lists shrink the type to fit the screen (down to 55%), via
+  `fitBigScreen()`. Code: section 15 in `index.html` (`renderBigScreen`).
+
+## Corner labels
+Bottom left: the version (`APP_VERSION`, currently 2.1). Bottom right, while
+in a game (phones and the Big Screen): `Code ABCDE`, so anyone can read it out
+to a latecomer (`updateCornerCode()`).
 
 ## Sept 24 batch
 - No item numbers anywhere players see them.
