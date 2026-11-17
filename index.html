@@ -509,6 +509,12 @@
   .app-version{position:fixed;left:calc(env(safe-area-inset-left,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 6px);z-index:47;
     font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;pointer-events:none;user-select:none;}
   body.bigscreen .app-version{font-size:14px;left:1.2vw;bottom:1.2vh;}
+  /* The game code, bottom right while in a game, so anyone can read it out to a latecomer. */
+  .app-code{position:fixed;right:calc(env(safe-area-inset-right,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 6px);z-index:47;
+    font-size:11px;color:var(--muted);letter-spacing:.06em;pointer-events:none;}
+  .app-code[hidden]{display:none;}
+  body.bigscreen .app-code{font-size:14px;right:1.2vw;bottom:1.2vh;}
+  body.bigscreen .bs-leave{bottom:calc(1.2vh + 26px);}
   .bs-join .note{margin-bottom:6px;}
 
   @media (prefers-reduced-motion: reduce){
@@ -907,6 +913,7 @@
 </div>
 
 <div class="app-version" id="app-version">v2.1</div>
+<div class="app-code" id="app-code" hidden></div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
@@ -1074,6 +1081,13 @@ const functionsClient = getFunctions(app); // default region (us-central1) — m
 const GAMES = "balderlaugh_games";
 const APP_VERSION = '2.1'; // shown bottom left; bump with each release
 document.getElementById('app-version').textContent = `v${APP_VERSION}`;
+// Bottom right: the code of the game this screen is in (player or Big Screen).
+function updateCornerCode(){
+  const el = document.getElementById('app-code');
+  const c = bigScreen ? bsCode : currentGameCode; // only called after start-up, once bigScreen exists
+  el.textContent = c ? `Code ${c}` : '';
+  el.hidden = !c;
+}
 
 // ---- 2. ITEM CONTENT (words/people/movies + real answers) -----------------
 // PRIMARY: live-generated per round via the generateItem Cloud Function,
@@ -1756,6 +1770,7 @@ function leaveToHome(){
   clearInterval(timerInterval);
   localStorage.removeItem('balderlaugh_current_game');
   currentGameCode = null; game = null; lastPhaseKey = null;
+  updateCornerCode();
   showScreen('screen-home');
   $('input-name').value = myName;
   initHome(); // sets up the home screen if this load resumed straight into a game
@@ -1825,6 +1840,7 @@ async function tryResume(){
 
 function route(){
   syncWakeLock();
+  updateCornerCode();
   document.querySelectorAll('.host-gear').forEach(b => b.style.display = isHost() ? '' : 'none');
   if(!isHost() && $('settings-sheet').classList.contains('open')) closeSettingsSheet();
   if(game.status === 'lobby'){ renderLobby(); showScreen('screen-lobby'); return; }
@@ -3579,6 +3595,7 @@ function enterBigScreen(code){
   try{ sessionStorage.setItem(BS_KEY, code); }catch(e){}
   document.body.classList.add('bigscreen');
   $('bigscreen').hidden = false;
+  updateCornerCode();
   $('bs-main').innerHTML = `<div class="bs-wrap"><p class="bs-say big" style="margin:auto;">Connecting to ${escapeHtml(code)}&hellip;</p></div>`;
   unsubBs = onSnapshot(doc(db, GAMES, code), snap => {
     if(!snap.exists()){ leaveBigScreen(`Game ${code} has ended.`); return; }
@@ -3598,6 +3615,7 @@ function leaveBigScreen(msg){
   bigScreen = false; bsCode = null; game = null; bsHtml = '';
   document.body.classList.remove('bigscreen');
   $('bigscreen').hidden = true; $('bs-main').innerHTML = '';
+  updateCornerCode();
   syncWakeLock();
   showScreen('screen-home');
   initHome();
@@ -3694,13 +3712,17 @@ function bsWriting(r){
 }
 function bsReading(r){
   const order = r.shuffleOrder || [];
-  const shown = readPosOf(r);
+  // One behind the Reader: an entry lands here only once the Reader has
+  // finished it and tapped Next, so the room hears each one before seeing
+  // it. The last one appears with everything else when they tap Show Group.
+  const onPhone = readPosOf(r);
+  const shown = Math.max(0, onPhone - 1);
   const reader = bsName(r.readerUid);
   const rows = order.slice(0, shown).map((id, i) =>
     `<div class="bs-row ${i === shown - 1 ? 'current' : 'read'}">${escapeHtml(tidy(readEntryText(r, id)))}</div>`).join('');
-  const say = shown === 0 ? `📖 <b>${reader}</b> is the Reader. Listen first, vote next.`
-    : shown >= order.length ? `That's all of them. Waiting for <b>${reader}</b> to send them to your phones.`
-    : `📖 <b>${reader}</b> is reading.`;
+  const say = onPhone === 0 ? `📖 <b>${reader}</b> is the Reader. Listen first, vote next.`
+    : onPhone >= order.length && order.length > 1 ? `📖 <b>${reader}</b> is reading the last one.`
+    : `📖 <b>${reader}</b> is reading. Listen up.`;
   return `<div class="bs-wrap">${bsTop(r)}<p class="bs-say">${say}</p><div class="bs-list">${rows}</div></div>`;
 }
 function bsVoting(r){
