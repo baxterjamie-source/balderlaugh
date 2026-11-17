@@ -133,6 +133,11 @@
   .sub-option.selected .idx{color:#fff;}
   .sub-option.disabled{cursor:default;opacity:.55;}
   .sub-option.readonly{cursor:default;}
+  /* The Reader's one-at-a-time list: read ones dimmed, the current one lit. */
+  /* Dimmed with colour rather than opacity, so the text keeps its contrast. */
+  .read-row{background:#CFC3AA;color:#4A4436;transition:background .25s ease, border-color .25s ease;animation:readin .35s ease;}
+  .read-row.current{background:var(--parchment);color:var(--text-dark);border-color:var(--fox);box-shadow:0 4px 14px rgba(193,82,28,.35);}
+  @keyframes readin{from{opacity:0;transform:translateY(8px);}}
   .sub-option .idx{font-weight:700;color:var(--fox);margin-right:6px;}
   .sub-option .flags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
   .flag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;}
@@ -443,11 +448,71 @@
   @keyframes puff{0%{opacity:.95;transform:translate(0,0) scale(.3);}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(2.4);}}
   @keyframes tryfade{to{opacity:0;}}
 
+  /* ---- The Big Screen: a view-only display for a TV or computer ---- */
+  body.bigscreen .app{display:none;}
+  .bigscreen{position:fixed;inset:0;z-index:45;overflow:hidden;display:flex;flex-direction:column;
+    padding:2.5vh 4vw 3vh;color:var(--text-light);font-size:calc(clamp(16px,1.55vw,34px) * var(--bs-scale,1));
+    background:radial-gradient(ellipse at 50% -10%, #2A3248 0%, var(--ink) 60%);}
+  .bigscreen[hidden]{display:none;}
+  .bs-measuring *{animation:none !important;transition:none !important;}
+  .bs-bar{display:flex;align-items:center;justify-content:space-between;gap:2vw;height:3.2em;flex:none;font-size:clamp(16px,1.55vw,34px);}
+  .bs-brand{font-family:'Fraunces',serif;font-weight:700;color:var(--fox);font-size:1.6em;}
+  .bs-brand span{font-family:'Inter',sans-serif;font-weight:500;font-size:.5em;color:var(--muted);margin-left:.6em;letter-spacing:.04em;}
+  .bs-timer{font-family:'Fraunces',serif;font-size:2em;font-variant-numeric:tabular-nums;color:var(--parchment);}
+  .bs-timer.low{color:#F08A7E;}
+  .bs-main{flex:1;min-height:0;display:flex;flex-direction:column;}
+  .bs-wrap{display:flex;flex-direction:column;min-height:0;flex:1;animation:fadein .35s ease;}
+  .bs-top{background:var(--parchment);color:var(--text-dark);border-radius:18px;padding:.8em 2em;text-align:center;margin:0 auto 1.1em;max-width:75vw;flex:none;}
+  .bs-cat{font-size:.65em;letter-spacing:.1em;text-transform:uppercase;color:var(--fox);font-weight:700;}
+  .bs-term{font-family:'Fraunces',serif;font-size:2.5em;font-weight:700;line-height:1.1;margin:.1em 0;}
+  .bs-round{font-size:.65em;color:#5E5747;}
+  .bs-say{text-align:center;font-size:1.25em;margin:0 0 .9em;line-height:1.35;}
+  .bs-say.big{font-family:'Fraunces',serif;font-size:2em;font-weight:600;}
+  .bs-note{text-align:center;color:#B6BDCC;font-size:.9em;margin-top:.8em;}
+  .bs-list{display:flex;flex-direction:column;gap:.55em;max-width:min(1500px,86vw);width:100%;margin:0 auto;}
+  .bs-row{background:var(--parchment);color:var(--text-dark);border-radius:14px;padding:.6em 1em;line-height:1.35;border:3px solid transparent;animation:readin .4s ease;}
+  .bs-row.read{background:#CFC3AA;color:#4A4436;}
+  .bs-row.current{border-color:var(--fox);box-shadow:0 6px 22px rgba(193,82,28,.4);}
+  .bs-row.real{border-color:var(--moss);}
+  .bs-row .flags{display:flex;gap:.45em;margin-top:.45em;flex-wrap:wrap;align-items:center;}
+  .bs-row .flag{font-size:.62em;padding:.25em .8em;}
+  .bs-row .laugh{font-size:1em;}
+  .bs-row .laugh-img{width:1.05em;height:1.05em;}
+  .bs-pills{display:flex;flex-wrap:wrap;justify-content:center;gap:.55em;margin:.4em auto 0;max-width:80vw;}
+  .bs-pill{display:inline-flex;align-items:center;gap:.35em;padding:.3em .9em;border-radius:999px;font-weight:600;border:3px solid;}
+  .bs-pill.out{background:transparent !important;color:var(--text-light) !important;}
+  .bs-cols{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:3vw;align-items:start;}
+  .bs-cols .bs-list{max-width:none;}
+  .bs-side h3{font-size:1.05em;margin:0 0 .5em;color:var(--parchment);}
+  .bigscreen .leader-row{padding:.45em .8em;margin-bottom:.4em;border-radius:12px;}
+  .bigscreen .leader-row .rank{width:1.6em;}
+  .bigscreen .leader-row .delta{font-size:.7em;margin-left:.35em;}
+  .bs-lobby{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4vw;align-items:center;margin:auto 0;}
+  .bs-qr{background:#fff;border-radius:18px;padding:1.2vh;width:min(42vh,32vw);}
+  .bs-qr svg{display:block;width:100%;height:auto;}
+  .bs-code{font-family:'Fraunces',serif;font-size:3.6em;font-weight:700;letter-spacing:.14em;color:var(--gold);line-height:1;}
+  .bs-url{color:#B6BDCC;font-size:.8em;margin:.4em 0 1.2em;word-break:break-all;}
+  .bs-lobby .bs-pills{justify-content:flex-start;margin:0;max-width:none;}
+  .bs-final .gs-line{display:flex;align-items:center;gap:.5em;width:min(1100px,80vw);margin:0 auto .5em;}
+  .bs-final .gs-line .leader-row{padding:.5em .8em;}
+  .bs-final .gs-stats{font-size:.75em;gap:.9em;margin-right:1em;}
+  .bs-final .gs-awards{min-width:4em;}
+  body.bigscreen .splash-block{zoom:1.9;}
+  .bs-final .leader-row{flex:1;font-size:1.15em;}
+  .bs-final .gs-awards{display:flex;gap:.3em;}
+  .bigscreen .gen-quip{max-width:min(900px,70vw);font-size:1.15em;margin:1.2em auto 0;text-align:center;}
+  .bigscreen .stopwatch{width:min(22vh,160px);height:min(22vh,160px);display:block;margin:0 auto .6em;}
+  .bs-leave{position:fixed;right:1.2vw;bottom:1.2vh;z-index:46;opacity:.7;}
+  .bs-leave:hover,.bs-leave:focus-visible{opacity:1;}
+  .bs-join{margin-top:6px;}
+  .bs-join .note{margin-bottom:6px;}
+
   @media (prefers-reduced-motion: reduce){
     .shake{animation:none;}
     .tryit-card,.tryit-bots span,.tryit.poof,.tryit.poof .tryit-card,.tryit.poof .tryit-smoke i{animation:none !important;}
     .gen-quip .qtext,.gen-quip.poof .qtext,.gen-quip .qsmoke i,.gen-quip .qa,.award{animation:none !important;}
     .ipop,.ifloat,.m-caret,.m-tap{animation:none !important;}
+    .read-row,.bs-row,.bs-wrap{animation:none !important;}
   }
 </style>
 </head>
@@ -514,6 +579,13 @@
         <button class="btn secondary small" id="btn-join-code">Join</button>
       </div>
       <button class="btn secondary" id="btn-home-try">🤖 Try it now <span class="note" style="font-size:13px;">· solo vs 3 bots</span></button>
+      <div class="bs-join">
+        <div class="note">📺 <b>The Big Screen</b>: show a game on a TV or computer. It watches, it doesn't play.</div>
+        <div class="row" style="gap:8px;">
+          <input type="text" id="input-bscode" placeholder="Game code" maxlength="6" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" style="text-transform:uppercase;" aria-label="Game code for The Big Screen">
+          <button class="btn secondary small" id="btn-bigscreen" style="white-space:nowrap;">Show on this screen</button>
+        </div>
+      </div>
       <div class="home-links">
         <button type="button" class="how-link" data-rules>❓ <span>How to play</span></button>
         <button type="button" class="how-link" id="btn-home-intro">✨ <span>Back to intro</span></button>
@@ -671,9 +743,9 @@
       <div class="card parchment" style="text-align:center;margin-bottom:14px;">
         <div style="font-size:22px;font-weight:700;color:var(--fox);">📖 You are the Reader!</div>
         <div style="font-size:17px;font-weight:700;color:var(--fox);margin-top:2px;">Read now, vote later.</div>
-        <div style="margin-top:8px;">Read each one aloud, then tap Show Group.</div>
+        <div style="margin-top:8px;" id="reading-howto">Tap <b>Show first</b>, read it aloud, then <b>Next</b>. <b>Show Group</b> appears after the last one.</div>
       </div>
-      <div id="reading-list"></div>
+      <div id="reading-list" aria-live="polite"></div>
     </div>
 
     <div id="reading-waiting-view" style="display:none;">
@@ -685,7 +757,8 @@
     </div>
 
     <div class="footer-actions" id="reading-footer" style="display:none;">
-      <button class="btn" id="btn-show-group">Show Group</button>
+      <button class="btn" id="btn-read-next">Show first</button>
+      <button class="btn" id="btn-show-group" style="display:none;">Show Group</button>
     </div>
   </section>
 
@@ -822,6 +895,13 @@
 </div>
 
 <!-- Wander watch alerts -->
+<!-- ============ THE BIG SCREEN (view-only, for a TV or computer) ============ -->
+<div class="bigscreen" id="bigscreen" hidden>
+  <div class="bs-bar"><div class="bs-brand">Balderlaugh<span>📺 THE BIG SCREEN</span></div><div class="bs-timer" id="bs-timer" aria-live="off"></div></div>
+  <div class="bs-main" id="bs-main" aria-live="polite"></div>
+  <button class="btn ghost small bs-leave" id="btn-bs-leave" type="button">Leave Big Screen</button>
+</div>
+
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <!-- Round-leader splash ("mic drop") — sits above every screen -->
@@ -918,12 +998,13 @@
     <div class="rule"><div class="ic">👥</div><div><b>2 to 8 players</b> (Claude Bots count as players).</div></div>
     <div class="rule"><div class="ic">🤖</div><div><b>On your own?</b> Tap <b>Try it now</b> for a quick 3-round game against three Claude Bots.</div></div>
     <div class="rule"><div class="ic">🛋️</div><div><b>Play together in the same room.</b> Part of the fun is reading the answers out loud and watching faces.</div></div>
-    <div class="rule"><div class="ic">📱</div><div><b>Everyone uses their own phone</b> (or laptop, tablet, etc.). There's no shared screen, and each person's bluff stays secret.</div></div>
+    <div class="rule"><div class="ic">📱</div><div><b>Everyone uses their own phone</b> (or laptop, tablet, etc.). Each person's bluff stays secret.</div></div>
+    <div class="rule"><div class="ic">📺</div><div><b>Got a TV or computer handy?</b> Make it <b>The Big Screen</b>: on its home screen, enter the game code under <b>The Big Screen</b>. It shows the game to the room but never gives away who wrote what, or which answer is real, before the reveal.</div></div>
     <div class="rule"><div class="ic">🏷️</div><div><b>Enter your name first.</b> One person taps <b>Start a new game</b>. Everyone else taps that game in the list, or types its code, or scans the host's <b>📱 QR code</b>.</div></div>
 
     <div class="rules-sec">Each round</div>
     <div class="rule"><div class="ic">✍️</div><div><b>Bluff.</b> You get a strange word, person or movie. Write a fake answer that sounds real.</div></div>
-    <div class="rule"><div class="ic">📖</div><div><b>Listen.</b> One player reads all the answers out loud. The real one is hiding in there.</div></div>
+    <div class="rule"><div class="ic">📖</div><div><b>Listen.</b> One player, the Reader, shows the answers one at a time and reads each one out loud. The real one is hiding in there. Then the Reader taps <b>Show Group</b> and the list goes to everyone's phone.</div></div>
     <div class="rule"><div class="ic">🗳️</div><div><b>Vote.</b> Tap <b>Real</b> on the one you think is true. Tap <b>😂</b> on the funniest.</div></div>
     <div class="rule"><div class="ic">😂</div><div><b>Laugh.</b> See the real answer, who wrote what, and who got fooled.</div></div>
 
@@ -2420,6 +2501,26 @@ function botRealPick(uid, order){
 }
 
 // ---- 9b. READING ---------------------------------------------------------
+// The Reader reveals the entries one at a time. round.readPos is how many are
+// showing (0 = none yet); the Reader's phone and The Big Screen both follow
+// it, and it's on the game record so a refresh picks up where they were.
+// Players' phones don't show the list until the Reader taps Show Group.
+function readPosOf(r){
+  const n = (r.shuffleOrder || []).length;
+  return Math.max(0, Math.min(n, Number(r.readPos) || 0));
+}
+function readEntryText(r, id){
+  return id === 'REAL' ? (r.answerText || '') : (r.submissions && r.submissions[id] ? r.submissions[id].text : '');
+}
+// Sets (not increments) the count the button was showing + 1, so a double
+// tap can't skip an entry.
+async function advanceReadPos(index, shownNow){
+  const r = game && game.round;
+  if(!r || r.index !== index || r.phase !== 'reading' || r.readerUid !== myUid) return;
+  if(readPosOf(r) > shownNow) return;
+  try{ await updateDoc(doc(db, GAMES, currentGameCode), { 'round.readPos': shownNow + 1 }); }
+  catch(err){ console.error('Could not show the next entry:', err); }
+}
 function renderReading(isNew){
   const r = game.round;
   $('reading-round-pill').textContent = formatRoundLabel(r);
@@ -2433,23 +2534,31 @@ function renderReading(isNew){
 
   if(isReader){
     const order = r.shuffleOrder || [];
+    const shown = readPosOf(r);
     const list = $('reading-list');
-    list.innerHTML = '';
     // The Reader is blind to which one is real, same as everyone else —
     // they're purely reading the list aloud, not the "dasher" who already
-    // knows the answer. No distinguishing mark on any row.
-    order.forEach((id) => {
-      const isReal = id === 'REAL';
-      const text = isReal ? (r.answerText || '') : (r.submissions[id] ? r.submissions[id].text : '');
+    // knows the answer. No distinguishing mark on any row, and no numbers.
+    // One at a time: entries already read stay, dimmed; the one to read
+    // now is highlighted. (The Reader's own entry is NOT moved to the
+    // bottom — the room would learn "last one read = the Reader's".)
+    // Only rows that are new get added, so the list doesn't flicker or
+    // replay its animation when an unrelated update arrives.
+    if(list.dataset.round !== String(r.index) || list.children.length > shown){ list.innerHTML = ''; list.dataset.round = String(r.index); }
+    const added = list.children.length < shown;
+    for(let i = list.children.length; i < shown; i++){
       const div = document.createElement('div');
-      // Full-opacity, no border/background changes — this is a plain
-      // read-aloud list, not a voting or reveal screen. No numbers either.
-      // (The Reader's own entry is NOT moved to the bottom here — the room
-      // would learn "last one read = the Reader's".)
-      div.className = 'sub-option readonly';
-      div.innerHTML = escapeHtml(tidy(text));
+      div.className = 'sub-option readonly read-row';
+      div.innerHTML = escapeHtml(tidy(readEntryText(r, order[i])));
       list.appendChild(div);
-    });
+    }
+    [...list.children].forEach((el, i) => el.classList.toggle('current', i === shown - 1));
+    if(added && shown > 1) list.children[shown - 1].scrollIntoView({ behavior:'smooth', block:'center' });
+    const done = shown >= order.length;
+    $('btn-read-next').style.display = done ? 'none' : 'block';
+    $('btn-read-next').textContent = shown === 0 ? 'Show first' : 'Next';
+    $('btn-show-group').style.display = done ? 'block' : 'none';
+    $('btn-read-next').onclick = () => advanceReadPos(r.index, shown);
     $('btn-show-group').onclick = () => maybeAdvanceFromReading();
   } else {
     const readerName = (game.players[r.readerUid] && game.players[r.readerUid].name) || 'Someone';
@@ -2977,6 +3086,7 @@ let wakeOk = false; // did the last keep-awake request actually work on this dev
 let wakePending = false;
 const WAKE_PHASES = ['generating','writing','reading','voting'];
 function wantWake(){
+  if(bigScreen) return true; // a TV showing the game should never doze off
   return !!(game && game.status === 'playing' && game.round && WAKE_PHASES.includes(game.round.phase) && currentGameCode);
 }
 async function syncWakeLock(){
@@ -3006,6 +3116,7 @@ const wanderToasts = {};           // key -> toast element (to add "back after X
 let wanderPrimedFor = null;        // game+round we've primed wanderSeen for
 
 function wanderActiveForMe(){
+  if(bigScreen) return false; // the Big Screen isn't a player, even in a player's own browser
   return !!(game && game.status === 'playing' && game.settings && game.settings.wanderWatch &&
     game.round && WANDER_PHASES.includes(game.round.phase) &&
     game.players && game.players[myUid] && !amISittingOut());
@@ -3412,7 +3523,280 @@ $('btn-join-go').onclick = joinFromPrompt;
 $('btn-join-close').onclick = closeJoinPrompt;
 $('join-name').addEventListener('keydown', e => { if(e.key === 'Enter') joinFromPrompt(); });
 
+// ---- 15. THE BIG SCREEN ------------------------------------------------------
+// A view-only device (a TV, or a computer on one) that shows the game to the
+// whole room. It isn't a player: it takes no seat, never writes to the game,
+// never moves a phase on, and never shows anything a phone wouldn't show the
+// whole table at that moment:
+//   writing  — the prompt and WHO is in, never what anyone wrote
+//   reading  — only the entries the Reader has revealed so far (round.readPos)
+//   voting   — the list, as every phone sees it, plus who has voted
+//   reveal   — authors, the real answer and votes, only once the round is revealed
+// It reads the same open game record the phones do, so it adds no new leak.
+// Opened from the home screen's code box, or ?screen=CODE (a TV bookmark);
+// a refresh stays on the Big Screen (sessionStorage).
+let bigScreen = false, bsCode = null, unsubBs = null, bsTick = null;
+let bsHtml = '', bsPhaseKey = null, bsQuip = null;
+const BS_KEY = 'balderlaugh_bigscreen';
+
+function cleanCode(c){ return (c || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6); }
+async function openBigScreenFromHome(){
+  const code = cleanCode($('input-bscode').value);
+  if(!code){ $('home-err').textContent = 'Enter the game code first.'; $('input-bscode').focus(); return; }
+  $('btn-bigscreen').disabled = true;
+  try{
+    const snap = await getDoc(doc(db, GAMES, code));
+    if(!snap.exists()){ $('home-err').textContent = `No game with code ${code}.`; return; }
+    $('home-err').textContent = '';
+    enterBigScreen(code);
+  }catch(err){
+    console.error('Big Screen lookup failed:', err);
+    $('home-err').textContent = 'Could not reach that game. Try again.';
+  }finally{ $('btn-bigscreen').disabled = false; }
+}
+$('input-bscode').addEventListener('input', e => { const c = cleanCode(e.target.value); if(c !== e.target.value) e.target.value = c; });
+$('input-bscode').addEventListener('keydown', e => { if(e.key === 'Enter') openBigScreenFromHome(); });
+$('btn-bigscreen').onclick = openBigScreenFromHome;
+$('btn-bs-leave').onclick = () => leaveBigScreen();
+
+function enterBigScreen(code){
+  // Never this tab's player game too: stop listening to it (the player's
+  // own game, if any, is untouched and resumes in their own tab).
+  if(unsubGame){ unsubGame(); unsubGame = null; }
+  if(unsubOpenGames){ unsubOpenGames(); unsubOpenGames = null; }
+  clearInterval(timerInterval); stopQuips();
+  closeIntro(); closeJoinPrompt(); closeQr(); closeRules();
+  currentGameCode = null; game = null; lastPhaseKey = null;
+  bigScreen = true; bsCode = code; bsHtml = ''; bsPhaseKey = null; bsQuip = null;
+  try{ sessionStorage.setItem(BS_KEY, code); }catch(e){}
+  document.body.classList.add('bigscreen');
+  $('bigscreen').hidden = false;
+  $('bs-main').innerHTML = `<div class="bs-wrap"><p class="bs-say big" style="margin:auto;">Connecting to ${escapeHtml(code)}&hellip;</p></div>`;
+  unsubBs = onSnapshot(doc(db, GAMES, code), snap => {
+    if(!snap.exists()){ leaveBigScreen(`Game ${code} has ended.`); return; }
+    game = snap.data();
+    renderBigScreen();
+  }, err => console.error('Big Screen listener failed:', err));
+  clearInterval(bsTick);
+  bsTick = setInterval(() => { if(game) renderBigScreen(); }, 500);
+  syncWakeLock();
+}
+function leaveBigScreen(msg){
+  if(unsubBs){ unsubBs(); unsubBs = null; }
+  clearInterval(bsTick); bsTick = null;
+  try{ sessionStorage.removeItem(BS_KEY); }catch(e){}
+  const params = new URLSearchParams(location.search);
+  if(params.has('screen')){ params.delete('screen'); const q = params.toString(); history.replaceState(null, '', location.pathname + (q ? `?${q}` : '') + location.hash); }
+  bigScreen = false; bsCode = null; game = null; bsHtml = '';
+  document.body.classList.remove('bigscreen');
+  $('bigscreen').hidden = true; $('bs-main').innerHTML = '';
+  syncWakeLock();
+  showScreen('screen-home');
+  initHome();
+  $('input-name').value = myName;
+  $('home-err').textContent = msg || '';
+}
+// ?screen=CODE on the address, or a Big Screen this tab was already showing.
+function bigScreenCodeAtBoot(){
+  const q = cleanCode(new URLSearchParams(location.search).get('screen'));
+  if(q) return q;
+  try{ return cleanCode(sessionStorage.getItem(BS_KEY)); }catch(e){ return ''; }
+}
+
+// -- pieces --
+function bsPill(uid, out){
+  const p = game.players && game.players[uid];
+  const col = playerColor(uid);
+  const name = escapeHtml(p ? p.name : 'Someone');
+  return out
+    ? `<span class="bs-pill out" style="border-color:${col.bg};">${name}</span>`
+    : `<span class="bs-pill" style="background:${col.bg};color:${col.fg};border-color:${col.bg};">${name} ✓</span>`;
+}
+// Who's in, one uid at a time — the same rule as phaseProgress, so the Big
+// Screen never shows a bot "in" before the phones count it.
+function bsWhoIsIn(entries, pending = []){
+  entries = entries || {};
+  const now = Date.now();
+  const active = activePlayerUids();
+  const humans = active.filter(u => !isBot(u));
+  const humansIn = humans.length > 0 && humans.every(u => entries[u]);
+  const doneAt = humansIn ? Math.max(0, ...humans.map(u => entries[u].at || 0)) : Infinity;
+  const expected = active.filter(u => !isBot(u) || entries[u] || pending.includes(u));
+  const isIn = u => { const e = entries[u]; if(!e) return false; if(!e.bot) return true; return now >= e.at || now >= doneAt + (e.lag || 0); };
+  const order = Object.keys(game.players || {});
+  expected.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  return { expected, isIn, inCount: expected.filter(isIn).length };
+}
+function bsPillsFor(entries, pending){
+  const w = bsWhoIsIn(entries, pending);
+  return { html: `<div class="bs-pills">${w.expected.map(u => bsPill(u, !w.isIn(u))).join('')}</div>`, ...w };
+}
+function bsTop(r){
+  return `<div class="bs-top"><div class="bs-cat">${escapeHtml(CAT_LABEL[r.category] || '')}</div>` +
+    `<div class="bs-term">${escapeHtml(r.term || '')}</div><div class="bs-round">${escapeHtml(formatRoundLabel(r))}</div></div>`;
+}
+function bsName(uid){ return escapeHtml((game.players && game.players[uid] && game.players[uid].name) || 'Someone'); }
+function bsStandings(r){
+  const sorted = scoreboard();
+  const top = sorted.length ? sorted[0][1].score : 0;
+  return sorted.map(([uid, p], i) => {
+    const col = playerColor(uid);
+    const delta = (r && r.scoreDeltas && r.scoreDeltas[uid]) || 0;
+    return `<div class="leader-row colored${p.score === top ? ' first' : ''}" style="background:${col.bg};color:${col.fg};">` +
+      `<span class="rank">${i + 1}</span><span style="flex:1;padding:0 .5em;font-weight:600;">${escapeHtml(p.name)}</span>` +
+      `<span class="score">${p.score}${delta > 0 ? `<span class="delta">+${delta}</span>` : ''}</span></div>`;
+  }).join('');
+}
+
+// -- one view per phase --
+function bsLobby(){
+  const players = game.players || {};
+  const uids = Object.keys(players);
+  const botsComing = BOTS.slice(0, Math.max(0, Math.min(Number(game.settings && game.settings.bots) || 0, MAX_PLAYERS - uids.length)));
+  let qr = '';
+  try{ const q = qrcode(0, 'M'); q.addData(joinLink(bsCode)); q.make(); qr = q.createSvgTag({ cellSize: 8, margin: 2, scalable: true }); }catch(e){}
+  const seats = { ...players };
+  const botPills = botsComing.map(b => { seats[b.uid] = { color: firstFreeColor(seats, b.uid) }; const c = PLAYER_COLORS[seats[b.uid].color];
+    return `<span class="bs-pill" style="background:${c.bg};color:${c.fg};border-color:${c.bg};border-style:dashed;">🤖 ${escapeHtml(b.name)}</span>`; }).join('');
+  return `<div class="bs-wrap"><div class="bs-lobby">` +
+    (qr ? `<div class="bs-qr" role="img" aria-label="QR code to join this game">${qr}</div>` : '') +
+    `<div><div class="bs-say" style="text-align:left;margin:0 0 .3em;">Join <b>${escapeHtml(gameTitle(game))}</b>. Scan the code, or enter</div>` +
+    `<div class="bs-code">${escapeHtml(bsCode)}</div><div class="bs-url">${escapeHtml(joinLink(bsCode))}</div>` +
+    `<div class="bs-side"><h3>Players (${uids.length + botsComing.length}/${MAX_PLAYERS})</h3>` +
+    `<div class="bs-pills">${uids.map(u => `<span class="bs-pill" style="background:${playerColor(u).bg};color:${playerColor(u).fg};border-color:${playerColor(u).bg};">${bsName(u)}</span>`).join('')}${botPills}</div></div>` +
+    `<p class="bs-note" style="text-align:left;">${escapeHtml(game.hostName || 'The host')} starts the game when everyone is in.</p></div></div></div>`;
+}
+function bsGenerating(r){
+  // Its own quip rotation (the phones' one belongs to their loading screen).
+  const now = Date.now();
+  if(!bsQuip || now - bsQuip.at > (bsQuip.q.a ? RIDDLE_MS : QUIP_MS)) bsQuip = { q: drawQuip(), at: now };
+  const q = bsQuip.q;
+  const body = q.d ? `<span class="term">${escapeHtml(q.d)}</span> ${escapeHtml(q.t)}` : escapeHtml(q.t);
+  const ans = q.a && now - bsQuip.at >= RIDDLE_ANSWER_MS ? `<span class="qa">${escapeHtml(q.a)}</span>` : '';
+  const watch = $('gen-stopwatch').outerHTML.replace(' id="gen-stopwatch"', '').replace(/\sstyle="[^"]*"/, '');
+  return `<div class="bs-wrap" style="justify-content:center;">${watch}` +
+    `<p class="bs-say big">${r.genFailed ? 'Still looking for a fresh item' : 'Finding a fresh item'}&hellip;</p>` +
+    `<p class="bs-note">${escapeHtml(formatRoundLabel(r))}</p>` +
+    `<div class="gen-quip"><span class="qtext">${body}${ans}</span></div></div>`;
+}
+function bsWriting(r){
+  const p = bsPillsFor(r.submissions, pendingBots(r));
+  return `<div class="bs-wrap">${bsTop(r)}<p class="bs-say">Everyone is writing a bluff on their phone.</p>` +
+    `${p.html}<p class="bs-note">${p.inCount} of ${p.expected.length} in</p></div>`;
+}
+function bsReading(r){
+  const order = r.shuffleOrder || [];
+  const shown = readPosOf(r);
+  const reader = bsName(r.readerUid);
+  const rows = order.slice(0, shown).map((id, i) =>
+    `<div class="bs-row ${i === shown - 1 ? 'current' : 'read'}">${escapeHtml(tidy(readEntryText(r, id)))}</div>`).join('');
+  const say = shown === 0 ? `📖 <b>${reader}</b> is the Reader. Listen first, vote next.`
+    : shown >= order.length ? `That's all of them. Waiting for <b>${reader}</b> to send them to your phones.`
+    : `📖 <b>${reader}</b> is reading.`;
+  return `<div class="bs-wrap">${bsTop(r)}<p class="bs-say">${say}</p><div class="bs-list">${rows}</div></div>`;
+}
+function bsVoting(r){
+  // Everyone's shared order, with nobody's own entry moved: no authors, no mark on the real one.
+  const rows = (r.shuffleOrder || []).map(id => `<div class="bs-row">${escapeHtml(tidy(readEntryText(r, id)))}</div>`).join('');
+  const p = bsPillsFor(r.votes);
+  return `<div class="bs-wrap">${bsTop(r)}<p class="bs-say">Vote on your phone: which one is real?${game.settings && game.settings.crowdFunny ? ' And which is funniest?' : ''}</p>` +
+    `<div class="bs-cols"><div class="bs-list">${rows}</div><div class="bs-side"><h3>Voted (${p.inCount} of ${p.expected.length})</h3>${p.html.replace('class="bs-pills"', 'class="bs-pills" style="justify-content:flex-start;margin:0;"')}</div></div></div>`;
+}
+function bsReveal(r){
+  const tally = {};
+  Object.values(r.votes || {}).forEach(v => { if(v.real) tally[v.real] = (tally[v.real] || 0) + 1; });
+  const seat = Object.keys(game.players || {});
+  const rows = (r.shuffleOrder || []).map(id => {
+    const isReal = id === 'REAL';
+    let flags = '';
+    if(isReal) flags += `<span class="flag real">REAL ANSWER</span>`;
+    else { const a = r.submissions && r.submissions[id] && r.submissions[id].author; const c = playerColor(a);
+      flags += `<span class="flag author" style="background:${c.bg};color:${c.fg};">${bsName(a)}</span>`; }
+    const n = tally[id] || 0;
+    if(n) flags += `<span class="flag votes">${n} vote${n === 1 ? '' : 's'}</span>`;
+    if(r.cccCloseIds && r.cccCloseIds.includes(id)) flags += `<span class="flag ccc">🎯 close call</span>`;
+    Object.entries(r.votes || {}).filter(([voter, v]) => v.funny === id && voter !== id).map(([voter]) => voter)
+      .sort((a, b) => seat.indexOf(a) - seat.indexOf(b))
+      .forEach(u => { flags += laughHtml(playerColor(u).bg, game.players[u] ? game.players[u].name : ''); });
+    return `<div class="bs-row${isReal ? ' real' : ''}">${escapeHtml(tidy(readEntryText(r, id)))}<div class="flags">${flags}</div></div>`;
+  }).join('');
+  return `<div class="bs-wrap">${bsTop(r)}<div class="bs-cols"><div class="bs-list">${rows}</div>` +
+    `<div class="bs-side"><h3>Standings</h3>${bsStandings(r)}</div></div></div>`;
+}
+function bsFinal(){
+  const sorted = scoreboard();
+  const top = sorted.length ? sorted[0][1].score : 0;
+  const winners = sorted.filter(([, p]) => p.score === top).length;
+  const awards = statAwards(sorted);
+  const stat = (icon, n, label) => `<span class="gs-stat${n ? '' : ' zero'}" title="${label}"><span class="emo">${icon}</span><b>${n || 0}</b></span>`;
+  const rows = sorted.map(([uid, p], i) => {
+    const col = playerColor(uid), st = p.stats || {}, win = p.score === top;
+    return `<div class="gs-line"><div class="leader-row colored${win ? ' first' : ''}" style="background:${col.bg};color:${col.fg};">` +
+      `<span class="rank">${i + 1}</span><span class="gs-name">${escapeHtml(p.name)}${win ? ' 👑' : ''}</span>` +
+      `<span class="gs-stats">${stat('✅', st.correct, 'Spotted the real one')}${stat(CARDS_ICON, st.fooled, 'Fooled someone')}${stat('😂', st.funny, 'Funniest votes')}</span>` +
+      `<span class="score">${p.score}</span></div><div class="gs-awards">${(awards[uid] || []).map(k => STAT_CROWNS[k].html(STAT_CROWNS[k].label)).join('')}</div></div>`;
+  }).join('');
+  return `<div class="bs-wrap bs-final"><p class="bs-say big">${winners > 1 ? "It's a tie at the top!" : 'Final scores'}</p>${rows}` +
+    `<p class="bs-note">✅ spotted the real one · fooled someone · 😂 funniest votes</p></div>`;
+}
+
+function renderBigScreen(){
+  if(!bigScreen || !game) return;
+  const r = game.round;
+  let html, endsAt = null, countUp = null;
+  if(game.status === 'lobby') html = bsLobby();
+  else if(game.status === 'ended') html = bsFinal();
+  else if(!r) html = `<div class="bs-wrap"><p class="bs-say big" style="margin:auto;">Getting ready&hellip;</p></div>`;
+  else if(r.phase === 'generating'){ html = bsGenerating(r); countUp = r.genStartedAt || null; }
+  else if(r.phase === 'writing'){ html = bsWriting(r); endsAt = r.phaseEndsAt; }
+  else if(r.phase === 'reading'){ html = bsReading(r); endsAt = r.phaseEndsAt; }
+  else if(r.phase === 'voting'){ html = bsVoting(r); endsAt = r.phaseEndsAt; }
+  else if(r.phase === 'reveal') html = bsReveal(r);
+  else html = `<div class="bs-wrap"><p class="bs-say big" style="margin:auto;">&hellip;</p></div>`;
+
+  if(html !== bsHtml){ bsHtml = html; $('bs-main').innerHTML = html; fitBigScreen(); }
+
+  const t = $('bs-timer');
+  if(endsAt){ const left = endsAt - Date.now(); t.textContent = fmtTime(left); t.classList.toggle('low', left < 15000); }
+  else if(countUp){ t.textContent = fmtTime(Date.now() - countUp); t.classList.remove('low'); }
+  else { t.textContent = ''; t.classList.remove('low'); }
+
+  // The round leader's mic drop plays here too, on a live reveal.
+  const key = r ? `${game.status}-${r.index}-${r.phase}` : game.status;
+  if(key !== bsPhaseKey){
+    const fresh = bsPhaseKey !== null;
+    bsPhaseKey = key;
+    if(fresh && r && r.phase === 'reveal' && game.status === 'playing' && r.revealedAt && Date.now() - r.revealedAt < 8000) showRoundLeaderSplash(r);
+  }
+}
+// Long lists on a small TV: shrink the type until the page fits, never below 55%.
+function fitBigScreen(){
+  const box = $('bigscreen'), main = $('bs-main');
+  let s = 1;
+  // Animations off while measuring: a row sliding in would read as overflow.
+  box.classList.add('bs-measuring');
+  box.style.setProperty('--bs-scale', s);
+  while(s > 0.55 && main.scrollHeight > main.clientHeight + 2){
+    s = Math.round((s - 0.05) * 100) / 100;
+    box.style.setProperty('--bs-scale', s);
+  }
+  box.classList.remove('bs-measuring');
+}
+window.addEventListener('resize', () => { if(bigScreen) fitBigScreen(); });
+
 (async () => {
+  // A Big Screen (?screen=CODE, or this tab was one before a refresh) skips
+  // everything a player's tab does: no resume, no intro, no join prompt.
+  const screenCode = bigScreenCodeAtBoot();
+  if(screenCode){
+    try{
+      const snap = await getDoc(doc(db, GAMES, screenCode));
+      if(snap.exists()){ enterBigScreen(screenCode); return; }
+      leaveBigScreen(`No game with code ${screenCode}. It may have ended.`);
+      openIntro();
+      return;
+    }catch(err){ console.error('Big Screen start-up failed:', err); try{ sessionStorage.removeItem(BS_KEY); }catch(e){} }
+  }
   const joinCode = takeJoinParam();
   const resumed = await tryResume();
   if(joinCode && !(resumed && currentGameCode === joinCode)){
