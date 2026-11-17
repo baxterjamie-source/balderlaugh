@@ -505,6 +505,10 @@
   .bs-leave{position:fixed;right:1.2vw;bottom:1.2vh;z-index:46;opacity:.7;}
   .bs-leave:hover,.bs-leave:focus-visible{opacity:1;}
   .bs-join{margin-top:6px;}
+  /* Version label, bottom left on every screen (bump APP_VERSION in the script). */
+  .app-version{position:fixed;left:calc(env(safe-area-inset-left,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 6px);z-index:47;
+    font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;pointer-events:none;user-select:none;}
+  body.bigscreen .app-version{font-size:14px;left:1.2vw;bottom:1.2vh;}
   .bs-join .note{margin-bottom:6px;}
 
   @media (prefers-reduced-motion: reduce){
@@ -902,6 +906,8 @@
   <button class="btn ghost small bs-leave" id="btn-bs-leave" type="button">Leave Big Screen</button>
 </div>
 
+<div class="app-version" id="app-version">v2.1</div>
+
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <!-- Round-leader splash ("mic drop") — sits above every screen -->
@@ -1066,6 +1072,8 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const functionsClient = getFunctions(app); // default region (us-central1) — must match wherever judge-function is deployed
 const GAMES = "balderlaugh_games";
+const APP_VERSION = '2.1'; // shown bottom left; bump with each release
+document.getElementById('app-version').textContent = `v${APP_VERSION}`;
 
 // ---- 2. ITEM CONTENT (words/people/movies + real answers) -----------------
 // PRIMARY: live-generated per round via the generateItem Cloud Function,
