@@ -1,6 +1,11 @@
 // Offline tests for functions/index.js — no Firebase or API key needed.
 // Run from the repo folder:  node tests/functions-tests.js
 process.argv[2] = require('path').join(__dirname, '..', 'functions', 'index.js');
+// The functions' own npm packages (e.g. the English word list behind the
+// slip checks) must be installed, or those steps quietly skip and the tests
+// fail in confusing ways. Say so plainly instead.
+try { require.resolve('an-array-of-english-words', { paths: [require('path').join(__dirname, '..', 'functions')] }); }
+catch { console.error('Missing functions dependencies. Run first:  (cd functions && npm ci)'); process.exit(1); }
 const { fns, store, claude } = require('./fake-firebase.js');
 const wc = t => String(t).trim().split(/\s+/).filter(Boolean).length;
 let pass = 0, fail = 0;

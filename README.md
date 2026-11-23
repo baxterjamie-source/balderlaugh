@@ -498,6 +498,7 @@ Functions run on Node 22 (`functions/package.json`); Google retires Node 20
 on 2026-10-30.
 
 ## Offline tests
+Install the functions' packages once with `(cd functions && npm ci)`, then
 `node tests/functions-tests.js` runs the real `functions/index.js` against a
 fake Firestore and a fake Claude (no Firebase login or API key needed):
 length decks, retries, rewrites, generateBotBluffs, judgeBotFunniest,
