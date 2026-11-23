@@ -12,6 +12,11 @@
   and vote counts → scoring → standings → next round → final leaderboard
 - Scoring: +2 for correctly spotting the real answer, +1 to a bluff's author for
   each player it fools
+- Laggard nudges while writing bluffs: a growing "X of Y bluffs in" line under
+  the box, a thick border (green → amber past halfway → red if you're the last
+  one), a who's-still-writing list with finished names struck through (phones
+  and Big Screen), and snail/tortoise/sloth roasts for the last two (tables of
+  4+) and the last one — bots included
 - Auto-advances phases the moment everyone's submitted/voted, and any player's
   device (not just the host's) can trigger that advance — so a locked/backgrounded
   host phone can't stall the room

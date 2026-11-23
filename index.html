@@ -292,6 +292,20 @@
   .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
   .sheet-head .x{width:40px;height:40px;border-radius:50%;border:none;background:var(--parchment);color:var(--ink);font-size:20px;font-weight:700;cursor:pointer;}
   .paste-note{font-size:13px;color:var(--gold);min-height:1em;margin-top:6px;}
+  /* Writing-phase nudges: a thick border that goes green → amber (over half
+     the table's in) → red (you're the last one), a "how many are in" line
+     that grows with every bluff that lands, and a who's-still-writing list. */
+  #writing-textarea{border-width:4px;border-color:#3FA34D;transition:border-color .4s ease;}
+  #writing-textarea.lvl-amber{border-color:#E8A317;}
+  #writing-textarea.lvl-red{border-color:#E5484D;}
+  #writing-textarea:focus{outline:none;}
+  .nudge{text-align:center;color:var(--text-light);font-weight:600;line-height:1.3;margin-top:10px;transition:font-size .3s ease;}
+  .nudge:empty{display:none;}
+  #writing-slow{color:var(--gold);}
+  .nudge .quip{display:block;color:var(--gold);font-weight:500;margin-top:4px;font-size:.8em;}
+  .np-pills{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:12px 0 4px;}
+  .np-pill{display:inline-flex;align-items:center;padding:4px 11px;border-radius:999px;font-size:13px;font-weight:600;border:2px solid;color:var(--text-light);}
+  .np-pill.done,.bs-pill.done{text-decoration:line-through;text-decoration-thickness:.12em;opacity:.55;}
   /* Scan-to-join QR (white card so any phone camera reads it) */
   .qr-sheet{z-index:59;background:rgba(10,12,18,.94);}
   .qr-card{background:#fff;color:var(--ink);border-radius:20px;padding:18px 18px 16px;text-align:center;box-shadow:var(--shadow);}
@@ -469,6 +483,7 @@
   .bs-say{text-align:center;font-size:1.25em;margin:0 0 .9em;line-height:1.35;}
   .bs-say.big{font-family:'Fraunces',serif;font-size:2em;font-weight:600;}
   .bs-note{text-align:center;color:#B6BDCC;font-size:.9em;margin-top:.8em;}
+  .bs-say.slow{color:var(--gold);margin-top:.8em;}
   .bs-list{display:flex;flex-direction:column;gap:.55em;max-width:min(1500px,86vw);width:100%;margin:0 auto;}
   .bs-row{background:var(--parchment);color:var(--text-dark);border-radius:14px;padding:.6em 1em;line-height:1.35;border:3px solid transparent;animation:readin .4s ease;}
   .bs-row.read{background:#CFC3AA;color:#4A4436;}
@@ -721,12 +736,15 @@
       <label id="writing-label" for="writing-textarea">Write a believable definition</label>
       <textarea id="writing-textarea" maxlength="220" placeholder="Make it sound real..."></textarea>
       <div class="paste-note" id="paste-note"></div>
+      <div class="nudge" id="writing-nudge" aria-live="polite"></div>
       <button class="btn" id="btn-submit-bluff" style="margin-top:14px;">Submit bluff</button>
     </div>
     <div id="writing-submitted" style="display:none;">
       <div class="waiting">
         <div id="writing-submitted-msg">Nice bluff. Waiting on everyone else&hellip;</div>
         <div class="count" id="writing-count">0 / 0</div>
+        <div class="np-pills" id="writing-pills"></div>
+        <div class="nudge" id="writing-slow" aria-live="polite"></div>
       </div>
     </div>
     <div id="writing-sitting-out" class="card" style="display:none;text-align:center;">
@@ -1079,7 +1097,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const functionsClient = getFunctions(app); // default region (us-central1) — must match wherever judge-function is deployed
 const GAMES = "balderlaugh_games";
-const APP_VERSION = '2.1'; // shown bottom left; bump with each release
+const APP_VERSION = '2.2'; // shown bottom left; bump with each release
 document.getElementById('app-version').textContent = `v${APP_VERSION}`;
 // Bottom right: the code of the game this screen is in (player or Big Screen).
 function updateCornerCode(){
@@ -2405,6 +2423,7 @@ function renderWriting(isNew){
   const showCount = () => {
     const p = phaseProgress(r.submissions, pendingBots(r));
     $('writing-count').textContent = `${p.inCount} / ${p.total}`;
+    updateWritingNudges(r);
     return p;
   };
   const progress = showCount();
@@ -2594,7 +2613,107 @@ function renderReading(isNew){
   });
 }
 
+// ---- Laggard nudges (writing phase) --------------------------------------
+// Everyone sees who's still writing: phones (after they submit) and the Big
+// Screen get the name list with finished names struck through, and the last
+// two (tables of 4+) or the very last one get a gentle roast. The writer
+// still at it gets a growing "X of Y in" line and a border that turns amber
+// past halfway (tables of 4+) and red when they're the last one.
+// {n} = the last one, {a}/{b} = the last two, {o} = the other of the last two.
+const SLOW_ONE = [
+  "Genius cannot be rushed. So what's {n}'s excuse?",
+  "{n} is snail-maxing. 🐌",
+  "A tortoise just lapped {n}. 🐢",
+  "{n} has entered full sloth mode. 🦥",
+  "Somewhere a snail is checking its watch, waiting on {n}. 🐌",
+  "{n} is writing it in calligraphy, apparently.",
+  "Everyone's in but {n}. No pressure, {n}. 👀",
+  "{n} says it's slow-cooked. The sloths approve. 🦥",
+];
+const SLOW_BOT = [
+  "{n} is buffering… 🐌",
+  "{n} is thinking very hard, at sloth speed. 🦥",
+  "Even {n}'s circuits run on tortoise time. 🐢",
+];
+const SLOW_TWO = [
+  "It's a slow race between {a} and {b}. 🐢🐌",
+  "{a} and {b}: the sloth sanctuary is open. 🦥",
+  "Place your bets: will {a} or {b} be the last snail home? 🐌",
+  "Genius cannot be rushed. {a} and {b} are testing that theory.",
+  "{a} and {b} are out-tortoising each other. 🐢",
+];
+const YOU_LAST = [
+  "Everyone's waiting on you. Even the snails are in. 🐌",
+  "Genius cannot be rushed… but the room can be. Submit!",
+  "You're the last one. The tortoise finished and went home. 🐢",
+  "Full sloth mode detected. 🦥 Everyone else is in.",
+];
+const YOU_TWO = [
+  "It's you and {o} bringing up the rear. 🐢",
+  "Last two! Don't let {o} beat you to it. 🐌",
+  "You and {o}: the tortoise and… the other tortoise. 🐢🐢",
+  "You and {o} are on sloth time. 🦥",
+];
+// Same line on every screen for the same moment (no flicker on each tick).
+function pickLine(list, seed){
+  let h = 0; for(const c of seed) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return list[Math.abs(h) % list.length];
+}
+function fillLine(t, names){ return escapeHtml(t).replace(/\{(\w)\}/g, (_, k) => names[k] || ''); }
+function writingStatus(r){
+  const w = whoIsIn(r.submissions, pendingBots(r));
+  const total = w.expected.length;
+  const left = w.expected.filter(u => !w.isIn(u));
+  const big = total >= 4;
+  const tier = total >= 2 && left.length === 1 ? 'last' : (big && left.length === 2 ? 'last2' : null);
+  return { ...w, total, left, big, tier };
+}
+// The roast for this moment, as HTML. `me` is the viewer if they're still writing.
+function slowpokeLine(r, st, me){
+  if(!st.tier) return '';
+  const seed = `${r.index}|${r.term}|${st.left.join(',')}`;
+  const nm = u => `<b>${bsName(u)}</b>`;
+  if(me && st.left.includes(me)){
+    if(st.tier === 'last') return fillLine(pickLine(YOU_LAST, seed), {});
+    return fillLine(pickLine(YOU_TWO, seed), { o: nm(st.left.find(u => u !== me)) });
+  }
+  if(st.tier === 'last'){ const u = st.left[0]; return fillLine(pickLine(isBot(u) ? SLOW_BOT : SLOW_ONE, seed), { n: nm(u) }); }
+  return fillLine(pickLine(SLOW_TWO, seed), { a: nm(st.left[0]), b: nm(st.left[1]) });
+}
+// Who's writing, finished names struck through (cls: 'np-pill' or 'bs-pill').
+function namePills(st, cls){
+  return st.expected.map(u => {
+    const col = playerColor(u), done = st.isIn(u);
+    const style = done ? `background:${col.bg};color:${col.fg};border-color:${col.bg};` : `border-color:${col.bg};`;
+    return `<span class="${cls}${done ? ' done' : (cls === 'bs-pill' ? ' out' : '')}" style="${style}">${isBot(u) ? '🤖 ' : ''}${bsName(u)}</span>`;
+  }).join('');
+}
+function setHtml(id, html){ const el = $(id); if(el.dataset.html !== html){ el.dataset.html = html; el.innerHTML = html; } }
+// Runs on every snapshot and timer tick (bots come in on the clock).
+function updateWritingNudges(r){
+  const st = writingStatus(r);
+  const stillWriting = st.left.includes(myUid);
+  // Me, still writing: the border and the growing "X of Y in" line.
+  const lvl = stillWriting && st.tier === 'last' ? 'red' : (st.big && st.inCount / st.total > 0.5 ? 'amber' : 'green');
+  const ta = $('writing-textarea');
+  ta.classList.toggle('lvl-amber', lvl === 'amber');
+  ta.classList.toggle('lvl-red', lvl === 'red');
+  let nudge = '';
+  if(stillWriting && st.total >= 2){
+    const head = st.inCount === 0 ? 'No bluffs in yet.'
+      : `${st.inCount} of ${st.total} bluff${st.total === 1 ? '' : 's'} in.`;
+    const quip = slowpokeLine(r, st, myUid);
+    nudge = head + (quip ? `<span class="quip">${quip}</span>` : '');
+  }
+  setHtml('writing-nudge', nudge);
+  $('writing-nudge').style.fontSize = `${Math.min(28, 14 + 2 * st.inCount)}px`;
+  // Everyone who's done: the name list and the roast.
+  setHtml('writing-pills', st.total >= 2 ? namePills(st, 'np-pill') : '');
+  setHtml('writing-slow', stillWriting ? '' : slowpokeLine(r, st, null));
+}
+
 // ---- 10. VOTING ---------------------------------------------------------
+let voteDraft = { key: null, real: null, funny: null }; // this player's unsubmitted picks
 function renderVoting(isNew){
   const r = game.round;
   $('voting-round-pill').textContent = formatRoundLabel(r);
@@ -2614,7 +2733,13 @@ function renderVoting(isNew){
   // The real answer text is already on the round doc — it was fetched
   // from Firestore once, right when voting began (see maybeAdvanceFromWriting).
 
-  let selectedReal = null, selectedFunny = null;
+  // Your picks live outside this function (voteDraft), because it re-runs on
+  // EVERY game-doc snapshot — e.g. each time another player submits their
+  // votes. Keeping them in locals here wiped your unsubmitted picks whenever
+  // someone else voted. They reset only when a new round's voting starts.
+  const draftKey = `${currentGameCode}:${r.index}:${r.term}`;
+  if(voteDraft.key !== draftKey) voteDraft = { key: draftKey, real: null, funny: null };
+  let selectedReal = voteDraft.real, selectedFunny = voteDraft.funny;
   const existingVote = r.votes && r.votes[myUid];
   if(existingVote){ selectedReal = existingVote.real; selectedFunny = existingVote.funny; }
   const already = !!existingVote;
@@ -2645,14 +2770,14 @@ function renderVoting(isNew){
         realChip.type = 'button';
         realChip.className = 'vote-chip real' + (selectedReal===id ? ' selected' : '');
         realChip.textContent = 'Real';
-        realChip.onclick = () => { selectedReal = id; buildList(); updateSubmitEnabled(); };
+        realChip.onclick = () => { selectedReal = voteDraft.real = id; buildList(); updateSubmitEnabled(); };
         chips.appendChild(realChip);
         if(game.settings.crowdFunny){
           const funnyChip = document.createElement('button');
           funnyChip.type = 'button';
           funnyChip.className = 'vote-chip funny' + (selectedFunny===id ? ' selected' : '');
           funnyChip.textContent = '😂 Funniest';
-          funnyChip.onclick = () => { selectedFunny = id; buildList(); updateSubmitEnabled(); };
+          funnyChip.onclick = () => { selectedFunny = voteDraft.funny = id; buildList(); updateSubmitEnabled(); };
           chips.appendChild(funnyChip);
         }
         div.appendChild(chips);
@@ -3640,7 +3765,7 @@ function bsPill(uid, out){
 }
 // Who's in, one uid at a time — the same rule as phaseProgress, so the Big
 // Screen never shows a bot "in" before the phones count it.
-function bsWhoIsIn(entries, pending = []){
+function whoIsIn(entries, pending = []){
   entries = entries || {};
   const now = Date.now();
   const active = activePlayerUids();
@@ -3654,7 +3779,7 @@ function bsWhoIsIn(entries, pending = []){
   return { expected, isIn, inCount: expected.filter(isIn).length };
 }
 function bsPillsFor(entries, pending){
-  const w = bsWhoIsIn(entries, pending);
+  const w = whoIsIn(entries, pending);
   return { html: `<div class="bs-pills">${w.expected.map(u => bsPill(u, !w.isIn(u))).join('')}</div>`, ...w };
 }
 function bsTop(r){
@@ -3706,9 +3831,11 @@ function bsGenerating(r){
     `<div class="gen-quip"><span class="qtext">${body}${ans}</span></div></div>`;
 }
 function bsWriting(r){
-  const p = bsPillsFor(r.submissions, pendingBots(r));
+  const st = writingStatus(r);
+  const slow = slowpokeLine(r, st, null);
   return `<div class="bs-wrap">${bsTop(r)}<p class="bs-say">Everyone is writing a bluff on their phone.</p>` +
-    `${p.html}<p class="bs-note">${p.inCount} of ${p.expected.length} in</p></div>`;
+    `<div class="bs-pills">${namePills(st, 'bs-pill')}</div><p class="bs-note">${st.inCount} of ${st.total} in</p>` +
+    (slow ? `<p class="bs-say slow">${slow}</p>` : '') + `</div>`;
 }
 function bsReading(r){
   const order = r.shuffleOrder || [];
