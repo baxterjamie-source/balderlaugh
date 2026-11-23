@@ -304,15 +304,13 @@
   #writing-slow,#voting-slow{color:var(--gold);}
   /* Fixed-height box between the bluff box and Submit: the message and the
      name chips change inside it, so the button never moves under a thumb. */
-  .nudge-box{height:170px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;}
+  .nudge-box{height:48px;overflow:hidden;}
   .nudge-box .nudge{margin-top:8px;}
-  .nudge-box .np-pills{margin:8px 0 0;}
   /* Voting: chips under the timer; the roast line keeps its height even when
      empty, so the answers below never jump while people are tapping. */
-  #voting-pills{margin:2px 0 4px;}
-  #voting-slow{font-size:14px;min-height:2.6em;margin:0 0 6px;}
-  #voting-slow:empty{display:block;}
-  .nudge .quip{display:block;color:var(--gold);font-weight:500;margin-top:4px;font-size:.8em;}
+  #voting-pills,#writing-pills{margin:2px 0 4px;}
+  #voting-slow,#writing-slow{font-size:14px;min-height:2.6em;margin:0 0 6px;}
+  #voting-slow:empty,#writing-slow:empty{display:block;}
   .np-pills{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:12px 0 4px;}
   .np-pill{display:inline-flex;align-items:center;padding:4px 11px;border-radius:999px;font-size:13px;font-weight:600;border:2px solid;color:var(--text-light);}
   .np-pill.done,.bs-pill.done{text-decoration:line-through;text-decoration-thickness:.12em;opacity:.55;}
@@ -746,6 +744,8 @@
       <div class="round-corner" id="writing-round-pill">Round 1 of 6</div>
     </div>
     <div class="timer" id="writing-timer">1:30</div>
+    <div class="np-pills" id="writing-pills"></div>
+    <div class="nudge" id="writing-slow" aria-live="polite"></div>
 
     <div id="writing-input-area">
       <label id="writing-label" for="writing-textarea">Write a believable definition</label>
@@ -753,7 +753,6 @@
       <div class="paste-note" id="paste-note"></div>
       <div class="nudge-box">
         <div class="nudge" id="writing-nudge" aria-live="polite"></div>
-        <div class="np-pills" id="writing-mypills"></div>
       </div>
       <button class="btn" id="btn-submit-bluff" style="margin-top:6px;">Submit bluff</button>
     </div>
@@ -761,8 +760,6 @@
       <div class="waiting">
         <div id="writing-submitted-msg">Nice bluff. Waiting on everyone else&hellip;</div>
         <div class="count" id="writing-count">0 / 0</div>
-        <div class="np-pills" id="writing-pills"></div>
-        <div class="nudge" id="writing-slow" aria-live="polite"></div>
       </div>
     </div>
     <div id="writing-sitting-out" class="card" style="display:none;text-align:center;">
@@ -2746,20 +2743,13 @@ function updateWritingNudges(r){
   const ta = $('writing-textarea');
   ta.classList.toggle('lvl-amber', lvl === 'amber');
   ta.classList.toggle('lvl-red', lvl === 'red');
-  let nudge = '';
-  if(stillWriting && st.total >= 2){
-    const head = st.inCount === 0 ? 'No bluffs in yet.'
-      : `${st.inCount} of ${st.total} bluff${st.total === 1 ? '' : 's'} in.`;
-    const quip = slowpokeLine(r, st, myUid);
-    nudge = head + (quip ? `<span class="quip">${quip}</span>` : '');
-  }
-  setHtml('writing-nudge', nudge);
-  // Grows with each bluff in; capped so it always fits the fixed box.
+  // Under the box: just the count, growing with each bluff in (capped to fit its slot).
+  setHtml('writing-nudge', stillWriting && st.total >= 2
+    ? (st.inCount === 0 ? 'No bluffs in yet.' : `${st.inCount} of ${st.total} bluffs in.`) : '');
   $('writing-nudge').style.fontSize = `${Math.min(24, 14 + 2 * st.inCount)}px`;
-  setHtml('writing-mypills', stillWriting && st.total >= 2 ? namePills(st, 'np-pill') : '');
-  // Everyone who's done: the name list and the roast.
+  // Under the timer, for everyone (as on the voting screen): the chips and the roast.
   setHtml('writing-pills', st.total >= 2 ? namePills(st, 'np-pill') : '');
-  setHtml('writing-slow', stillWriting ? '' : slowpokeLine(r, st, null));
+  setHtml('writing-slow', slowpokeLine(r, st, myUid));
 }
 // Voting: everyone's chips from the start, struck through as they vote, and
 // the roast for the last two (tables of 4+) / the last one.
